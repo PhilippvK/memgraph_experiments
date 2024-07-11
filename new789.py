@@ -3,6 +3,10 @@ from neo4j import GraphDatabase
 import networkx as nx
 from networkx.drawing.nx_agraph import write_dot
 import matplotlib.pyplot as plt
+import pandas as pd
+import plotly.express as px
+import numpy as np
+
 
 driver = GraphDatabase.driver('bolt://localhost:7687', auth=("", ""))
 
@@ -10,6 +14,7 @@ SESSION = "default"
 
 MAX_INPUTS = 3
 MAX_OUTPUTS = 2
+MAX_NODES = 5
 
 from anytree import AnyNode, RenderTree
 from anytree.iterators import AbstractIter
@@ -346,6 +351,8 @@ def gen_tree(GF, sub, inputs, outputs):
         treegen.defs[outp] = name
         # ret[name] = root
         ret[name] = res
+        # print("res", res)
+        # print(RenderTree(res))
         if res.name in ["SD", "SW", "SH", "SB", "BEQ", "BNE"]:
             root = res;
             ret_.append(root)
@@ -488,8 +495,8 @@ ORDER BY size(collections.union(nodes(p0), nodes(p1))) desc;
 """
 
 func_results = driver.session().run(query_func)
-results = driver.session().run(query)
-# results = driver.session().run(query_2x1to3)
+# results = driver.session().run(query)
+results = driver.session().run(query_2x1to3)
 # print("results", results, dir(results))
 # print("results.df", results.to_df())
 # nodes = list(func_results.graph()._nodes.values())
@@ -561,8 +568,6 @@ for i, result in enumerate(results):
         pass
         # input("2")
     subs.append(G_)
-
-# print("subs", subs)
 
 # for i, result in enumerate(results):
 #     print("result", result, i, dir(result), result.data())
@@ -689,15 +694,46 @@ def calc_outputs(G, sub):
    return ret, outputs
 
 
+# print("subs", subs, len(subs))
+# isos = set()
+# for i, sub in enumerate(subs):
+#     print("sub", sub, sub.nodes)
+#     nm = lambda x, y: x["label"] == y["label"]
+#     isos_ = set(j for j, sub_ in enumerate(subs) if j > i and nx.is_isomorphic(sub, sub_, node_match=nm))
+#     iso_count = len(isos_)
+#     isos |= isos_
+#     print("iso_count", iso_count)
+# print("isos", isos, len(isos))
+# input("%%%")
+
+
+io_subs = []
 all_codes = {}
+errs = set()
+filtered_io = set()
+filtered_complex = set()
+invalid = set()
 duplicate_counts = defaultdict(int)
+
+
+subs_df = pd.DataFrame({"result": list(range(len(subs)))})
+subs_df["Inputs"] = [np.array([])] * len(subs_df)
+subs_df["#Inputs"] = np.nan
+subs_df["InputsNC"] = [np.array([])] * len(subs_df)
+subs_df["#InputsNC"] = np.nan
+subs_df["Outputs"] = [np.array([])] * len(subs_df)
+subs_df["#Outputs"] = np.nan
+print("subs_df")
+print(subs_df)
 
 # if True:
 for i, sub in enumerate(subs):
-    print("===========================")
+    # if i in isos:
+    #     continue
     # i = 3
-    sub = subs[i]
+    # sub = subs[i]
     # print("topo", topo)
+    print("===========================")
     print("i, sub", i, sub)
     codes = []
     # for node in sorted(sub.nodes):
@@ -717,11 +753,84 @@ for i, sub in enumerate(subs):
     num_inputs, inputs = calc_inputs(GF, sub)
     num_inputs_noconst, inputs_noconst = calc_inputs(GF, sub, ignore_const=True)
     num_outputs, outputs = calc_outputs(GF, sub)
+    subs_df.at[i, "Inputs"] = set(inputs)
+    subs_df.loc[i, "#Inputs"] = num_inputs
+    subs_df.at[i, "InputsNC"] = set(inputs_noconst)
+    subs_df.loc[i, "#InputsNC"] = num_inputs_noconst
+    subs_df.at[i, "Outputs"] = set(outputs)
+    subs_df.loc[i, "#Outputs"] = num_outputs
     print("num_inputs", num_inputs)
     print("num_inputs_noconst", num_inputs_noconst)
     print("num_outputs", num_outputs)
     # print("inputs", [GF.nodes[inp] for inp in inputs])
     # print("outputs", [GF.nodes[outp] for outp in outputs])
+    io_sub = GF.subgraph(list(sub.nodes) + inputs)
+    # print("io_sub", io_sub)
+    # input("Q")
+    io_subs.append(io_sub)
+
+# print("io_subs", [str(x) for x in io_subs], len(io_subs))
+# input("%%%")
+io_isos = set()
+for i, io_sub in enumerate(io_subs):
+    # break  # TODO
+    # print("io_sub", i, io_sub, io_sub.nodes)
+    # print("io_sub nodes", [GF.nodes[n] for n in io_sub.nodes])
+    nm = lambda x, y: x["label"] == y["label"] and (x["label"] != "Const" or x["properties"]["inst"] == y["properties"]["inst"])
+    io_isos_ = set(j for j, io_sub_ in enumerate(io_subs) if j > i and nx.is_isomorphic(io_sub, io_sub_, node_match=nm))
+    # print("io_isos_", io_isos_)
+    io_iso_count = len(io_isos_)
+    # print("io_iso_count", io_iso_count)
+    io_isos |= io_isos_
+print("subs_df")
+print(subs_df)
+print("io_isos", io_isos, len(io_isos))
+input("%%%")
+
+for i, sub in enumerate(subs):
+    if i in io_isos:
+        continue
+    print("===========================")
+    print("i, sub", i, sub)
+    num_nodes = len(sub.nodes)
+    sub_data = subs_df.iloc[i]
+    inputs = sub_data["Inputs"]
+    num_inputs = int(sub_data["#Inputs"])
+    inputs_noconst = sub_data["InputsNC"]
+    num_inputs_noconst = int(sub_data["#InputsNC"])
+    outputs = sub_data["Outputs"]
+    num_outputs = int(sub_data["#Outputs"])
+    if num_inputs_noconst == 0 or num_outputs == 0:
+        # input("INVALID")
+        invalid.add(i)
+    elif num_inputs_noconst <= MAX_INPUTS and num_outputs <= MAX_OUTPUTS:
+        # input("OK")
+        pass
+        if num_nodes > MAX_NODES:
+            filtered_complex.add(i)
+    else:
+        # input("FILTERED")
+        filtered_io.add(i)
+
+for i, sub in enumerate(subs):
+    if i in io_isos or i in filtered_io or i in filtered_complex:
+        continue
+    print("===========================")
+    print("i, sub", i, sub)
+    sub_data = subs_df.iloc[i]
+    inputs = sub_data["Inputs"]
+    num_inputs = int(sub_data["#Inputs"])
+    inputs_noconst = sub_data["InputsNC"]
+    num_inputs_noconst = int(sub_data["#InputsNC"])
+    outputs = sub_data["Outputs"]
+    num_outputs = int(sub_data["#Outputs"])
+    # print("num_inputs", num_inputs)
+    # print("num_inputs_noconst", num_inputs_noconst)
+    # print("num_outputs", num_outputs)
+    # print("inputs", [GF.nodes[inp] for inp in inputs])
+    # print("inputs_noconst", [GF.nodes[inp] for inp in inputs_noconst])
+    # print("outputs", [GF.nodes[outp] for outp in outputs])
+    # input("?!")
     j = 0  # reg's
     # j_ = 0  # imm's
     for inp in inputs:
@@ -816,8 +925,9 @@ body: |
         print("Duplicate!")
         orig = list(all_codes.keys())[list(all_codes.values()).index(code)]
         duplicate_counts[orig] += 1
-        continue
-    all_codes[i] = code
+        # continue
+    else:
+        all_codes[i] = code
     desc = f"Inputs (with imm): {num_inputs}, Inputs (without imm): {num_inputs_noconst}, Outputs: {num_outputs}"
     if is_branch:
         desc += ", IsBranch"
@@ -833,19 +943,39 @@ body: |
         pass
         # input(">")
     # print("---------------------------")
-    tree, cdsl_code = gen_tree(GF, sub, inputs, outputs)
+    try:
+        tree, cdsl_code = gen_tree(GF, sub, inputs, outputs)
+    except AssertionError as e:
+        print(e)  # TODO: logger.exception
+        errs.add(i)
+        continue
     full_cdsl_code = wrap_cdsl(f"RESULT_{i}", cdsl_code)
     # print("tree", tree)
     # print("cdsl_code", cdsl_code)
     # TODO: add encoding etc.!
     with open(f"result{i}.core_desc", "w") as f:
         f.write(full_cdsl_code)
-    if num_inputs_noconst <= MAX_INPUTS and num_outputs < MAX_OUTPUTS:
-        pass
-        # input("123")
 
-if len(duplicate_counts) > 0:
-    print()
-    print("Duplicates:")
-    for orig, dups in duplicate_counts.items():
-        print(f"result{orig}:\t", dups)
+# if len(duplicate_counts) > 0:
+#     print()
+#     print("Duplicates:")
+#     for orig, dups in duplicate_counts.items():
+#         print(f"result{orig}:\t", dups)
+
+# subs_df["Iso"] = subs_df["result"].apply(lambda x: x in isos)
+subs_df["Label"] = "Selected"
+subs_df.loc[list(io_isos), "Label"] = "Iso"
+subs_df.loc[list(filtered_io), "Label"] = "Filtered (I/O)"
+subs_df.loc[list(filtered_complex), "Label"] = "Filtered (Complex)"
+subs_df.loc[list(invalid), "Label"] = "Invalid"
+subs_df.loc[list(errs), "Label"] = "Error"
+print("subs_df")
+print(subs_df)
+pie_df = subs_df.value_counts("Label").rename_axis("Label").reset_index(name="Count")
+print("pie_df")
+print(pie_df)
+fig = px.pie(pie_df, values="Count", names="Label", title="Candidates")
+fig.update_traces(hoverinfo='label+percent', textinfo='value')
+# fig.show()
+fig.write_image("pie.pdf")
+input("%")
