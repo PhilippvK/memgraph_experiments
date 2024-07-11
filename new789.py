@@ -8,7 +8,238 @@ driver = GraphDatabase.driver('bolt://localhost:7687', auth=("", ""))
 
 SESSION = "default"
 
+MAX_INPUTS = 3
+MAX_OUTPUTS = 2
+
 from anytree import AnyNode, RenderTree
+from anytree.iterators import AbstractIter
+
+
+XLEN = 64
+
+
+def wrap_cdsl(name, code):
+    ret = f"{name} {{\n"
+    ret += "\n".join(["    " + line for line in code.splitlines()]) + "\n"
+    ret += "}\n"
+    return ret
+
+
+# class CDSLEmitter(AbstractIter):
+class CDSLEmitter:
+
+    # def __init__(self, tree):
+    def __init__(self):
+        # self.tree = tree
+        self.output = ""
+
+    def write(self, text):
+        if not isinstance(text, str):
+            text = str(text)
+        self.output += text
+
+    def visit_ref(self, node):
+        self.write(node.name)
+
+    def visit_constant(self, node):
+        self.write("(")
+        self.write(node.value)  # TODO: dtype
+        self.write(")")
+
+    def visit_register(self, node):
+        assert len(node.children) == 1
+        idx = node.children[0]
+        self.write("X")
+        self.write("[")
+        self.visit(idx)
+        self.write("]")
+
+    def visit_assignment(self, node):
+        print("visit_assignment", node, node.children)
+        assert len(node.children) == 2
+        lhs, rhs = node.children
+        self.visit(lhs)
+        self.write("=")
+        self.visit(rhs)
+        self.write(";")
+
+    def visit_branch(self, node):
+        lookup = {
+            "BNE": ("!=", False),
+            "BEQ": ("==", False),
+        }
+        res = lookup.get(node.name)
+        assert res is not None
+        pred, imm = res
+        assert not imm, "Immediated branching not supported"
+        print("node.children", node.children)
+        assert len(node.children) == 2  # TODO: fix missing offset label
+        lhs, rhs = node.children
+        # TODO: check alignment
+        self.write("if(")
+        self.visit(lhs)
+        self.write(pred)
+        self.visit(rhs)
+        self.write(")")
+        self.write("{")
+        self.write("PC")
+        self.write("=")
+        self.write("PC")
+        self.write("+")
+        self.write("(signed)")
+        # self.visit(offset)
+        self.write("TODO")
+        self.write("}")
+
+    def visit_load(self, node):
+        lookup = {
+            "LH": (True, 16, True),
+            "LW": (True, 32, True),
+        }
+        res = lookup.get(node.name)
+        assert res is not None
+        signed, sz, imm = res
+        assert imm, "reg-reg loads not supported"
+        assert len(node.children) == 2
+        base, offset = node.children
+        self.write("(unsigned<XLEN>)")
+        self.write("(")
+        if signed:
+            self.write(f"(unsigned<{sz}>)")
+        else:
+            self.write(f"(signed<{sz}>)")
+        self.write("MEM[")
+        self.visit(base)
+        self.write("+")
+        self.visit(offset)
+        self.write("]")
+        self.write(")")
+
+    def visit_store(self, node):
+        lookup = {
+            "SW": (32, True),
+            "SH": (16, True),
+        }
+        res = lookup.get(node.name)
+        assert res is not None
+        sz, imm = res
+        assert imm, "reg-reg stores not supported"
+        assert len(node.children) == 3
+        value, base, offset = node.children
+        self.write("MEM[")
+        self.visit(base)
+        self.write("+")
+        self.visit(offset)
+        self.write("]")
+        self.write("=")
+        self.write("(")
+        self.write(f"(signed<{sz}>)")
+        self.visit(value)
+        self.write(")")
+        self.write(";")
+
+    def visit_lui(self, node):
+        self.write("lui(TODO)")
+
+    def visit_binop(self, node):
+        # TODO: imm needed?
+        lookup = {
+            "ADD": ("+", True, XLEN, False),
+            "ADDW": ("+", True, 32, False),
+            "ADDI": ("+", True, XLEN, True),
+            "ADDIW": ("+", True, 32, True),
+            "SUBW": ("-", True, 32, False),
+            "SRA": (">>", True, XLEN, False),
+            "SRAI": (">>", True, XLEN, True),
+            "SRLI": (">>", False, XLEN, True),
+            "SLL": ("<<", False, XLEN, False),
+            "SLLI": ("<<", False, XLEN, True),
+            "AND": ("&", False, XLEN, False),
+            "XOR": ("^", False, XLEN, False),
+            "ANDI": ("&", False, XLEN, True),
+            "MULW": ("*", True, 32, False),
+            "MUL": ("*", True, XLEN, False),
+        }
+        res = lookup.get(node.name)
+        assert res is not None
+        op, signed, sz, imm = res
+        # TODO: check imm (sign/sz?)
+        # TODO: dtype
+        self.write("(")
+        assert len(node.children) == 2
+        lhs, rhs = node.children
+        self.visit(lhs)
+        self.write(op)
+        self.visit(rhs)
+        self.write(")")
+
+    def visit_cond_set(self, node):
+        lookup = {
+            "SLT": ("<", True),
+            "SLTU": ("<", False)
+        }
+        res = lookup.get(node.name)
+        assert res is not None
+        pred, signed = res
+        assert len(node.children) == 2
+        lhs, rhs = node.children
+        self.write("(")
+        if signed:
+            self.write("(signed)")
+        self.visit(lhs)
+        self.write(pred);
+        if signed:
+            self.write("(signed)")
+        self.visit(rhs)
+        self.write("?")
+        self.write(1);
+        self.write(":")
+        self.write(0);
+        self.write(")")
+
+    def visit(self, node):
+        # print("visit", node)
+        op_type = node.op_type
+        # print("op_type", op_type)
+        if op_type == "assignment":
+            self.visit_assignment(node)
+        elif op_type == "ref":
+            self.visit_ref(node)
+        elif op_type == "constant":
+            self.visit_constant(node)
+        # TODO: implement this
+        elif op_type == "register":
+            self.visit_register(node)
+        else:
+            name = node.name
+            # print("name", name)
+            if name in ["ADDIW", "SRLI", "SLLI", "AND", "ANDI", "XOR", "ADD", "ADDI", "ADDW", "MULW", "MUL", "SRA", "SRAI", "SLL", "SUBW"]:
+                self.visit_binop(node)
+            elif name in ["SLT", "SLTU"]:
+                self.visit_cond_set(node)
+            elif name in ["BNE", "BEQ"]:
+                self.visit_branch(node)
+            elif name in ["LH", "LW"]:
+                self.visit_load(node)
+            elif name in ["SW", "SH"]:
+                self.visit_store(node)
+            elif name in ["LUI"]:
+                self.visit_lui(node)
+            else:
+                raise NotImplementedError(f"Unhandled: {name}")
+
+    # @staticmethod
+    # def _iter(children, filter_, stop, maxlevel):
+    #     print("_iter", children, filter_, stop, maxlevel)
+    #     for child_ in children:
+    #         if stop(child_):
+    #             continue
+    #         if filter_(child_):
+    #             yield child_
+    #         if not AbstractIter._abort_at_level(2, maxlevel):
+    #             descendantmaxlevel = maxlevel - 1 if maxlevel else None
+    #             for descendant_ in CDSLEmitter._iter(child_.children, filter_, stop, descendantmaxlevel):
+    #                 yield descendant_
 
 class TreeGenContext:
 
@@ -75,6 +306,7 @@ class TreeGenContext:
 
 def gen_tree(GF, sub, inputs, outputs):
     ret = {}
+    ret_ = []
     # print("gen_tree", GF, sub, inputs, outputs)
     topo = list(nx.topological_sort(GF))
     inputs = sorted(inputs, key=lambda x: topo.index(x))
@@ -91,19 +323,89 @@ def gen_tree(GF, sub, inputs, outputs):
         name = f"inp{j}"
         treegen.defs[inp] = name
         ret[name] = res
-        print(f"{name}:")
-        print(RenderTree(res))
+        if res.name[:2] == "$x":
+            idx = int(res.name[2:])
+            # TODO: make more generic to also work for assignments
+            ref_ = AnyNode(id=-1, name=res.name, op_type="constant", value=idx)
+            res = AnyNode(id=-1, name="X[?]", children=[ref_], op_type="register")
+        else:
+            name_ = f"rs{j+1}"
+            ref_ = AnyNode(id=-1, name=name_, op_type="ref")
+            res = AnyNode(id=-1, name="X[?]", children=[ref_], op_type="register")
+        ref = AnyNode(id=-1, name=name, op_type="ref")
+        root = AnyNode(id=-1, name="ASSIGN1", children=[ref, res], op_type="assignment")
+        ret_.append(root)
+        j += 1
+        # print(f"{name}:")
+        # print(RenderTree(res))
+    j = 0
     for i, outp in enumerate(outputs):
         res = treegen.visit(outp)
-        name = f"outp{i}"
+        # TODO: check for may_store, may_branch
+        name = f"outp{j}"
         treegen.defs[outp] = name
-        # root = AnyNode(id=-1, name=name, children=[res])
         # ret[name] = root
         ret[name] = res
-        print(f"{name}:")
-        # print(RenderTree(root))
-        print(RenderTree(res))
-    return ret
+        if res.name in ["SD", "SW", "SH", "SB", "BEQ", "BNE"]:
+            root = res;
+            ret_.append(root)
+        else:
+            ref = AnyNode(id=-1, name=name, op_type="ref")
+            ref_ = AnyNode(id=-1, name=name, op_type="ref")
+            # import pdb; pdb.set_trace()
+            print("ref", ref, ref.children)
+            print("res", res, res.children)
+            root = AnyNode(id=-1, name="ASSIGN2", children=[ref, res], op_type="assignment")
+            print("root", root, root.children)
+            ret_.append(root)
+            idx = j + 1
+            name_ = "rd" if idx == 1 else f"rd{idx}"
+            ref2 = AnyNode(id=-1, name=name_, op_type="ref")
+            reg = AnyNode(id=-1, name="X[?]", children=[ref2], op_type="register")
+            root2 = AnyNode(id=-1, name="ASSIGN3", children=[reg, ref_], op_type="assignment")
+            ret_.append(root2)
+        j += 1
+
+        # print(f"{name}:")
+        # print(RenderTree(res))
+    # print("Generating CDSL...")
+    codes = []
+    header = "// TODO"
+    codes.append(header)
+    # for lhs, rhs in ret.items():
+    #     if "inp" in lhs:
+    #         idx = int(lhs[3:])
+    #         src = f"rs{idx+1}"
+    #         codes.append(f"{lhs} = X[{src}];")
+    #         continue
+    #     # print("lhs", lhs)
+    #     # print("rhs", rhs)
+    #     emitter = CDSLEmitter()
+    #     # print("emitter", emitter, dir(emitter))
+    #     emitter.visit(rhs)
+    #     output = emitter.output
+    #     # print("output", output)
+    #     idx = int(lhs[4:])
+    #     dest = f"rd{idx+1}" if idx > 0 else "rd"
+    #     codes.append(f"{lhs} = {output};")
+    #     codes.append(f"X[{dest}] = {lhs};")
+    #     # for node in emitter:
+    #     #     pass
+    #     #     # print("node", node)
+    for item in ret_:
+        print("item", item)
+        emitter = CDSLEmitter()
+        emitter.visit(item)
+        output = emitter.output
+        print("output", output)
+        codes.append(output)
+    print("CDSL Code:")
+    codes = ["    " + code for code in codes]
+    codes = ["operands: TODO;", "encoding: auto;", "assembly: {TODO, \"TODO\"};", "behavior: {"] + codes + ["}"]
+    code = "\n".join(codes) + "\n"
+    print(code)
+    # print("Done!")
+    return ret, code
 
 
 def gen_mir_func(func_name, code, desc=None):
@@ -134,16 +436,16 @@ query = f"""
 MATCH p0=(n00)-[r01:DFG]->(n01)
 WHERE n00.func_name = 'tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_per_axis_add_clip_cast_subtract_1_compute_'
 AND n00.session = "{SESSION}"
-AND n00.op_type != "input" AND n01.op_type != "input" AND n02.op_type != "input"
-AND n00.name != "COPY" AND n01.name != "COPY" AND n02.name != "COPY"
-AND n00.name != "PHI" AND n01.name != "PHI" AND n02.name != "PHI"
-AND n00.name != "Const" AND n01.name != "Const" AND n02.name != "Const"
+AND n00.op_type != "input" AND n01.op_type != "input"
+AND n00.name != "COPY" AND n01.name != "COPY"
+AND n00.name != "PHI" AND n01.name != "PHI"
+AND n00.name != "Const" AND n01.name != "Const"
 // AND n00.name != "Reg" AND n01.name != "Reg"
 // AND n00.name != "$x0" AND n01.name != "$x0"
 // AND n00.name != "$x1" AND n01.name != "$x1"
 // AND n00.name != "$x2" AND n01.name != "$x2"
-AND n00.name != "PseudoCALLIndirect" AND n01.name != "PseudoCALLIndirect" AND n02.name != "PseudoCALLIndirect"
-AND n00.name != "PseudoLGA" AND n01.name != "PseudoLGA" AND n02.name != "PseudoLGA"
+AND n00.name != "PseudoCALLIndirect" AND n01.name != "PseudoCALLIndirect"
+AND n00.name != "PseudoLGA" AND n01.name != "PseudoLGA"
 AND n00.name != "Select_GPR_Using_CC_GPR" AND n01.name != "Select_GPR_Using_CC_GPR"
 
 RETURN p0
@@ -170,9 +472,24 @@ RETURN p0
 // , count(*) as count
 // ORDER BY count DESC
 """
+query_2x1to3 = f"""
+MATCH p0=(a0)-[:DFG*1..3]->(b)
+MATCH p1=(a1)-[:DFG*1..3]->(b)
+WHERE a0.func_name = 'tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_per_axis_add_clip_cast_subtract_1_compute_'
+AND a0.session = "default" AND a1.session = "default"
+// AND b.op_type = "output"
+// AND a0 = a1
+AND all(node in nodes(p0) WHERE node.name != "PHI" AND node.name != "COPY" AND node.op_type != "input" AND node.op_type != "constant" AND node.name != "PseudoCALLIndirect" AND node.name != "PseudoLGA" AND node.name != "Select_GPR_Using_CC_GPR")
+AND all(node in nodes(p1) WHERE node.name != "PHI" AND node.name != "COPY" AND node.op_type != "input" AND node.op_type != "constant" AND node.name != "PseudoCALLIndirect" AND node.name != "PseudoLGA" AND node.name != "Select_GPR_Using_CC_GPR")
+RETURN p0, p1
+ORDER BY size(collections.union(nodes(p0), nodes(p1))) desc;
+// *, size(nodes(p0)) as s0, size(nodes(p1)) as s1, size(nodes(p0) + nodes(p1)) as s01_, size(collections.union (nodes(p0), nodes(p1))) as s01__
+// ORDER BY s01__ desc;
+"""
 
 func_results = driver.session().run(query_func)
-results = driver.session().run(query2)
+results = driver.session().run(query)
+# results = driver.session().run(query_2x1to3)
 # print("results", results, dir(results))
 # print("results.df", results.to_df())
 # nodes = list(func_results.graph()._nodes.values())
@@ -381,7 +698,7 @@ for i, sub in enumerate(subs):
     # i = 3
     sub = subs[i]
     # print("topo", topo)
-    # print("i, sub", i, sub)
+    print("i, sub", i, sub)
     codes = []
     # for node in sorted(sub.nodes):
     # print("sub.nodes", sub.nodes)
@@ -506,7 +823,7 @@ body: |
         desc += ", IsBranch"
     mir_code = gen_mir_func(f"result{i}", code, desc=desc)
     # print(f"Code3:\n{mir_code}")
-    print(mir_code)
+    # print(mir_code)
     with open(f"result{i}.mir", "w") as f:
         f.write(mir_code)
     if num_outputs == 0 or num_inputs == 0:
@@ -516,9 +833,16 @@ body: |
         pass
         # input(">")
     # print("---------------------------")
-    tree = gen_tree(GF, sub, inputs, outputs)
-    print("tree", tree)
-    input("123")
+    tree, cdsl_code = gen_tree(GF, sub, inputs, outputs)
+    full_cdsl_code = wrap_cdsl(f"RESULT_{i}", cdsl_code)
+    # print("tree", tree)
+    # print("cdsl_code", cdsl_code)
+    # TODO: add encoding etc.!
+    with open(f"result{i}.core_desc", "w") as f:
+        f.write(full_cdsl_code)
+    if num_inputs_noconst <= MAX_INPUTS and num_outputs < MAX_OUTPUTS:
+        pass
+        # input("123")
 
 if len(duplicate_counts) > 0:
     print()
