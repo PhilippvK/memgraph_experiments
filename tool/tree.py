@@ -139,10 +139,11 @@ def gen_tree(GF, sub, inputs, outputs, xlen=None):
     return ret, ret_, code
 
 
-def gen_flat_code(xtrees):
+def gen_flat_code(xtrees, desc=None):
     codes = []
-    header = "// TODO"
-    codes.append(header)
+    if desc:
+        header = f"// {desc}"
+        codes.append(header)
     for item in xtrees:
         # print("item", item)
         emitter = FlatCodeEmitter()

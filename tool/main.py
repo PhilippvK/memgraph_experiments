@@ -29,7 +29,8 @@ logger = logging.getLogger("main")
 # TODO: actually implement filters
 FUNC_FMT_DEFAULT = ExportFormat.DOT
 FUNC_FLT_DEFAULT = ExportFilter.SELECTED
-SUB_FMT_DEFAULT = ExportFormat.DOT  # | ExportFormat.PDF | ExportFormat.PNG
+# SUB_FMT_DEFAULT = ExportFormat.DOT  # | ExportFormat.PDF | ExportFormat.PNG
+SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PDF | ExportFormat.PNG
 SUB_FLT_DEFAULT = ExportFilter.SELECTED
 IO_SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PDF | ExportFormat.PNG
 IO_SUB_FLT_DEFAULT = ExportFilter.SELECTED
@@ -664,7 +665,8 @@ body: |
         if WRITE_GEN_FMT & ExportFormat.TXT:
             logger.info("Generating FLAT")
             assert xtrees is not None, ""
-            flat_code = gen_flat_code(xtrees)
+            header = f"Inputs (with imm): {num_inputs}, Inputs (without imm): {num_inputs_noconst}, Outputs: {num_outputs}"
+            flat_code = gen_flat_code(xtrees, desc=desc)
             with open(OUT / f"result{i}.txt", "w") as f:
                 f.write(flat_code)
 
