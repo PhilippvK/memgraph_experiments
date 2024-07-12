@@ -9,3 +9,4 @@ kaleido
 black
 pandas
 numpy
+flake8
