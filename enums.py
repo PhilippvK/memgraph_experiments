@@ -14,10 +14,10 @@ class ExportFormat(IntFlag):
 
 class ExportFilter(IntFlag):
     NONE = 0
-    SELECTED = auto()          # 1
-    ISO = auto()               # 2
-    FILTERED_IO = auto()       # 4
+    SELECTED = auto()  # 1
+    ISO = auto()  # 2
+    FILTERED_IO = auto()  # 4
     FILTERED_COMPLEX = auto()  # 8
-    INVALID = auto()           # 16
-    ERROR = auto()             # 32
+    INVALID = auto()  # 16
+    ERROR = auto()  # 32
     ALL = SELECTED | ISO | FILTERED_IO | FILTERED_COMPLEX | INVALID | ERROR

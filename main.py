@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import networkx as nx
 import plotly.express as px
+
 # import matplotlib.pyplot as plt
 from neo4j import GraphDatabase
 from anytree import AnyNode, RenderTree
@@ -43,22 +44,26 @@ def handle_cmdline():
     parser.add_argument("--max-path-width", default=2, help="TODO")
     parser.add_argument("--function", "--func", default=None, help="TODO")
     parser.add_argument("--basic-block", "--bb", default=None, help="TODO")
-    parser.add_argument("--ignore-names", default=["PHI", "COPY", "PseudoCALLIndirect", "PseudoLGA", "Select_GPR_Using_CC_GPR"], help="TODO")
+    parser.add_argument(
+        "--ignore-names",
+        default=["PHI", "COPY", "PseudoCALLIndirect", "PseudoLGA", "Select_GPR_Using_CC_GPR"],
+        help="TODO",
+    )
     parser.add_argument("--ignore-op_types", default=["input", "constant"], help="TODO")
     parser.add_argument("--ignore-const-inputs", action="store_true", help="TODO")
     parser.add_argument("--xlen", default=64, help="TODO")
     parser.add_argument("--output-dir", "-o", default="./out", help="TODO")
     parser.add_argument("--write-func", action="store_true", help="TODO")
-    parser.add_argument("--write-func-fmt", type=int, default=FUNC_FMT_DEFAULT ,help="TODO")
-    parser.add_argument("--write-func-filter", type=int, default=FUNC_FLT_DEFAULT ,help="TODO")
+    parser.add_argument("--write-func-fmt", type=int, default=FUNC_FMT_DEFAULT, help="TODO")
+    parser.add_argument("--write-func-filter", type=int, default=FUNC_FLT_DEFAULT, help="TODO")
     parser.add_argument("--write-result", action="store_true", help="TODO")
-    parser.add_argument("--write-result-fmt", type=int, default=RESULT_FMT_DEFAULT ,help="TODO")
-    parser.add_argument("--write-result-filter", type=int, default=RESULT_FLT_DEFAULT ,help="TODO")
+    parser.add_argument("--write-result-fmt", type=int, default=RESULT_FMT_DEFAULT, help="TODO")
+    parser.add_argument("--write-result-filter", type=int, default=RESULT_FLT_DEFAULT, help="TODO")
     parser.add_argument("--write-pie", action="store_true", help="TODO")
-    parser.add_argument("--write-pie-fmt", type=int, default=PIE_FMT_DEFAULT ,help="TODO")
+    parser.add_argument("--write-pie-fmt", type=int, default=PIE_FMT_DEFAULT, help="TODO")
     # TODO: pie filters?
     parser.add_argument("--write-df", action="store_true", help="TODO")
-    parser.add_argument("--write-df-fmt", type=int, default=DF_FMT_DEFAULT ,help="TODO")
+    parser.add_argument("--write-df-fmt", type=int, default=DF_FMT_DEFAULT, help="TODO")
     # TODO: df filters?
     args = parser.parse_args()
     logging.basicConfig(level=getattr(logging, args.log.upper()))
@@ -231,10 +236,7 @@ class CDSLEmitter:
         self.write(")")
 
     def visit_cond_set(self, node):
-        lookup = {
-            "SLT": ("<", True),
-            "SLTU": ("<", False)
-        }
+        lookup = {"SLT": ("<", True), "SLTU": ("<", False)}
         res = lookup.get(node.name)
         assert res is not None
         pred, signed = res
@@ -244,14 +246,14 @@ class CDSLEmitter:
         if signed:
             self.write("(signed)")
         self.visit(lhs)
-        self.write(pred);
+        self.write(pred)
         if signed:
             self.write("(signed)")
         self.visit(rhs)
         self.write("?")
-        self.write(1);
+        self.write(1)
         self.write(":")
-        self.write(0);
+        self.write(0)
         self.write(")")
 
     def visit(self, node):
@@ -270,7 +272,23 @@ class CDSLEmitter:
         else:
             name = node.name
             # print("name", name)
-            if name in ["ADDIW", "SRLI", "SLLI", "AND", "ANDI", "XOR", "ADD", "ADDI", "ADDW", "MULW", "MUL", "SRA", "SRAI", "SLL", "SUBW"]:
+            if name in [
+                "ADDIW",
+                "SRLI",
+                "SLLI",
+                "AND",
+                "ANDI",
+                "XOR",
+                "ADD",
+                "ADDI",
+                "ADDW",
+                "MULW",
+                "MUL",
+                "SRA",
+                "SRAI",
+                "SLL",
+                "SUBW",
+            ]:
                 self.visit_binop(node)
             elif name in ["SLT", "SLTU"]:
                 self.visit_cond_set(node)
@@ -289,11 +307,11 @@ class CDSLEmitter:
 class TreeGenContext:
 
     def __init__(self, graph, sub, inputs=None) -> None:
-       self.graph = graph
-       self.sub = sub
-       self.inputs = inputs if inputs is not None else []
-       self.node_map = {}
-       self.defs = {}
+        self.graph = graph
+        self.sub = sub
+        self.inputs = inputs if inputs is not None else []
+        self.node_map = {}
+        self.defs = {}
 
     @property
     def visited(self):
@@ -379,7 +397,7 @@ def gen_tree(GF, sub, inputs, outputs):
         # print("res", res)
         # print(RenderTree(res))
         if res.name in ["SD", "SW", "SH", "SB", "BEQ", "BNE"]:
-            root = res;
+            root = res
             ret_.append(root)
         else:
             ref = AnyNode(id=-1, name=name, op_type="ref")
@@ -413,7 +431,7 @@ def gen_tree(GF, sub, inputs, outputs):
         codes.append(output)
     # print("CDSL Code:")
     codes = ["    " + code for code in codes]
-    codes = ["operands: TODO;", "encoding: auto;", "assembly: {TODO, \"TODO\"};", "behavior: {"] + codes + ["}"]
+    codes = ["operands: TODO;", "encoding: auto;", 'assembly: {TODO, "TODO"};', "behavior: {"] + codes + ["}"]
     code = "\n".join(codes) + "\n"
     # print(code)
     # print("Done!")
@@ -471,7 +489,6 @@ if not IGNORE_CONST_INPUTS:
 driver = connect_memgraph(HOST, PORT, user="", password="")
 
 
-
 def generate_func_query(session: str, func: str, fix_cycles: bool = True):
     ret = f"""MATCH p0=(n00:INSTR)-[r01:DFG]->(n01:INSTR)
 WHERE n00.func_name = '{func}'
@@ -487,7 +504,18 @@ AND n00.session = "{session}"
     return ret
 
 
-def generate_candidates_query(session: str, func: str, bb: Optional[str], min_path_length: int, max_path_length: int, max_path_width: int, ignore_names: List[str], ignore_op_types: List[str], shared_input: bool = False, shared_output: bool = True):
+def generate_candidates_query(
+    session: str,
+    func: str,
+    bb: Optional[str],
+    min_path_length: int,
+    max_path_length: int,
+    max_path_width: int,
+    ignore_names: List[str],
+    ignore_op_types: List[str],
+    shared_input: bool = False,
+    shared_output: bool = True,
+):
     if shared_input:
         starts = ["a"] * max_path_width
     else:
@@ -497,7 +525,10 @@ def generate_candidates_query(session: str, func: str, bb: Optional[str], min_pa
     else:
         ends = [f"b{i}" for i in range(max_path_width)]
     paths = [f"p{i}" for i in range(max_path_width)]
-    match_rows = [f"MATCH {paths[i]}=({starts[i]}:INSTR)-[:DFG*{min_path_length}..{max_path_length}]->({ends[i]}:INSTR)" for i in range(max_path_width)]
+    match_rows = [
+        f"MATCH {paths[i]}=({starts[i]}:INSTR)-[:DFG*{min_path_length}..{max_path_length}]->({ends[i]}:INSTR)"
+        for i in range(max_path_width)
+    ]
     match_str = "\n".join(match_rows)
     session_conds = [f"{x}.session = '{session}'" for x in set(starts) | set(ends)]
     func_conds = [f"{x}.func_name = '{func}'" for x in set(starts) | set(ends)]
@@ -509,8 +540,8 @@ def generate_candidates_query(session: str, func: str, bb: Optional[str], min_pa
     conds_str = " AND ".join(conds)
 
     def gen_filter(path):
-        name_filts =[f"node.name != '{name}'" for name in ignore_names]
-        op_type_filts =[f"node.op_type != '{op_type}'" for op_type in ignore_op_types]
+        name_filts = [f"node.name != '{name}'" for name in ignore_names]
+        op_type_filts = [f"node.op_type != '{op_type}'" for op_type in ignore_op_types]
         filts = name_filts + op_type_filts
         filts_str = " AND ".join(filts)
         return f"all(node in nodes({path}) WHERE {filts_str})"
@@ -527,8 +558,11 @@ ORDER BY {order_by_str} desc;
 """
     return ret
 
+
 query_func = generate_func_query(SESSION, FUNC)
-query = generate_candidates_query(SESSION, FUNC, BB, MIN_PATH_LEN, MAX_PATH_LEN, MAX_PATH_WIDTH, IGNORE_NAMES, IGNORE_OP_TYPES)
+query = generate_candidates_query(
+    SESSION, FUNC, BB, MIN_PATH_LEN, MAX_PATH_LEN, MAX_PATH_WIDTH, IGNORE_NAMES, IGNORE_OP_TYPES
+)
 
 func_results = run_query(driver, query_func)
 results = run_query(driver, query)
@@ -552,7 +586,8 @@ for rel in rels:
     GF.add_edge(rel.start_node.id, rel.end_node.id, key=rel.id, label=label, type=rel.type, properties=rel._properties)
 # print("GF", GF)
 
-def graph_to_file(graph, dest, fmt = "auto"):
+
+def graph_to_file(graph, dest, fmt="auto"):
     if not isinstance(dest, Path):
         dest = Path(dest)
     if fmt == "auto":
@@ -565,6 +600,7 @@ def graph_to_file(graph, dest, fmt = "auto"):
         raise NotImplementedError
     else:
         raise ValueError(f"Unsupported fmt: {fmt}")
+
 
 if WRITE_FUNC:
     if WRITE_FUNC_FMT & ExportFormat.DOT:
@@ -688,60 +724,62 @@ topo = list(nx.topological_sort(GF))
 # print("subs[0]", subs[0])
 # print("subs[0].nodes", subs[0].nodes)
 
+
 def calc_inputs(G, sub, ignore_const: bool = False):
-   # print("calc_inputs", sub)
-   inputs = []
-   ret = 0
-   sub_nodes = sub.nodes
-   # print("sub_nodes", sub_nodes)
-   for node in sub_nodes:
-     # print("node", node, G.nodes[node].get("label"))
-     ins = G.in_edges(node)
-     # print("ins", ins)
-     for in_ in ins:
-       # print("in_", in_, G.nodes[in_[0]].get("label"))
-       src = in_[0]
-       if G.nodes[src]["properties"]["op_type"] == "constant" and ignore_const:
-          continue
-       # print("src", src, G.nodes[src].get("label"))
-       # print("src in sub_nodes", src in sub_nodes)
-       # print("src not in inputs", src not in inputs)
-       if not (src in sub_nodes) and (src not in inputs):
-         # print("IN")
-         ret += 1
-         inputs.append(src)
-   # print("ret", ret)
-   return ret, inputs
+    # print("calc_inputs", sub)
+    inputs = []
+    ret = 0
+    sub_nodes = sub.nodes
+    # print("sub_nodes", sub_nodes)
+    for node in sub_nodes:
+        # print("node", node, G.nodes[node].get("label"))
+        ins = G.in_edges(node)
+        # print("ins", ins)
+        for in_ in ins:
+            # print("in_", in_, G.nodes[in_[0]].get("label"))
+            src = in_[0]
+            if G.nodes[src]["properties"]["op_type"] == "constant" and ignore_const:
+                continue
+            # print("src", src, G.nodes[src].get("label"))
+            # print("src in sub_nodes", src in sub_nodes)
+            # print("src not in inputs", src not in inputs)
+            if not (src in sub_nodes) and (src not in inputs):
+                # print("IN")
+                ret += 1
+                inputs.append(src)
+    # print("ret", ret)
+    return ret, inputs
+
 
 def calc_outputs(G, sub):
-   # print("calc_outputs", sub)
-   ret = 0
-   sub_nodes = sub.nodes
-   # print("sub_nodes", sub_nodes)
-   outputs = []
-   for node in sub_nodes:
-     # print("node", node, G.nodes[node].get("label"))
-     if G.nodes[node]["properties"]["op_type"] == "output":
-       # print("A")
-       # print("OUT2")
-       ret += 1
-       if node not in outputs:
-         outputs.append(node)
-     else:
-       # print("B")
-       outs = G.out_edges(node)
-       # print("outs", outs)
-       for out_ in outs:
-         # print("out_", out_, G.nodes[out_[0]].get("label"))
-         dst = out_[1]
-         # print("dst", dst, G.nodes[dst].get("label"))
-         if dst not in sub_nodes:
-           # print("OUT")
-           ret += 1
-           if node not in outputs:
-             outputs.append(node)
-   # print("ret", ret)
-   return ret, outputs
+    # print("calc_outputs", sub)
+    ret = 0
+    sub_nodes = sub.nodes
+    # print("sub_nodes", sub_nodes)
+    outputs = []
+    for node in sub_nodes:
+        # print("node", node, G.nodes[node].get("label"))
+        if G.nodes[node]["properties"]["op_type"] == "output":
+            # print("A")
+            # print("OUT2")
+            ret += 1
+            if node not in outputs:
+                outputs.append(node)
+        else:
+            # print("B")
+            outs = G.out_edges(node)
+            # print("outs", outs)
+            for out_ in outs:
+                # print("out_", out_, G.nodes[out_[0]].get("label"))
+                dst = out_[1]
+                # print("dst", dst, G.nodes[dst].get("label"))
+                if dst not in sub_nodes:
+                    # print("OUT")
+                    ret += 1
+                    if node not in outputs:
+                        outputs.append(node)
+    # print("ret", ret)
+    return ret, outputs
 
 
 # print("subs", subs, len(subs))
@@ -823,7 +861,9 @@ for i, io_sub in enumerate(io_subs):
     # break  # TODO
     # print("io_sub", i, io_sub, io_sub.nodes)
     # print("io_sub nodes", [GF.nodes[n] for n in io_sub.nodes])
-    nm = lambda x, y: x["label"] == y["label"] and (x["label"] != "Const" or x["properties"]["inst"] == y["properties"]["inst"])
+    nm = lambda x, y: x["label"] == y["label"] and (
+        x["label"] != "Const" or x["properties"]["inst"] == y["properties"]["inst"]
+    )
     io_isos_ = set(j for j, io_sub_ in enumerate(io_subs) if j > i and nx.is_isomorphic(io_sub, io_sub_, node_match=nm))
     # print("io_isos_", io_isos_)
     io_iso_count = len(io_isos_)
@@ -900,6 +940,7 @@ for i, sub in enumerate(subs):
                 assert inst[-1] == "_"
                 const = inst[:-1]
                 val = int(const)
+
                 def get_ty_for_val(val):
                     def get_min_pow(x):
                         # print("x", x)
@@ -912,11 +953,11 @@ for i, sub in enumerate(subs):
                             if x < 2**pow_val:
                                 return pow_val
                         assert False
+
                     if val < 0:
                         val *= -1
                     min_pow = get_min_pow(val)
                     return f"i{min_pow}"
-
 
                 ty = get_ty_for_val(val)
                 # print("code", code)
@@ -1018,7 +1059,7 @@ pie_df = subs_df.value_counts("Label").rename_axis("Label").reset_index(name="Co
 # print("pie_df")
 # print(pie_df)
 fig = px.pie(pie_df, values="Count", names="Label", title="Candidates")
-fig.update_traces(hoverinfo='label+percent', textinfo='value')
+fig.update_traces(hoverinfo="label+percent", textinfo="value")
 # fig.show()
 if WRITE_PIE:
     if WRITE_PIE_FMT & ExportFormat.PDF:
