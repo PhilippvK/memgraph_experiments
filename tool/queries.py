@@ -27,6 +27,7 @@ def generate_candidates_query(
     ignore_op_types: List[str],
     shared_input: bool = False,
     shared_output: bool = True,
+    limit: Optional[int] = None,
 ):
     if shared_input:
         starts = ["a"] * max_path_width
@@ -69,6 +70,9 @@ def generate_candidates_query(
 WHERE {conds_str}
 AND {filters_str}
 RETURN {return_str}
-ORDER BY {order_by_str} desc;
+ORDER BY {order_by_str} desc
 """
-    return ret
+    if limit is not None:
+        ret += f"""LIMIT {limit}
+"""
+    return ret + ";"

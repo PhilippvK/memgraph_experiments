@@ -18,7 +18,7 @@ from .memgraph import connect_memgraph, run_query
 from .cdsl_utils import wrap_cdsl
 from .mir_utils import gen_mir_func
 from .graph_utils import graph_to_file
-from .tree import gen_tree
+from .tree import gen_tree, gen_flat_code
 from .queries import generate_func_query, generate_candidates_query
 
 logger = logging.getLogger("main")
@@ -28,11 +28,11 @@ logger = logging.getLogger("main")
 # TODO: actually implement filters
 FUNC_FMT_DEFAULT = ExportFormat.DOT
 FUNC_FLT_DEFAULT = ExportFilter.SELECTED
-SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PDF | ExportFormat.PNG
+SUB_FMT_DEFAULT = ExportFormat.DOT  # | ExportFormat.PDF | ExportFormat.PNG
 SUB_FLT_DEFAULT = ExportFilter.SELECTED
 IO_SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PDF | ExportFormat.PNG
 IO_SUB_FLT_DEFAULT = ExportFilter.SELECTED
-GEN_FMT_DEFAULT = ExportFormat.CDSL | ExportFormat.MIR
+GEN_FMT_DEFAULT = ExportFormat.CDSL | ExportFormat.MIR | ExportFormat.TXT
 GEN_FLT_DEFAULT = ExportFilter.SELECTED
 PIE_FMT_DEFAULT = ExportFormat.PDF | ExportFormat.CSV
 DF_FMT_DEFAULT = ExportFormat.CSV
@@ -46,6 +46,7 @@ def handle_cmdline():
     parser.add_argument("--host", default="localhost", help="TODO")
     parser.add_argument("--port", type=int, default=7687, help="TODO")
     parser.add_argument("--session", default="default", help="TODO")
+    parser.add_argument("--limit-results", type=int, default=None, help="TODO")
     parser.add_argument("--max-inputs", type=int, default=3, help="TODO")
     parser.add_argument("--max-outputs", type=int, default=2, help="TODO")
     parser.add_argument("--max-nodes", type=int, default=5, help="TODO")
@@ -95,6 +96,7 @@ HOST = args.host
 PORT = args.port
 FUNC = args.function
 BB = args.basic_block
+LIMIT_RESULTS = args.limit_results
 MIN_PATH_LEN = args.min_path_length
 MAX_PATH_LEN = args.max_path_length
 MAX_PATH_WIDTH = args.max_path_width
@@ -118,22 +120,35 @@ WRITE_PIE_FMT = args.write_pie_fmt
 WRITE_DF = args.write_df
 WRITE_DF_FMT = args.write_df_fmt
 
+logger.info("Validating settings...")
 assert OUT.is_dir(), f"OUT ({OUT}) is not a directory"
 assert FUNC is not None
 if not IGNORE_CONST_INPUTS:
     raise NotImplementedError("!IGNORE_CONST_INPUTS")
 
 
+logger.info("Running queries...")
 driver = connect_memgraph(HOST, PORT, user="", password="")
 
 query_func = generate_func_query(SESSION, FUNC)
 query = generate_candidates_query(
-    SESSION, FUNC, BB, MIN_PATH_LEN, MAX_PATH_LEN, MAX_PATH_WIDTH, IGNORE_NAMES, IGNORE_OP_TYPES
+    SESSION,
+    FUNC,
+    BB,
+    MIN_PATH_LEN,
+    MAX_PATH_LEN,
+    MAX_PATH_WIDTH,
+    IGNORE_NAMES,
+    IGNORE_OP_TYPES,
+    limit=LIMIT_RESULTS,
 )
 
 func_results = run_query(driver, query_func)
 results = run_query(driver, query)
 
+# TODO: move to helper func
+# TODO: print number of results
+logger.info("Converting results to NX...")
 GF = nx.MultiDiGraph()
 nodes = list(func_results.graph()._nodes.values())
 # print("nodes", nodes)
@@ -158,6 +173,7 @@ for rel in rels:
 
 
 if WRITE_FUNC:
+    logger.info("Exporting GF graph...")
     if WRITE_FUNC_FMT & ExportFormat.DOT:
         graph_to_file(GF, OUT / "func.dot")
     if WRITE_FUNC_FMT & ExportFormat.PDF:
@@ -187,6 +203,8 @@ for rel in rels:
     # )
     G.add_edge(rel.start_node.id, rel.end_node.id, key=rel.id, label=label, type=rel.type, properties=rel._properties)
 
+
+logger.info("Generating subgraphs...")
 subs = []
 for i, result in enumerate(results):
     # print("result", result, dir(result))
@@ -220,6 +238,7 @@ for i, result in enumerate(results):
 # for i, result in enumerate(results):
 #     print("result", result, i, dir(result), result.data())
 
+logger.info("Relabeling nodes...")
 # print("GF", GF)
 # print("GF.nodes", GF.nodes)
 mapping = dict(zip(GF.nodes.keys(), range(len(GF.nodes))))
@@ -372,6 +391,7 @@ subs_df["#Outputs"] = np.nan
 # print(subs_df)
 
 # if True:
+logger.info("Collecting I/O details...")
 for i, sub in enumerate(subs):
     # if i in isos:
     #     continue
@@ -380,21 +400,6 @@ for i, sub in enumerate(subs):
     # print("topo", topo)
     # print("===========================")
     # print("i, sub", i, sub)
-    codes = []
-    # for node in sorted(sub.nodes):
-    # print("sub.nodes", sub.nodes)
-    for node in sorted(sub.nodes, key=lambda x: topo.index(x)):
-        node_ = G.nodes[node]
-        code_ = node_["properties"]["inst"]
-        # assert code_[-1] == "_"
-        # code_ = code_[:-1]
-        code_ = code_.split(", debug-location", 1)[0]
-        if code_[-1] != "_":
-            code_ += "_"
-        codes.append(code_)
-        # print("CODE", node_["properties"]["inst"])
-    code = "\n".join(codes)
-    # print(f"Code:\n{code}")
     num_inputs, inputs = calc_inputs(GF, sub)
     num_inputs_noconst, inputs_noconst = calc_inputs(GF, sub, ignore_const=True)
     num_outputs, outputs = calc_outputs(GF, sub)
@@ -420,9 +425,11 @@ for i, sub in enumerate(subs):
             io_sub.nodes[inp]["xlabel"] = "IN"
             io_sub.nodes[inp]["label"] = f"src{j}"
             j += 1
+    # TODO: add out nodes to io_sub?
     # print("io_sub", io_sub)
     io_subs.append(io_sub)
 
+logger.info("Checking isomorphism...")
 # print("io_subs", [str(x) for x in io_subs], len(io_subs))
 io_isos = set()
 for i, io_sub in enumerate(io_subs):
@@ -446,6 +453,7 @@ for i, io_sub in enumerate(io_subs):
 # print("io_isos", io_isos, len(io_isos))
 
 if WRITE_IO_SUB:
+    logger.info("Exporting I/O subgraphs...")
     for i, io_sub in enumerate(io_subs):
         if i in io_isos:
             continue
@@ -456,6 +464,7 @@ if WRITE_IO_SUB:
         if WRITE_IO_SUB_FMT & ExportFormat.PNG:
             graph_to_file(io_sub, OUT / f"io_sub{i}.png")
 
+logger.info("Filtering subgraphs...")
 for i, sub in enumerate(subs):
     if i in io_isos:
         continue
@@ -477,6 +486,7 @@ for i, sub in enumerate(subs):
     else:
         filtered_io.add(i)
 
+logger.info("Generation...")
 for i, sub in enumerate(subs):
     if i in io_isos or i in filtered_io or i in filtered_complex:
         continue
@@ -495,84 +505,101 @@ for i, sub in enumerate(subs):
     # print("inputs", [GF.nodes[inp] for inp in inputs])
     # print("inputs_noconst", [GF.nodes[inp] for inp in inputs_noconst])
     # print("outputs", [GF.nodes[outp] for outp in outputs])
-    j = 0  # reg's
-    # j_ = 0  # imm's
-    for inp in inputs:
-        node = GF.nodes[inp]
-        inst = node["properties"]["inst"]
-        op_type = node["properties"]["op_type"]
-        # print("inst", inst)
-        if "=" in inst:
-            name = f"%inp{j}:gpr"
-            j += 1
-            # print("if")
-            lhs, _ = inst.split("=", 1)
-            lhs = lhs.strip()
-            assert "gpr" in lhs
-            code = code.replace(lhs, name)
-        else:
-            # print("else")
-            if inst.startswith("$x"):  # phys reg
-                pass
-                # physreg = inst[:-1]
-                # tmp = physreg[2:]
-                # new = f"X[{tmp}]"
-                # code = code.replace(physreg, new)
-            else:
-                assert op_type == "constant"
-                assert inst[-1] == "_"
-                const = inst[:-1]
-                val = int(const)
-
-                def get_ty_for_val(val):
-                    def get_min_pow(x):
-                        # print("x", x)
-                        assert x >= 0
-                        max_pow = 6
-                        for i in range(max_pow + 1):
-                            # print("i", i)
-                            pow_val = 2**i
-                            # print("pow_val", pow_val)
-                            if x < 2**pow_val:
-                                return pow_val
-                        assert False
-
-                    if val < 0:
-                        val *= -1
-                    min_pow = get_min_pow(val)
-                    return f"i{min_pow}"
-
-                ty = get_ty_for_val(val)
-                # print("code", code)
-                # print("ty", ty)
-                # print("const", const)
+    if WRITE_GEN:
+        if WRITE_GEN_FMT & ExportFormat.MIR:
+            logger.info("Generating MIR")
+            j = 0  # reg's
+            # j_ = 0  # imm's
+            codes = []
+            # for node in sorted(sub.nodes):
+            # print("sub.nodes", sub.nodes)
+            for node in sorted(sub.nodes, key=lambda x: topo.index(x)):
+                node_ = G.nodes[node]
+                code_ = node_["properties"]["inst"]
+                # assert code_[-1] == "_"
+                # code_ = code_[:-1]
+                code_ = code_.split(", debug-location", 1)[0]
+                if code_[-1] != "_":
+                    code_ += "_"
+                codes.append(code_)
+                # print("CODE", node_["properties"]["inst"])
+            code = "\n".join(codes)
+            # print(f"Code:\n{code}")
+            for inp in inputs:
+                node = GF.nodes[inp]
+                inst = node["properties"]["inst"]
+                op_type = node["properties"]["op_type"]
                 # print("inst", inst)
-                # print("const", const)
-                # if inst[-1] == "_":
-                #     inst = inst[:-1]
-                code = code.replace(" " + inst, f" {ty} " + const)  # TODO: buggy?
-                # print("code")
-    for j, outp in enumerate(outputs):
-        # print("name", name)
-        node = GF.nodes[outp]
-        inst = node["properties"]["inst"]
-        if "=" in inst:
-            name = f"%outp{j}:gpr"
-            # print("if")
-            lhs, _ = inst.split("=", 1)
-            lhs = lhs.strip()
-            assert "gpr" in lhs
-            # print("lhs", lhs)
-            code = code.replace(lhs, name)
-        else:
-            # print("else")
-            pass  # TODO: assert?
-    # TODO: handle bbs:
-    is_branch = False
-    if "bb." in code:
-        is_branch = True
-    """
----
+                if "=" in inst:
+                    name = f"%inp{j}:gpr"
+                    j += 1
+                    # print("if")
+                    lhs, _ = inst.split("=", 1)
+                    lhs = lhs.strip()
+                    assert "gpr" in lhs
+                    code = code.replace(lhs, name)
+                else:
+                    # print("else")
+                    if inst.startswith("$x"):  # phys reg
+                        pass
+                        # physreg = inst[:-1]
+                        # tmp = physreg[2:]
+                        # new = f"X[{tmp}]"
+                        # code = code.replace(physreg, new)
+                    else:
+                        assert op_type == "constant"
+                        assert inst[-1] == "_"
+                        const = inst[:-1]
+                        val = int(const)
+
+                        def get_ty_for_val(val):
+                            def get_min_pow(x):
+                                # print("x", x)
+                                assert x >= 0
+                                max_pow = 6
+                                for i in range(max_pow + 1):
+                                    # print("i", i)
+                                    pow_val = 2**i
+                                    # print("pow_val", pow_val)
+                                    if x < 2**pow_val:
+                                        return pow_val
+                                assert False
+
+                            if val < 0:
+                                val *= -1
+                            min_pow = get_min_pow(val)
+                            return f"i{min_pow}"
+
+                        ty = get_ty_for_val(val)
+                        # print("code", code)
+                        # print("ty", ty)
+                        # print("const", const)
+                        # print("inst", inst)
+                        # print("const", const)
+                        # if inst[-1] == "_":
+                        #     inst = inst[:-1]
+                        code = code.replace(" " + inst, f" {ty} " + const)  # TODO: buggy?
+                        # print("code")
+            for j, outp in enumerate(outputs):
+                # print("name", name)
+                node = GF.nodes[outp]
+                inst = node["properties"]["inst"]
+                if "=" in inst:
+                    name = f"%outp{j}:gpr"
+                    # print("if")
+                    lhs, _ = inst.split("=", 1)
+                    lhs = lhs.strip()
+                    assert "gpr" in lhs
+                    # print("lhs", lhs)
+                    code = code.replace(lhs, name)
+                else:
+                    # print("else")
+                    pass  # TODO: assert?
+            # TODO: handle bbs:
+            is_branch = False
+            if "bb." in code:
+                is_branch = True
+            """ ---
 name: result273
 body: |
   bb.0:
@@ -582,52 +609,58 @@ body: |
 
   bb.77:
     PseudoRET
-    """
-    # TODO: may_load, may_store,...
-    # print(f"Code2:\n{code}")
-    code = "\n".join([line[:-1] if line.endswith("_") else line for line in code.splitlines()])
-    if code in all_codes.values():
-        # print("Duplicate!")
-        orig = list(all_codes.keys())[list(all_codes.values()).index(code)]
-        duplicate_counts[orig] += 1
-        # continue
-    else:
-        all_codes[i] = code
-    desc = f"Inputs (with imm): {num_inputs}, Inputs (without imm): {num_inputs_noconst}, Outputs: {num_outputs}"
-    if is_branch:
-        desc += ", IsBranch"
-    mir_code = gen_mir_func(f"result{i}", code, desc=desc)
-    # print(f"Code3:\n{mir_code}")
-    # print(mir_code)
-    if WRITE_GEN:
-        if WRITE_GEN_FMT & ExportFormat.MIR:
+"""
+            # TODO: may_load, may_store,...
+            # print(f"Code2:\n{code}")
+            code = "\n".join([line[:-1] if line.endswith("_") else line for line in code.splitlines()])
+            if code in all_codes.values():
+                # print("Duplicate!")
+                orig = list(all_codes.keys())[list(all_codes.values()).index(code)]
+                duplicate_counts[orig] += 1
+                # continue
+            else:
+                all_codes[i] = code
+            desc = (
+                f"Inputs (with imm): {num_inputs}, Inputs (without imm): {num_inputs_noconst}, Outputs: {num_outputs}"
+            )
+            if is_branch:
+                desc += ", IsBranch"
+            mir_code = gen_mir_func(f"result{i}", code, desc=desc)
+            # print(f"Code3:\n{mir_code}")
+            # print(mir_code)
             with open(OUT / f"result{i}.mir", "w") as f:
                 f.write(mir_code)
-    if num_outputs == 0 or num_inputs == 0:
-        pass
-    elif num_outputs in [1] and num_inputs in [1, 2, 3]:
-        pass
-    # print("---------------------------")
-    try:
-        tree, cdsl_code = gen_tree(GF, sub, inputs, outputs, xlen=XLEN)
-    except AssertionError as e:
-        print(e)  # TODO: logger.exception
-        errs.add(i)
-        continue
-    full_cdsl_code = wrap_cdsl(f"RESULT_{i}", cdsl_code)
-    # print("tree", tree)
-    # print("cdsl_code", cdsl_code)
-    # TODO: add encoding etc.!
-    if WRITE_GEN:
+        # TODO: split cdsl from gen_tree!
+        xtrees = None
         if WRITE_GEN_FMT & ExportFormat.CDSL:
+            logger.info("Generating CDSL")
+            # TODO: tree to disk? (ExportFormat.TREE)
+            try:
+                tree, xtrees, cdsl_code = gen_tree(GF, sub, inputs, outputs, xlen=XLEN)
+            except AssertionError as e:
+                logger.exception(e)
+                errs.add(i)
+                continue
+            # print("tree", tree)
+            # print("cdsl_code", cdsl_code)
+            # TODO: add encoding etc.!
+            full_cdsl_code = wrap_cdsl(f"RESULT_{i}", cdsl_code)
             with open(OUT / f"result{i}.core_desc", "w") as f:
                 f.write(full_cdsl_code)
+        if WRITE_GEN_FMT & ExportFormat.TXT:
+            logger.info("Generating FLAT")
+            assert xtrees is not None, ""
+            flat_code = gen_flat_code(xtrees)
+            with open(OUT / f"result{i}.txt", "w") as f:
+                f.write(flat_code)
 
 # if len(duplicate_counts) > 0:
 #     print()
 #     print("Duplicates:")
 #     for orig, dups in duplicate_counts.items():
 #         print(f"result{orig}:\t", dups)
+
+logger.info("Finalizing DataFrame...")
 
 # subs_df["Iso"] = subs_df["result"].apply(lambda x: x in isos)
 subs_df["Label"] = "Selected"
@@ -638,6 +671,7 @@ subs_df.loc[list(invalid), "Label"] = "Invalid"
 subs_df.loc[list(errs), "Label"] = "Error"
 # print("subs_df")
 # print(subs_df)
+logger.info("Generating PieChart...")
 pie_df = subs_df.value_counts("Label").rename_axis("Label").reset_index(name="Count")
 # print("pie_df")
 # print(pie_df)
@@ -645,6 +679,7 @@ fig = px.pie(pie_df, values="Count", names="Label", title="Candidates")
 fig.update_traces(hoverinfo="label+percent", textinfo="value")
 # fig.show()
 if WRITE_PIE:
+    logger.info("Exporting PieChart...")
     if WRITE_PIE_FMT & ExportFormat.PDF:
         fig.write_image(OUT / "pie.pdf")
     if WRITE_PIE_FMT & ExportFormat.PNG:
@@ -652,6 +687,7 @@ if WRITE_PIE:
     if WRITE_PIE_FMT & ExportFormat.CSV:
         pie_df.to_csv(OUT / "pie.csv")
 if WRITE_DF:
+    logger.info("Exporting DataFrame...")
     if WRITE_DF_FMT & ExportFormat.CSV:
         subs_df.to_csv(OUT / "subs.csv")
     elif WRITE_DF_FMT & ExportFormat.PKL:

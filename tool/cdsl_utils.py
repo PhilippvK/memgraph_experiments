@@ -219,3 +219,70 @@ class CDSLEmitter:
                 self.visit_lui(node)
             else:
                 raise NotImplementedError(f"Unhandled: {name}")
+
+
+class FlatCodeEmitter:
+
+    def __init__(self):
+        self.output = ""
+
+    def write(self, text):
+        if not isinstance(text, str):
+            text = str(text)
+        self.output += text
+
+    def visit_ref(self, node):
+        self.write(node.name)
+
+    def visit_constant(self, node):
+        self.write("(")
+        self.write(node.value)  # TODO: dtype
+        self.write(")")
+
+    def visit_register(self, node):
+        assert len(node.children) == 1
+        idx = node.children[0]
+        self.write("X")
+        self.write("[")
+        self.visit(idx)
+        self.write("]")
+
+    def visit_assignment(self, node):
+        # print("visit_assignment", node, node.children)
+        assert len(node.children) == 2
+        lhs, rhs = node.children
+        self.visit(lhs)
+        self.write("=")
+        self.visit(rhs)
+        self.write(";")
+
+    def visit_call(self, node):
+        # print("visit_assignment", node, node.children)
+        name = node.name
+        args = node.children
+        assert len(args) > 0
+        self.write(name)
+        self.write("(")
+        for i, arg in enumerate(args):
+            if i > 0:
+                self.write(",")
+            self.visit(arg)
+        self.write(")")
+
+    def visit(self, node):
+        # print("visit", node)
+        op_type = node.op_type
+        # print("op_type", op_type)
+        if op_type == "assignment":
+            self.visit_assignment(node)
+        elif op_type == "ref":
+            self.visit_ref(node)
+        elif op_type == "constant":
+            self.visit_constant(node)
+        # TODO: implement this
+        elif op_type == "register":
+            self.visit_register(node)
+        else:
+            # print("op_type", op_type)
+            assert op_type in ["operator", "output"]
+            self.visit_call(node)

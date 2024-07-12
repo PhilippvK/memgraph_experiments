@@ -2,6 +2,7 @@ import networkx as nx
 from anytree import AnyNode
 
 from .cdsl_utils import CDSLEmitter
+from .cdsl_utils import FlatCodeEmitter  # TODO: move
 
 
 class TreeGenContext:
@@ -135,4 +136,19 @@ def gen_tree(GF, sub, inputs, outputs, xlen=None):
     code = "\n".join(codes) + "\n"
     # print(code)
     # print("Done!")
-    return ret, code
+    return ret, ret_, code
+
+
+def gen_flat_code(xtrees):
+    codes = []
+    header = "// TODO"
+    codes.append(header)
+    for item in xtrees:
+        # print("item", item)
+        emitter = FlatCodeEmitter()
+        emitter.visit(item)
+        output = emitter.output
+        # print("output", output)
+        codes.append(output)
+    code = "\n".join(codes) + "\n"
+    return code
