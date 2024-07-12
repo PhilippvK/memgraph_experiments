@@ -1,0 +1,74 @@
+from typing import List, Optional
+
+
+def generate_func_query(session: str, func: str, fix_cycles: bool = True):
+    ret = f"""MATCH p0=(n00:INSTR)-[r01:DFG]->(n01:INSTR)
+WHERE n00.func_name = '{func}'
+AND n00.session = "{session}"
+"""
+    if fix_cycles:
+        # PHI nodes sometimes create cycles which are not allowed,
+        # hence we drop all ingoing edges to PHIs as their src MI
+        # is automatically marked as OUTPUT anyways.
+        ret += """AND n01.name != "PHI"
+"""
+    ret += "RETURN p0;"
+    return ret
+
+
+def generate_candidates_query(
+    session: str,
+    func: str,
+    bb: Optional[str],
+    min_path_length: int,
+    max_path_length: int,
+    max_path_width: int,
+    ignore_names: List[str],
+    ignore_op_types: List[str],
+    shared_input: bool = False,
+    shared_output: bool = True,
+):
+    if shared_input:
+        starts = ["a"] * max_path_width
+    else:
+        starts = [f"a{i}" for i in range(max_path_width)]
+    if shared_output:
+        ends = ["b"] * max_path_width
+    else:
+        ends = [f"b{i}" for i in range(max_path_width)]
+    paths = [f"p{i}" for i in range(max_path_width)]
+    match_rows = [
+        f"MATCH {paths[i]}=({starts[i]}:INSTR)-[:DFG*{min_path_length}..{max_path_length}]->({ends[i]}:INSTR)"
+        for i in range(max_path_width)
+    ]
+    match_str = "\n".join(match_rows)
+    session_conds = [f"{x}.session = '{session}'" for x in set(starts) | set(ends)]
+    func_conds = [f"{x}.func_name = '{func}'" for x in set(starts) | set(ends)]
+    if bb:
+        bb_conds = [f"{x}.basic_block = '{bb}'" for x in set(starts) | set(ends)]
+    else:
+        bb_conds = []
+    conds = session_conds + func_conds + bb_conds
+    conds_str = " AND ".join(conds)
+
+    def gen_filter(path):
+        name_filts = [f"node.name != '{name}'" for name in ignore_names]
+        op_type_filts = [f"node.op_type != '{op_type}'" for op_type in ignore_op_types]
+        filts = name_filts + op_type_filts
+        filts_str = " AND ".join(filts)
+        return f"all(node in nodes({path}) WHERE {filts_str})"
+
+    filters = [gen_filter(path) for path in paths]
+    filters_str = " AND ".join(filters)
+    return_str = ", ".join(paths)
+    if max_path_width > 1:
+        order_by_str = "size(collections.union(" + ", ".join([f"nodes({path})" for path in paths]) + "))"
+    else:
+        order_by_str = "size(nodes(p0))"
+    ret = f"""{match_str}
+WHERE {conds_str}
+AND {filters_str}
+RETURN {return_str}
+ORDER BY {order_by_str} desc;
+"""
+    return ret

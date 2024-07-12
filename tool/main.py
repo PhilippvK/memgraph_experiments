@@ -1,7 +1,6 @@
 import logging
 import argparse
 from pathlib import Path
-from typing import List, Optional
 from collections import defaultdict
 
 import numpy as np
@@ -10,14 +9,17 @@ import networkx as nx
 import plotly.express as px
 
 # import matplotlib.pyplot as plt
-from neo4j import GraphDatabase
-from anytree import AnyNode
 
 # from anytree import RenderTree
 # from anytree.iterators import AbstractIter
-from networkx.drawing.nx_agraph import write_dot
 
 from .enums import ExportFormat, ExportFilter
+from .memgraph import connect_memgraph, run_query
+from .cdsl_utils import wrap_cdsl
+from .mir_utils import gen_mir_func
+from .graph_utils import graph_to_file
+from .tree import gen_tree
+from .queries import generate_func_query, generate_candidates_query
 
 logger = logging.getLogger("main")
 
@@ -26,41 +28,49 @@ logger = logging.getLogger("main")
 # TODO: actually implement filters
 FUNC_FMT_DEFAULT = ExportFormat.DOT
 FUNC_FLT_DEFAULT = ExportFilter.SELECTED
-RESULT_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.CDSL | ExportFormat.MIR
-RESULT_FLT_DEFAULT = ExportFilter.SELECTED
-PIE_FMT_DEFAULT = ExportFormat.PDF
+SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PDF | ExportFormat.PNG
+SUB_FLT_DEFAULT = ExportFilter.SELECTED
+IO_SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PDF | ExportFormat.PNG
+IO_SUB_FLT_DEFAULT = ExportFilter.SELECTED
+GEN_FMT_DEFAULT = ExportFormat.CDSL | ExportFormat.MIR
+GEN_FLT_DEFAULT = ExportFilter.SELECTED
+PIE_FMT_DEFAULT = ExportFormat.PDF | ExportFormat.CSV
 DF_FMT_DEFAULT = ExportFormat.CSV
+IGNORE_NAMES_DEFAULT = ["PHI", "COPY", "PseudoCALLIndirect", "PseudoLGA", "Select_GPR_Using_CC_GPR"]
+IGNORE_OP_TYPES_DEFAULT = ["input", "constant"]
 
 
 def handle_cmdline():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--log", default="info", choices=["critical", "error", "warning", "info", "debug"])
     parser.add_argument("--host", default="localhost", help="TODO")
-    parser.add_argument("--port", default=7687, help="TODO")
+    parser.add_argument("--port", type=int, default=7687, help="TODO")
     parser.add_argument("--session", default="default", help="TODO")
-    parser.add_argument("--max-inputs", default=3, help="TODO")
-    parser.add_argument("--max-outputs", default=2, help="TODO")
-    parser.add_argument("--max-nodes", default=5, help="TODO")
-    parser.add_argument("--min-path-length", default=1, help="TODO")
-    parser.add_argument("--max-path-length", default=3, help="TODO")
-    parser.add_argument("--max-path-width", default=2, help="TODO")
+    parser.add_argument("--max-inputs", type=int, default=3, help="TODO")
+    parser.add_argument("--max-outputs", type=int, default=2, help="TODO")
+    parser.add_argument("--max-nodes", type=int, default=5, help="TODO")
+    parser.add_argument("--min-path-length", type=int, default=1, help="TODO")
+    parser.add_argument("--max-path-length", type=int, default=3, help="TODO")
+    parser.add_argument("--max-path-width", type=int, default=2, help="TODO")
     parser.add_argument("--function", "--func", default=None, help="TODO")
     parser.add_argument("--basic-block", "--bb", default=None, help="TODO")
-    parser.add_argument(
-        "--ignore-names",
-        default=["PHI", "COPY", "PseudoCALLIndirect", "PseudoLGA", "Select_GPR_Using_CC_GPR"],
-        help="TODO",
-    )
-    parser.add_argument("--ignore-op_types", default=["input", "constant"], help="TODO")
+    parser.add_argument("--ignore-names", default=",".join(IGNORE_NAMES_DEFAULT), help="TODO")
+    parser.add_argument("--ignore-op-types", default=",".join(IGNORE_OP_TYPES_DEFAULT), help="TODO")
     parser.add_argument("--ignore-const-inputs", action="store_true", help="TODO")
-    parser.add_argument("--xlen", default=64, help="TODO")
+    parser.add_argument("--xlen", type=int, default=64, help="TODO")
     parser.add_argument("--output-dir", "-o", default="./out", help="TODO")
     parser.add_argument("--write-func", action="store_true", help="TODO")
     parser.add_argument("--write-func-fmt", type=int, default=FUNC_FMT_DEFAULT, help="TODO")
-    parser.add_argument("--write-func-filter", type=int, default=FUNC_FLT_DEFAULT, help="TODO")
-    parser.add_argument("--write-result", action="store_true", help="TODO")
-    parser.add_argument("--write-result-fmt", type=int, default=RESULT_FMT_DEFAULT, help="TODO")
-    parser.add_argument("--write-result-filter", type=int, default=RESULT_FLT_DEFAULT, help="TODO")
+    parser.add_argument("--write-func-flt", type=int, default=FUNC_FLT_DEFAULT, help="TODO")
+    parser.add_argument("--write-sub", action="store_true", help="TODO")
+    parser.add_argument("--write-sub-fmt", type=int, default=SUB_FMT_DEFAULT, help="TODO")
+    parser.add_argument("--write-sub-flt", type=int, default=SUB_FLT_DEFAULT, help="TODO")
+    parser.add_argument("--write-io-sub", action="store_true", help="TODO")
+    parser.add_argument("--write-io-sub-fmt", type=int, default=IO_SUB_FMT_DEFAULT, help="TODO")
+    parser.add_argument("--write-io-sub-flt", type=int, default=IO_SUB_FLT_DEFAULT, help="TODO")
+    parser.add_argument("--write-gen", action="store_true", help="TODO")
+    parser.add_argument("--write-gen-fmt", type=int, default=GEN_FMT_DEFAULT, help="TODO")
+    parser.add_argument("--write-gen-flt", type=int, default=GEN_FLT_DEFAULT, help="TODO")
     parser.add_argument("--write-pie", action="store_true", help="TODO")
     parser.add_argument("--write-pie-fmt", type=int, default=PIE_FMT_DEFAULT, help="TODO")
     # TODO: pie filters?
@@ -72,386 +82,6 @@ def handle_cmdline():
     logging.getLogger("neo4j.io").setLevel(logging.INFO)
     logging.getLogger("neo4j.pool").setLevel(logging.INFO)
     return args
-
-
-def connect_memgraph(host, port, user="", password=""):
-    driver = GraphDatabase.driver(f"bolt://{host}:{port}", auth=(user, password))
-    return driver
-
-
-def run_query(driver, query):
-    # TODO: use logging module
-    logger.debug("QUERY> %s", query)
-    return driver.session().run(query)
-
-
-def wrap_cdsl(name, code):
-    ret = f"{name} {{\n"
-    ret += "\n".join(["    " + line for line in code.splitlines()]) + "\n"
-    ret += "}\n"
-    return ret
-
-
-class CDSLEmitter:
-
-    def __init__(self):
-        self.output = ""
-
-    def write(self, text):
-        if not isinstance(text, str):
-            text = str(text)
-        self.output += text
-
-    def visit_ref(self, node):
-        self.write(node.name)
-
-    def visit_constant(self, node):
-        self.write("(")
-        self.write(node.value)  # TODO: dtype
-        self.write(")")
-
-    def visit_register(self, node):
-        assert len(node.children) == 1
-        idx = node.children[0]
-        self.write("X")
-        self.write("[")
-        self.visit(idx)
-        self.write("]")
-
-    def visit_assignment(self, node):
-        # print("visit_assignment", node, node.children)
-        assert len(node.children) == 2
-        lhs, rhs = node.children
-        self.visit(lhs)
-        self.write("=")
-        self.visit(rhs)
-        self.write(";")
-
-    def visit_branch(self, node):
-        lookup = {
-            "BNE": ("!=", False),
-            "BEQ": ("==", False),
-        }
-        res = lookup.get(node.name)
-        assert res is not None
-        pred, imm = res
-        assert not imm, "Immediated branching not supported"
-        # print("node.children", node.children)
-        assert len(node.children) == 2  # TODO: fix missing offset label
-        lhs, rhs = node.children
-        # TODO: check alignment
-        self.write("if(")
-        self.visit(lhs)
-        self.write(pred)
-        self.visit(rhs)
-        self.write(")")
-        self.write("{")
-        self.write("PC")
-        self.write("=")
-        self.write("PC")
-        self.write("+")
-        self.write("(signed)")
-        # self.visit(offset)
-        self.write("TODO")
-        self.write("}")
-
-    def visit_load(self, node):
-        lookup = {
-            "LH": (True, 16, True),
-            "LW": (True, 32, True),
-        }
-        res = lookup.get(node.name)
-        assert res is not None
-        signed, sz, imm = res
-        assert imm, "reg-reg loads not supported"
-        assert len(node.children) == 2
-        base, offset = node.children
-        self.write("(unsigned<XLEN>)")
-        self.write("(")
-        if signed:
-            self.write(f"(unsigned<{sz}>)")
-        else:
-            self.write(f"(signed<{sz}>)")
-        self.write("MEM[")
-        self.visit(base)
-        self.write("+")
-        self.visit(offset)
-        self.write("]")
-        self.write(")")
-
-    def visit_store(self, node):
-        lookup = {
-            "SW": (32, True),
-            "SH": (16, True),
-        }
-        res = lookup.get(node.name)
-        assert res is not None
-        sz, imm = res
-        assert imm, "reg-reg stores not supported"
-        assert len(node.children) == 3
-        value, base, offset = node.children
-        self.write("MEM[")
-        self.visit(base)
-        self.write("+")
-        self.visit(offset)
-        self.write("]")
-        self.write("=")
-        self.write("(")
-        self.write(f"(signed<{sz}>)")
-        self.visit(value)
-        self.write(")")
-        self.write(";")
-
-    def visit_lui(self, node):
-        self.write("lui(TODO)")
-
-    def visit_binop(self, node):
-        # TODO: imm needed?
-        lookup = {
-            "ADD": ("+", True, XLEN, False),
-            "ADDW": ("+", True, 32, False),
-            "ADDI": ("+", True, XLEN, True),
-            "ADDIW": ("+", True, 32, True),
-            "SUBW": ("-", True, 32, False),
-            "SRA": (">>", True, XLEN, False),
-            "SRAI": (">>", True, XLEN, True),
-            "SRLI": (">>", False, XLEN, True),
-            "SLL": ("<<", False, XLEN, False),
-            "SLLI": ("<<", False, XLEN, True),
-            "AND": ("&", False, XLEN, False),
-            "XOR": ("^", False, XLEN, False),
-            "ANDI": ("&", False, XLEN, True),
-            "MULW": ("*", True, 32, False),
-            "MUL": ("*", True, XLEN, False),
-        }
-        res = lookup.get(node.name)
-        assert res is not None
-        op, signed, sz, imm = res
-        # TODO: check imm (sign/sz?)
-        # TODO: dtype
-        self.write("(")
-        assert len(node.children) == 2
-        lhs, rhs = node.children
-        self.visit(lhs)
-        self.write(op)
-        self.visit(rhs)
-        self.write(")")
-
-    def visit_cond_set(self, node):
-        lookup = {"SLT": ("<", True), "SLTU": ("<", False)}
-        res = lookup.get(node.name)
-        assert res is not None
-        pred, signed = res
-        assert len(node.children) == 2
-        lhs, rhs = node.children
-        self.write("(")
-        if signed:
-            self.write("(signed)")
-        self.visit(lhs)
-        self.write(pred)
-        if signed:
-            self.write("(signed)")
-        self.visit(rhs)
-        self.write("?")
-        self.write(1)
-        self.write(":")
-        self.write(0)
-        self.write(")")
-
-    def visit(self, node):
-        # print("visit", node)
-        op_type = node.op_type
-        # print("op_type", op_type)
-        if op_type == "assignment":
-            self.visit_assignment(node)
-        elif op_type == "ref":
-            self.visit_ref(node)
-        elif op_type == "constant":
-            self.visit_constant(node)
-        # TODO: implement this
-        elif op_type == "register":
-            self.visit_register(node)
-        else:
-            name = node.name
-            # print("name", name)
-            if name in [
-                "ADDIW",
-                "SRLI",
-                "SLLI",
-                "AND",
-                "ANDI",
-                "XOR",
-                "ADD",
-                "ADDI",
-                "ADDW",
-                "MULW",
-                "MUL",
-                "SRA",
-                "SRAI",
-                "SLL",
-                "SUBW",
-            ]:
-                self.visit_binop(node)
-            elif name in ["SLT", "SLTU"]:
-                self.visit_cond_set(node)
-            elif name in ["BNE", "BEQ"]:
-                self.visit_branch(node)
-            elif name in ["LH", "LW"]:
-                self.visit_load(node)
-            elif name in ["SW", "SH"]:
-                self.visit_store(node)
-            elif name in ["LUI"]:
-                self.visit_lui(node)
-            else:
-                raise NotImplementedError(f"Unhandled: {name}")
-
-
-class TreeGenContext:
-
-    def __init__(self, graph, sub, inputs=None) -> None:
-        self.graph = graph
-        self.sub = sub
-        self.inputs = inputs if inputs is not None else []
-        self.node_map = {}
-        self.defs = {}
-
-    @property
-    def visited(self):
-        return set(self.node_map.keys())
-
-    def visit(self, node):
-        # print("visit", node)
-        if node in self.visited:
-            op_type = self.graph.nodes[node]["properties"]["op_type"]
-            if op_type == "constant":
-                val = self.graph.nodes[node]["properties"]["inst"]
-                val = int(val[:-1])
-                ret = AnyNode(id=-1, value=val, op_type=op_type, children=[])
-            else:
-                assert node in self.defs, f"node {node} not in defs {self.defs}"
-                ref = self.defs[node]
-                ret = AnyNode(id=-1, name=ref, op_type="ref")
-            return ret
-            # return self.node_map[node]
-        # if node in inputs:
-        #     children = []
-        # else:
-        srcs = [src for src, _ in self.graph.in_edges(node)]
-        srcs = [src for src in srcs if src in self.inputs or src in self.sub.nodes]
-        children = [self.visit(src) for src in srcs]
-        # print("children", children)
-        op_type = self.graph.nodes[node]["properties"]["op_type"]
-        name = self.graph.nodes[node]["properties"]["name"]
-        if op_type == "constant":
-            val = self.graph.nodes[node]["properties"]["inst"]
-            val = int(val[:-1])
-            ret = AnyNode(id=-1, value=val, op_type=op_type, children=children)
-        else:
-            if node in self.inputs:
-                op_type = "input"
-            ret = AnyNode(id=node, name=name, op_type=op_type, children=children)
-        self.node_map[node] = ret
-        return ret
-
-
-def gen_tree(GF, sub, inputs, outputs):
-    ret = {}
-    ret_ = []
-    # print("gen_tree", GF, sub, inputs, outputs)
-    topo = list(nx.topological_sort(GF))
-    inputs = sorted(inputs, key=lambda x: topo.index(x))
-    outputs = sorted(outputs, key=lambda x: topo.index(x))
-    # treegen = TreeGenContext(sub)
-    treegen = TreeGenContext(GF, sub, inputs=inputs)
-    # i = 0  # reg
-    j = 0  # imm
-    for i, inp in enumerate(inputs):
-        op_type = GF.nodes[inp]["properties"]["op_type"]
-        if op_type == "constant":
-            continue
-        res = treegen.visit(inp)
-        name = f"inp{j}"
-        treegen.defs[inp] = name
-        ret[name] = res
-        if res.name[:2] == "$x":
-            idx = int(res.name[2:])
-            # TODO: make more generic to also work for assignments
-            ref_ = AnyNode(id=-1, name=res.name, op_type="constant", value=idx)
-            res = AnyNode(id=-1, name="X[?]", children=[ref_], op_type="register")
-        else:
-            name_ = f"rs{j+1}"
-            ref_ = AnyNode(id=-1, name=name_, op_type="ref")
-            res = AnyNode(id=-1, name="X[?]", children=[ref_], op_type="register")
-        ref = AnyNode(id=-1, name=name, op_type="ref")
-        root = AnyNode(id=-1, name="ASSIGN1", children=[ref, res], op_type="assignment")
-        ret_.append(root)
-        j += 1
-        # print(f"{name}:")
-        # print(RenderTree(res))
-    j = 0
-    for i, outp in enumerate(outputs):
-        res = treegen.visit(outp)
-        # TODO: check for may_store, may_branch
-        name = f"outp{j}"
-        treegen.defs[outp] = name
-        # ret[name] = root
-        ret[name] = res
-        # print("res", res)
-        # print(RenderTree(res))
-        if res.name in ["SD", "SW", "SH", "SB", "BEQ", "BNE"]:
-            root = res
-            ret_.append(root)
-        else:
-            ref = AnyNode(id=-1, name=name, op_type="ref")
-            ref_ = AnyNode(id=-1, name=name, op_type="ref")
-            # import pdb; pdb.set_trace()
-            # print("ref", ref, ref.children)
-            # print("res", res, res.children)
-            root = AnyNode(id=-1, name="ASSIGN2", children=[ref, res], op_type="assignment")
-            # print("root", root, root.children)
-            ret_.append(root)
-            idx = j + 1
-            name_ = "rd" if idx == 1 else f"rd{idx}"
-            ref2 = AnyNode(id=-1, name=name_, op_type="ref")
-            reg = AnyNode(id=-1, name="X[?]", children=[ref2], op_type="register")
-            root2 = AnyNode(id=-1, name="ASSIGN3", children=[reg, ref_], op_type="assignment")
-            ret_.append(root2)
-        j += 1
-
-        # print(f"{name}:")
-        # print(RenderTree(res))
-    # print("Generating CDSL...")
-    codes = []
-    header = "// TODO"
-    codes.append(header)
-    for item in ret_:
-        # print("item", item)
-        emitter = CDSLEmitter()
-        emitter.visit(item)
-        output = emitter.output
-        # print("output", output)
-        codes.append(output)
-    # print("CDSL Code:")
-    codes = ["    " + code for code in codes]
-    codes = ["operands: TODO;", "encoding: auto;", 'assembly: {TODO, "TODO"};', "behavior: {"] + codes + ["}"]
-    code = "\n".join(codes) + "\n"
-    # print(code)
-    # print("Done!")
-    return ret, code
-
-
-def gen_mir_func(func_name, code, desc=None):
-    ret = "# MIR"
-    if desc:
-        ret += f" [{desc}]"
-    ret += f"""
----
-name: {func_name}
-body: |
-  bb.0:
-"""
-    ret += "\n".join(["    " + line for line in code.splitlines()])
-    return ret
 
 
 args = handle_cmdline()
@@ -468,15 +98,21 @@ BB = args.basic_block
 MIN_PATH_LEN = args.min_path_length
 MAX_PATH_LEN = args.max_path_length
 MAX_PATH_WIDTH = args.max_path_width
-IGNORE_NAMES = args.ignore_names
-IGNORE_OP_TYPES = args.ignore_op_types
+IGNORE_NAMES = args.ignore_names.split(",")
+IGNORE_OP_TYPES = args.ignore_op_types.split(",")
 IGNORE_CONST_INPUTS = args.ignore_const_inputs
 WRITE_FUNC = args.write_func
 WRITE_FUNC_FMT = args.write_func_fmt
-WRITE_FUNC_FLT = args.write_func_filter
-WRITE_RESULT = args.write_result
-WRITE_RESULT_FMT = args.write_result_fmt
-WRITE_RESULT_FLT = args.write_result_filter
+WRITE_FUNC_FLT = args.write_func_flt
+WRITE_SUB = args.write_sub
+WRITE_SUB_FMT = args.write_sub_fmt
+WRITE_SUB_FLT = args.write_sub_flt
+WRITE_IO_SUB = args.write_io_sub
+WRITE_IO_SUB_FMT = args.write_io_sub_fmt
+WRITE_IO_SUB_FLT = args.write_io_sub_flt
+WRITE_GEN = args.write_gen
+WRITE_GEN_FMT = args.write_gen_fmt
+WRITE_GEN_FLT = args.write_gen_flt
 WRITE_PIE = args.write_pie
 WRITE_PIE_FMT = args.write_pie_fmt
 WRITE_DF = args.write_df
@@ -489,77 +125,6 @@ if not IGNORE_CONST_INPUTS:
 
 
 driver = connect_memgraph(HOST, PORT, user="", password="")
-
-
-def generate_func_query(session: str, func: str, fix_cycles: bool = True):
-    ret = f"""MATCH p0=(n00:INSTR)-[r01:DFG]->(n01:INSTR)
-WHERE n00.func_name = '{func}'
-AND n00.session = "{session}"
-"""
-    if fix_cycles:
-        # PHI nodes sometimes create cycles which are not allowed,
-        # hence we drop all ingoing edges to PHIs as their src MI
-        # is automatically marked as OUTPUT anyways.
-        ret += """AND n01.name != "PHI"
-"""
-    ret += "RETURN p0;"
-    return ret
-
-
-def generate_candidates_query(
-    session: str,
-    func: str,
-    bb: Optional[str],
-    min_path_length: int,
-    max_path_length: int,
-    max_path_width: int,
-    ignore_names: List[str],
-    ignore_op_types: List[str],
-    shared_input: bool = False,
-    shared_output: bool = True,
-):
-    if shared_input:
-        starts = ["a"] * max_path_width
-    else:
-        starts = [f"a{i}" for i in range(max_path_width)]
-    if shared_output:
-        ends = ["b"] * max_path_width
-    else:
-        ends = [f"b{i}" for i in range(max_path_width)]
-    paths = [f"p{i}" for i in range(max_path_width)]
-    match_rows = [
-        f"MATCH {paths[i]}=({starts[i]}:INSTR)-[:DFG*{min_path_length}..{max_path_length}]->({ends[i]}:INSTR)"
-        for i in range(max_path_width)
-    ]
-    match_str = "\n".join(match_rows)
-    session_conds = [f"{x}.session = '{session}'" for x in set(starts) | set(ends)]
-    func_conds = [f"{x}.func_name = '{func}'" for x in set(starts) | set(ends)]
-    if bb:
-        bb_conds = [f"{x}.basic_block = '{bb}'" for x in set(starts) | set(ends)]
-    else:
-        bb_conds = []
-    conds = session_conds + func_conds + bb_conds
-    conds_str = " AND ".join(conds)
-
-    def gen_filter(path):
-        name_filts = [f"node.name != '{name}'" for name in ignore_names]
-        op_type_filts = [f"node.op_type != '{op_type}'" for op_type in ignore_op_types]
-        filts = name_filts + op_type_filts
-        filts_str = " AND ".join(filts)
-        return f"all(node in nodes({path}) WHERE {filts_str})"
-
-    filters = [gen_filter(path) for path in paths]
-    filters_str = " AND ".join(filters)
-    return_str = ", ".join(paths)
-    order_by_str = "size(collections.union(" + ", ".join([f"nodes({path})" for path in paths]) + "))"
-    ret = f"""{match_str}
-WHERE {conds_str}
-AND {filters_str}
-RETURN {return_str}
-ORDER BY {order_by_str} desc;
-"""
-    return ret
-
 
 query_func = generate_func_query(SESSION, FUNC)
 query = generate_candidates_query(
@@ -590,21 +155,6 @@ for rel in rels:
     # )
     GF.add_edge(rel.start_node.id, rel.end_node.id, key=rel.id, label=label, type=rel.type, properties=rel._properties)
 # print("GF", GF)
-
-
-def graph_to_file(graph, dest, fmt="auto"):
-    if not isinstance(dest, Path):
-        dest = Path(dest)
-    if fmt == "auto":
-        fmt = dest.suffix[1:].upper()
-    if fmt == "DOT":
-        write_dot(graph, dest)
-    elif fmt == "PDF":
-        raise NotImplementedError
-    elif fmt == "PNG":
-        raise NotImplementedError
-    else:
-        raise ValueError(f"Unsupported fmt: {fmt}")
 
 
 if WRITE_FUNC:
@@ -655,13 +205,13 @@ for i, result in enumerate(results):
     G_ = G.subgraph(nodes_)
     # G_ = nx.subgraph_view(G, filter_node=lambda x: x in nodes_)
     # print("G_", G_)
-    if WRITE_RESULT:
-        if WRITE_RESULT_FMT & ExportFormat.DOT:
-            graph_to_file(G_, OUT / f"result{i}.dot")
-        if WRITE_RESULT_FMT & ExportFormat.PDF:
-            graph_to_file(G_, OUT / f"result{i}.pdf")
-        if WRITE_RESULT_FMT & ExportFormat.PNG:
-            graph_to_file(G_, OUT / f"result{i}.png")
+    if WRITE_SUB:
+        if WRITE_SUB_FMT & ExportFormat.DOT:
+            graph_to_file(G_, OUT / f"sub{i}.dot")
+        if WRITE_SUB_FMT & ExportFormat.PDF:
+            graph_to_file(G_, OUT / f"sub{i}.pdf")
+        if WRITE_SUB_FMT & ExportFormat.PNG:
+            graph_to_file(G_, OUT / f"sub{i}.png")
     count = subs.count(G_)
     if count > 0:
         pass
@@ -859,7 +409,17 @@ for i, sub in enumerate(subs):
     # print("num_outputs", num_outputs)
     # print("inputs", [GF.nodes[inp] for inp in inputs])
     # print("outputs", [GF.nodes[outp] for outp in outputs])
-    io_sub = GF.subgraph(list(sub.nodes) + inputs)
+    # TODO: copy fine?
+    io_sub = GF.subgraph(list(sub.nodes) + inputs).copy()
+    j = 0
+    for inp in inputs:
+        if io_sub.nodes[inp]["label"] == "Const":
+            io_sub.nodes[inp]["xlabel"] = "CONST"
+            io_sub.nodes[inp]["label"] = io_sub.nodes[inp]["properties"]["inst"][:-1]
+        else:
+            io_sub.nodes[inp]["xlabel"] = "IN"
+            io_sub.nodes[inp]["label"] = f"src{j}"
+            j += 1
     # print("io_sub", io_sub)
     io_subs.append(io_sub)
 
@@ -884,6 +444,17 @@ for i, io_sub in enumerate(io_subs):
 # print("subs_df")
 # print(subs_df)
 # print("io_isos", io_isos, len(io_isos))
+
+if WRITE_IO_SUB:
+    for i, io_sub in enumerate(io_subs):
+        if i in io_isos:
+            continue
+        if WRITE_IO_SUB_FMT & ExportFormat.DOT:
+            graph_to_file(io_sub, OUT / f"io_sub{i}.dot")
+        if WRITE_IO_SUB_FMT & ExportFormat.PDF:
+            graph_to_file(io_sub, OUT / f"io_sub{i}.pdf")
+        if WRITE_IO_SUB_FMT & ExportFormat.PNG:
+            graph_to_file(io_sub, OUT / f"io_sub{i}.png")
 
 for i, sub in enumerate(subs):
     if i in io_isos:
@@ -1028,8 +599,8 @@ body: |
     mir_code = gen_mir_func(f"result{i}", code, desc=desc)
     # print(f"Code3:\n{mir_code}")
     # print(mir_code)
-    if WRITE_RESULT:
-        if WRITE_RESULT_FMT & ExportFormat.MIR:
+    if WRITE_GEN:
+        if WRITE_GEN_FMT & ExportFormat.MIR:
             with open(OUT / f"result{i}.mir", "w") as f:
                 f.write(mir_code)
     if num_outputs == 0 or num_inputs == 0:
@@ -1038,7 +609,7 @@ body: |
         pass
     # print("---------------------------")
     try:
-        tree, cdsl_code = gen_tree(GF, sub, inputs, outputs)
+        tree, cdsl_code = gen_tree(GF, sub, inputs, outputs, xlen=XLEN)
     except AssertionError as e:
         print(e)  # TODO: logger.exception
         errs.add(i)
@@ -1047,8 +618,8 @@ body: |
     # print("tree", tree)
     # print("cdsl_code", cdsl_code)
     # TODO: add encoding etc.!
-    if WRITE_RESULT:
-        if WRITE_RESULT_FMT & ExportFormat.CDSL:
+    if WRITE_GEN:
+        if WRITE_GEN_FMT & ExportFormat.CDSL:
             with open(OUT / f"result{i}.core_desc", "w") as f:
                 f.write(full_cdsl_code)
 
@@ -1078,6 +649,10 @@ if WRITE_PIE:
         fig.write_image(OUT / "pie.pdf")
     if WRITE_PIE_FMT & ExportFormat.PNG:
         fig.write_image(OUT / "pie.png")
+    if WRITE_PIE_FMT & ExportFormat.CSV:
+        pie_df.to_csv(OUT / "pie.csv")
 if WRITE_DF:
     if WRITE_DF_FMT & ExportFormat.CSV:
-        raise NotImplementedError
+        subs_df.to_csv(OUT / "subs.csv")
+    elif WRITE_DF_FMT & ExportFormat.PKL:
+        subs_df.to_pickle(OUT / "subs.pkl")
