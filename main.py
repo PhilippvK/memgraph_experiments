@@ -11,8 +11,10 @@ import plotly.express as px
 
 # import matplotlib.pyplot as plt
 from neo4j import GraphDatabase
-from anytree import AnyNode, RenderTree
-from anytree.iterators import AbstractIter
+from anytree import AnyNode
+
+# from anytree import RenderTree
+# from anytree.iterators import AbstractIter
 from networkx.drawing.nx_agraph import write_dot
 
 from .enums import ExportFormat, ExportFilter
@@ -582,7 +584,10 @@ for node in nodes:
 rels = list(func_results.graph()._relationships.values())
 for rel in rels:
     label = rel.type
-    # GF.add_edge(rel.start_node.element_id, rel.end_node.element_id, key=rel.element_id, label=label, type=rel.type, properties=rel._properties)
+    # GF.add_edge(
+    #     rel.start_node.element_id, rel.end_node.element_id, key=rel.element_id,
+    #     label=label, type=rel.type, properties=rel._properties,
+    # )
     GF.add_edge(rel.start_node.id, rel.end_node.id, key=rel.id, label=label, type=rel.type, properties=rel._properties)
 # print("GF", GF)
 
@@ -604,11 +609,11 @@ def graph_to_file(graph, dest, fmt="auto"):
 
 if WRITE_FUNC:
     if WRITE_FUNC_FMT & ExportFormat.DOT:
-        graph_to_file(GF, OUT / f"func.dot")
+        graph_to_file(GF, OUT / "func.dot")
     if WRITE_FUNC_FMT & ExportFormat.PDF:
-        graph_to_file(GF, OUT / f"func.pdf")
+        graph_to_file(GF, OUT / "func.pdf")
     if WRITE_FUNC_FMT & ExportFormat.PNG:
-        graph_to_file(GF, OUT / f"func.png")
+        graph_to_file(GF, OUT / "func.png")
 
 
 G = nx.MultiDiGraph()
@@ -626,7 +631,10 @@ for node in nodes:
 rels = list(results.graph()._relationships.values())
 for rel in rels:
     label = rel.type
-    # G.add_edge(rel.start_node.element_id, rel.end_node.element_id, key=rel.element_id, label=label, type=rel.type, properties=rel._properties)
+    # G.add_edge(
+    #     rel.start_node.element_id, rel.end_node.element_id, key=rel.element_id,
+    #     label=label, type=rel.type, properties=rel._properties
+    # )
     G.add_edge(rel.start_node.id, rel.end_node.id, key=rel.id, label=label, type=rel.type, properties=rel._properties)
 
 subs = []
@@ -861,10 +869,14 @@ for i, io_sub in enumerate(io_subs):
     # break  # TODO
     # print("io_sub", i, io_sub, io_sub.nodes)
     # print("io_sub nodes", [GF.nodes[n] for n in io_sub.nodes])
-    nm = lambda x, y: x["label"] == y["label"] and (
-        x["label"] != "Const" or x["properties"]["inst"] == y["properties"]["inst"]
+    def node_match(x, y):
+        return x["label"] == y["label"] and (
+            x["label"] != "Const" or x["properties"]["inst"] == y["properties"]["inst"]
+        )
+
+    io_isos_ = set(
+        j for j, io_sub_ in enumerate(io_subs) if j > i and nx.is_isomorphic(io_sub, io_sub_, node_match=node_match)
     )
-    io_isos_ = set(j for j, io_sub_ in enumerate(io_subs) if j > i and nx.is_isomorphic(io_sub, io_sub_, node_match=nm))
     # print("io_isos_", io_isos_)
     io_iso_count = len(io_isos_)
     # print("io_iso_count", io_iso_count)
