@@ -13,13 +13,14 @@ import plotly.express as px
 # from anytree import RenderTree
 # from anytree.iterators import AbstractIter
 
-from .enums import ExportFormat, ExportFilter
+from .enums import ExportFormat, ExportFilter, InstrPredicate
 from .memgraph import connect_memgraph, run_query
 from .cdsl_utils import wrap_cdsl
 from .mir_utils import gen_mir_func
 from .graph_utils import graph_to_file
 from .tree import gen_tree, gen_flat_code
 from .queries import generate_func_query, generate_candidates_query
+from .pred import check_predicates
 
 logger = logging.getLogger("main")
 
@@ -36,23 +37,28 @@ GEN_FMT_DEFAULT = ExportFormat.CDSL | ExportFormat.MIR | ExportFormat.TXT
 GEN_FLT_DEFAULT = ExportFilter.SELECTED
 PIE_FMT_DEFAULT = ExportFormat.PDF | ExportFormat.CSV
 DF_FMT_DEFAULT = ExportFormat.CSV
+INSTR_PREDICATES_DEFAULT = InstrPredicate.ALL
 IGNORE_NAMES_DEFAULT = ["PHI", "COPY", "PseudoCALLIndirect", "PseudoLGA", "Select_GPR_Using_CC_GPR"]
 IGNORE_OP_TYPES_DEFAULT = ["input", "constant"]
 
 
 def handle_cmdline():
+    # TODO: add help messages
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--log", default="info", choices=["critical", "error", "warning", "info", "debug"])
     parser.add_argument("--host", default="localhost", help="TODO")
     parser.add_argument("--port", type=int, default=7687, help="TODO")
     parser.add_argument("--session", default="default", help="TODO")
     parser.add_argument("--limit-results", type=int, default=None, help="TODO")
+    parser.add_argument("--min-inputs", type=int, default=0, help="TODO")
     parser.add_argument("--max-inputs", type=int, default=3, help="TODO")
+    parser.add_argument("--min-outputs", type=int, default=0, help="TODO")
     parser.add_argument("--max-outputs", type=int, default=2, help="TODO")
     parser.add_argument("--max-nodes", type=int, default=5, help="TODO")
     parser.add_argument("--min-path-length", type=int, default=1, help="TODO")
     parser.add_argument("--max-path-length", type=int, default=3, help="TODO")
     parser.add_argument("--max-path-width", type=int, default=2, help="TODO")
+    parser.add_argument("--instr-predicates", type=int, default=INSTR_PREDICATES_DEFAULT, help="TODO")
     parser.add_argument("--function", "--func", default=None, help="TODO")
     parser.add_argument("--basic-block", "--bb", default=None, help="TODO")
     parser.add_argument("--ignore-names", default=",".join(IGNORE_NAMES_DEFAULT), help="TODO")
@@ -86,7 +92,9 @@ def handle_cmdline():
 
 
 args = handle_cmdline()
+MIN_INPUTS = args.min_inputs
 MAX_INPUTS = args.max_inputs
+MIN_OUTPUTS = args.min_outputs
 MAX_OUTPUTS = args.max_outputs
 MAX_NODES = args.max_nodes
 XLEN = args.xlen
@@ -100,6 +108,7 @@ LIMIT_RESULTS = args.limit_results
 MIN_PATH_LEN = args.min_path_length
 MAX_PATH_LEN = args.max_path_length
 MAX_PATH_WIDTH = args.max_path_width
+INSTR_PREDICATES = args.instr_predicates
 IGNORE_NAMES = args.ignore_names.split(",")
 IGNORE_OP_TYPES = args.ignore_op_types.split(",")
 IGNORE_CONST_INPUTS = args.ignore_const_inputs
@@ -148,6 +157,7 @@ results = run_query(driver, query)
 
 # TODO: move to helper func
 # TODO: print number of results
+# TODO: fix DeprecationWarning: `id` is deprecated, use `element_id` instead
 logger.info("Converting results to NX...")
 GF = nx.MultiDiGraph()
 nodes = list(func_results.graph()._nodes.values())
@@ -376,6 +386,7 @@ all_codes = {}
 errs = set()
 filtered_io = set()
 filtered_complex = set()
+filtered_predicates = set()
 invalid = set()
 duplicate_counts = defaultdict(int)
 
@@ -480,9 +491,12 @@ for i, sub in enumerate(subs):
     num_outputs = int(sub_data["#Outputs"])
     if num_inputs_noconst == 0 or num_outputs == 0:
         invalid.add(i)
-    elif num_inputs_noconst <= MAX_INPUTS and num_outputs <= MAX_OUTPUTS:
+    elif MIN_INPUTS <= num_inputs_noconst <= MAX_INPUTS and MIN_OUTPUTS <= num_outputs <= MAX_OUTPUTS:
         if num_nodes > MAX_NODES:
             filtered_complex.add(i)
+        elif not check_predicates(sub, INSTR_PREDICATES):
+            # TODO: add predicates details to df in prerequisite step
+            filtered_predicates.add(i)
     else:
         filtered_io.add(i)
 
@@ -653,6 +667,8 @@ body: |
             flat_code = gen_flat_code(xtrees)
             with open(OUT / f"result{i}.txt", "w") as f:
                 f.write(flat_code)
+
+# TODO: loop multiple times (tree -> MIR -> CDSL -> FLAT) not interleaved
 
 # if len(duplicate_counts) > 0:
 #     print()

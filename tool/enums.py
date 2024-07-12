@@ -21,3 +21,11 @@ class ExportFilter(IntFlag):
     INVALID = auto()  # 16
     ERROR = auto()  # 32
     ALL = SELECTED | ISO | FILTERED_IO | FILTERED_COMPLEX | INVALID | ERROR
+
+
+class InstrPredicate(IntFlag):
+    NONE = 0
+    MAY_LOAD = auto()  # 1
+    MAY_STORE = auto()  # 2
+    IS_BRANCH = auto()  # 4
+    ALL = MAY_LOAD | MAY_STORE | IS_BRANCH
