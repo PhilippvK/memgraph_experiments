@@ -17,3 +17,91 @@ def graph_to_file(graph, dest, fmt="auto"):
         graph.draw(dest, prog=prog)
     else:
         raise ValueError(f"Unsupported fmt: {fmt}")
+
+
+def memgraph_to_nx(results):
+    graph = nx.MultiDiGraph()
+    nodes = list(results.graph()._nodes.values())
+    # print("nodes", nodes)
+    for node in nodes:
+        # print("node", node)
+        if len(node._labels) > 0:
+            label = list(node._labels)[0]
+        else:
+            label = "?!"
+        name = node._properties.get("name", "?")
+        graph.add_node(int(node.element_id), xlabel=label, label=name, properties=node._properties)
+
+    rels = list(results.graph()._relationships.values())
+    for rel in rels:
+        label = rel.type
+        # graph.add_edge(
+        #     rel.start_node.element_id, rel.end_node.element_id, key=rel.element_id,
+        #     label=label, type=rel.type, properties=rel._properties,
+        # )
+        graph.add_edge(
+            int(rel.start_node.element_id),
+            int(rel.end_node.element_id),
+            key=int(rel.element_id),
+            label=label,
+            type=rel.type,
+            properties=rel._properties,
+        )
+    return graph
+
+
+def calc_inputs(G, sub, ignore_const: bool = False):
+    # print("calc_inputs", sub)
+    inputs = []
+    ret = 0
+    sub_nodes = sub.nodes
+    # print("sub_nodes", sub_nodes)
+    for node in sub_nodes:
+        # print("node", node, G.nodes[node].get("label"))
+        ins = G.in_edges(node)
+        # print("ins", ins)
+        for in_ in ins:
+            # print("in_", in_, G.nodes[in_[0]].get("label"))
+            src = in_[0]
+            if G.nodes[src]["properties"]["op_type"] == "constant" and ignore_const:
+                continue
+            # print("src", src, G.nodes[src].get("label"))
+            # print("src in sub_nodes", src in sub_nodes)
+            # print("src not in inputs", src not in inputs)
+            if not (src in sub_nodes) and (src not in inputs):
+                # print("IN")
+                ret += 1
+                inputs.append(src)
+    # print("ret", ret)
+    return ret, inputs
+
+
+def calc_outputs(G, sub):
+    # print("calc_outputs", sub)
+    ret = 0
+    sub_nodes = sub.nodes
+    # print("sub_nodes", sub_nodes)
+    outputs = []
+    for node in sub_nodes:
+        # print("node", node, G.nodes[node].get("label"))
+        if G.nodes[node]["properties"]["op_type"] == "output":
+            # print("A")
+            # print("OUT2")
+            ret += 1
+            if node not in outputs:
+                outputs.append(node)
+        else:
+            # print("B")
+            outs = G.out_edges(node)
+            # print("outs", outs)
+            for out_ in outs:
+                # print("out_", out_, G.nodes[out_[0]].get("label"))
+                dst = out_[1]
+                # print("dst", dst, G.nodes[dst].get("label"))
+                if dst not in sub_nodes:
+                    # print("OUT")
+                    ret += 1
+                    if node not in outputs:
+                        outputs.append(node)
+    # print("ret", ret)
+    return ret, outputs

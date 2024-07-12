@@ -10,3 +10,4 @@ black
 pandas
 numpy
 flake8
+tqdm
