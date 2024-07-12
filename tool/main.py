@@ -502,7 +502,7 @@ for i, sub in enumerate(subs):
 
 logger.info("Generation...")
 for i, sub in enumerate(subs):
-    if i in io_isos or i in filtered_io or i in filtered_complex:
+    if i in io_isos or i in filtered_io or i in filtered_complex or i in filtered_predicates:
         continue
     # print("===========================")
     # print("i, sub", i, sub)
@@ -683,6 +683,7 @@ subs_df["Label"] = "Selected"
 subs_df.loc[list(io_isos), "Label"] = "Iso"
 subs_df.loc[list(filtered_io), "Label"] = "Filtered (I/O)"
 subs_df.loc[list(filtered_complex), "Label"] = "Filtered (Complex)"
+subs_df.loc[list(filtered_predicates), "Label"] = "Filtered (Pred)"
 subs_df.loc[list(invalid), "Label"] = "Invalid"
 subs_df.loc[list(errs), "Label"] = "Error"
 # print("subs_df")
