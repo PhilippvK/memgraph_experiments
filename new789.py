@@ -1,4 +1,7 @@
 import argparse
+from enum import IntFlag, auto
+from pathlib import Path
+from typing import List, Optional
 from collections import defaultdict
 
 import numpy as np
@@ -10,6 +13,39 @@ from neo4j import GraphDatabase
 from anytree import AnyNode, RenderTree
 from anytree.iterators import AbstractIter
 from networkx.drawing.nx_agraph import write_dot
+
+
+class ExportFormat(IntFlag):
+    TXT = auto()  # 1
+    DOT = auto()  # 2
+    PDF = auto()  # 4
+    PNG = auto()  # 8
+    CSV = auto()  # 16
+    PKL = auto()  # 32
+    MIR = auto()  # 64
+    CDSL = auto()  # 128
+
+
+class ExportFilter(IntFlag):
+    NONE = 0
+    SELECTED = auto()          # 1
+    ISO = auto()               # 2
+    FILTERED_IO = auto()       # 4
+    FILTERED_COMPLEX = auto()  # 8
+    INVALID = auto()           # 16
+    ERROR = auto()             # 32
+    ALL = SELECTED | ISO | FILTERED_IO | FILTERED_COMPLEX | INVALID | ERROR
+
+# TODO: rename result to sub & gen
+# TODO: actually implement filters
+FUNC_FMT_DEFAULT = ExportFormat.DOT
+FUNC_FLT_DEFAULT = ExportFilter.SELECTED
+RESULT_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.CDSL | ExportFormat.MIR
+RESULT_FLT_DEFAULT = ExportFilter.SELECTED
+PIE_FMT_DEFAULT = ExportFormat.PDF
+DF_FMT_DEFAULT = ExportFormat.CSV
+
+
 
 
 def handle_cmdline():
@@ -25,18 +61,36 @@ def handle_cmdline():
     parser.add_argument("--max-path-width", default=2, help="TODO")
     parser.add_argument("--function", "--func", default=None, help="TODO")
     parser.add_argument("--basic-block", "--bb", default=None, help="TODO")
-    parser.add_argument("--ignore-names", default=["PHI", "COPY", "PseudoCALLIndirect", "PseudoLGA", "Select_GPR_Using_CC_GPR")], help="TODO")
+    parser.add_argument("--ignore-names", default=["PHI", "COPY", "PseudoCALLIndirect", "PseudoLGA", "Select_GPR_Using_CC_GPR"], help="TODO")
     parser.add_argument("--ignore-op_types", default=["input", "constant"], help="TODO")
-    parser.add_argument("--ignore-const-inputs", action"store_true", help="TODO")
+    parser.add_argument("--ignore-const-inputs", action="store_true", help="TODO")
     parser.add_argument("--xlen", default=64, help="TODO")
     parser.add_argument("--output-dir", "-o", default="./out", help="TODO")
+    parser.add_argument("--write-func", action="store_true", help="TODO")
+    parser.add_argument("--write-func-fmt", type=int, default=FUNC_FMT_DEFAULT ,help="TODO")
+    parser.add_argument("--write-func-filter", type=int, default=FUNC_FLT_DEFAULT ,help="TODO")
+    parser.add_argument("--write-result", action="store_true", help="TODO")
+    parser.add_argument("--write-result-fmt", type=int, default=RESULT_FMT_DEFAULT ,help="TODO")
+    parser.add_argument("--write-result-filter", type=int, default=RESULT_FLT_DEFAULT ,help="TODO")
+    parser.add_argument("--write-pie", action="store_true", help="TODO")
+    parser.add_argument("--write-pie-fmt", type=int, default=PIE_FMT_DEFAULT ,help="TODO")
+    # TODO: pie filters?
+    parser.add_argument("--write-df", action="store_true", help="TODO")
+    parser.add_argument("--write-df-fmt", type=int, default=DF_FMT_DEFAULT ,help="TODO")
+    # TODO: df filters?
     args = parser.parse_args()
     return args
 
 
-def connect_memgraph(host, port, user="", password="")
+def connect_memgraph(host, port, user="", password=""):
     driver = GraphDatabase.driver(f"bolt://{host}:{port}", auth=(user, password))
     return driver
+
+
+def run_query(driver, query):
+    # TODO: use logging module
+    print("QUERY>", query)
+    return driver.session().run(query)
 
 
 def wrap_cdsl(name, code):
@@ -400,7 +454,7 @@ MAX_INPUTS = args.max_inputs
 MAX_OUTPUTS = args.max_outputs
 MAX_NODES = args.max_nodes
 XLEN = args.xlen
-OUT = args.output_dir
+OUT = Path(args.output_dir)
 SESSION = args.session
 HOST = args.host
 PORT = args.port
@@ -412,8 +466,21 @@ MAX_PATH_WIDTH = args.max_path_width
 IGNORE_NAMES = args.ignore_names
 IGNORE_OP_TYPES = args.ignore_op_types
 IGNORE_CONST_INPUTS = args.ignore_const_inputs
+WRITE_FUNC = args.write_func
+WRITE_FUNC_FMT = args.write_func_fmt
+WRITE_FUNC_FLT = args.write_func_filter
+WRITE_RESULT = args.write_result
+WRITE_RESULT_FMT = args.write_result_fmt
+WRITE_RESULT_FLT = args.write_result_filter
+WRITE_PIE = args.write_pie
+WRITE_PIE_FMT = args.write_pie_fmt
+WRITE_DF = args.write_df
+WRITE_DF_FMT = args.write_df_fmt
 
+assert OUT.is_dir(), f"OUT ({OUT}) is not a directory"
 assert FUNC is not None
+if not IGNORE_CONST_INPUTS:
+    raise NotImplementedError("!IGNORE_CONST_INPUTS")
 
 
 driver = connect_memgraph(HOST, PORT, user="", password="")
@@ -437,24 +504,28 @@ AND n00.session = "{session}"
 
 def generate_candidates_query(session: str, func: str, bb: Optional[str], min_path_length: int, max_path_length: int, max_path_width: int, ignore_names: List[str], ignore_op_types: List[str], shared_input: bool = False, shared_output: bool = True):
     if shared_input:
-        starts = ["a"] * len(max_path_width)
+        starts = ["a"] * max_path_width
     else:
         starts = [f"a{i}" for i in range(max_path_width)]
     if shared_output:
-        ends = ["b"] * len(max_path_width)
+        ends = ["b"] * max_path_width
     else:
         ends = [f"b{i}" for i in range(max_path_width)]
-    paths = ["p{i}" for i in range(max_path_width)]
+    paths = [f"p{i}" for i in range(max_path_width)]
     match_rows = [f"MATCH {paths[i]}=({starts[i]}:INSTR)-[:DFG*{min_path_length}..{max_path_length}]->({ends[i]}:INSTR)" for i in range(max_path_width)]
     match_str = "\n".join(match_rows)
     session_conds = [f"{x}.session = '{session}'" for x in set(starts) | set(ends)]
-    bb_conds = [f"{x}.func_name = '{func}'" for x in set(starts) | set(ends)]
+    func_conds = [f"{x}.func_name = '{func}'" for x in set(starts) | set(ends)]
+    if bb:
+        bb_conds = [f"{x}.basic_block = '{bb}'" for x in set(starts) | set(ends)]
+    else:
+        bb_conds = []
     conds = session_conds + func_conds + bb_conds
     conds_str = " AND ".join(conds)
 
     def gen_filter(path):
         name_filts =[f"node.name != '{name}'" for name in ignore_names]
-        op_type_filts =[f"node.op_type != '{op_type}'" for name in ignore_op_types]
+        op_type_filts =[f"node.op_type != '{op_type}'" for op_type in ignore_op_types]
         filts = name_filts + op_type_filts
         filts_str = " AND ".join(filts)
         return f"all(node in nodes({path}) WHERE {filts_str})"
@@ -462,20 +533,20 @@ def generate_candidates_query(session: str, func: str, bb: Optional[str], min_pa
     filters = [gen_filter(path) for path in paths]
     filters_str = " AND ".join(filters)
     return_str = ", ".join(paths)
-    order_by_str = "size(collections.union(" + ", ".join([f"nodes({paths[i]})"]) + ")"
-    ret = f"""
-    {match_str}
-    WHERE {conds_str}
-    AND {filter_str}
-    RETURN {return_str}
-    ORDER BY {order_by_str} desc
+    order_by_str = "size(collections.union(" + ", ".join([f"nodes({path})" for path in paths]) + "))"
+    ret = f"""{match_str}
+WHERE {conds_str}
+AND {filters_str}
+RETURN {return_str}
+ORDER BY {order_by_str} desc;
 """
+    return ret
 
 query_func = generate_func_query(SESSION, FUNC)
 query = generate_candidates_query(SESSION, FUNC, BB, MIN_PATH_LEN, MAX_PATH_LEN, MAX_PATH_WIDTH, IGNORE_NAMES, IGNORE_OP_TYPES)
 
-func_results = driver.session().run(query_func)
-results = driver.session().run(query)
+func_results = run_query(driver, query_func)
+results = run_query(driver, query)
 
 GF = nx.MultiDiGraph()
 nodes = list(func_results.graph()._nodes.values())
@@ -495,13 +566,33 @@ for rel in rels:
     # GF.add_edge(rel.start_node.element_id, rel.end_node.element_id, key=rel.element_id, label=label, type=rel.type, properties=rel._properties)
     GF.add_edge(rel.start_node.id, rel.end_node.id, key=rel.id, label=label, type=rel.type, properties=rel._properties)
 # print("GF", GF)
-write_dot(GF, OUT / f"func.dot")
-# input("?")
+
+def graph_to_file(graph, dest, fmt = "auto"):
+    if not isinstance(dest, Path):
+        dest = Path(dest)
+    if fmt == "auto":
+        fmt = dest.suffix[1:].upper()
+    if fmt == "DOT":
+        write_dot(graph, dest)
+    elif fmt == "PDF":
+        raise NotImplementedError
+    elif fmt == "PNG":
+        raise NotImplementedError
+    else:
+        raise ValueError(f"Unsupported fmt: {fmt}")
+
+if WRITE_FUNC:
+    if WRITE_FUNC_FMT & ExportFormat.DOT:
+        graph_to_file(GF, OUT / f"func.dot")
+    if WRITE_FUNC_FMT & ExportFormat.PDF:
+        graph_to_file(GF, OUT / f"func.pdf")
+    if WRITE_FUNC_FMT & ExportFormat.PNG:
+        graph_to_file(GF, OUT / f"func.png")
+
 
 G = nx.MultiDiGraph()
 nodes = list(results.graph()._nodes.values())
 # print("nodes", nodes)
-# input("z")
 for node in nodes:
     # print("node", node)
     if len(node._labels) > 0:
@@ -516,8 +607,6 @@ for rel in rels:
     label = rel.type
     # G.add_edge(rel.start_node.element_id, rel.end_node.element_id, key=rel.element_id, label=label, type=rel.type, properties=rel._properties)
     G.add_edge(rel.start_node.id, rel.end_node.id, key=rel.id, label=label, type=rel.type, properties=rel._properties)
-# print("G", G)
-write_dot(G, OUT / f"results.dot")
 
 subs = []
 for i, result in enumerate(results):
@@ -528,7 +617,6 @@ for i, result in enumerate(results):
     # path = result.value()
     for path in result:
         # print("path", path)
-        # input("p")
         # print("path", path, dir(path))
         nodes__ = path.nodes
         # print("nodes__", nodes__[0].element_id)
@@ -538,17 +626,20 @@ for i, result in enumerate(results):
     G_ = G.subgraph(nodes_)
     # G_ = nx.subgraph_view(G, filter_node=lambda x: x in nodes_)
     # print("G_", G_)
-    write_dot(G_, OUT / f"result{i}.dot")
+    if WRITE_RESULT:
+        if WRITE_RESULT_FMT & ExportFormat.DOT:
+            graph_to_file(G_, OUT / f"result{i}.dot")
+        if WRITE_RESULT_FMT & ExportFormat.PDF:
+            graph_to_file(G_, OUT / f"result{i}.pdf")
+        if WRITE_RESULT_FMT & ExportFormat.PNG:
+            graph_to_file(G_, OUT / f"result{i}.png")
     count = subs.count(G_)
     if count > 0:
         pass
-        # input("2")
     subs.append(G_)
 
 # for i, result in enumerate(results):
 #     print("result", result, i, dir(result), result.data())
-#     input(">")
-# input(">>>")
 
 # print("GF", GF)
 # print("GF.nodes", GF.nodes)
@@ -607,7 +698,6 @@ for i in range(len(subs)):
 # print("mapping1[260421]", mapping1[260421])
 # print("mapping[1117]", mapping[1117])
 # print("4", subs[383].nodes[4])
-# input("<>")
 topo = list(nx.topological_sort(GF))
 
 # print("subs[0]", subs[0])
@@ -666,7 +756,6 @@ def calc_outputs(G, sub):
            if node not in outputs:
              outputs.append(node)
    # print("ret", ret)
-   # input("1")
    return ret, outputs
 
 
@@ -680,7 +769,6 @@ def calc_outputs(G, sub):
 #     isos |= isos_
 #     print("iso_count", iso_count)
 # print("isos", isos, len(isos))
-# input("%%%")
 
 
 io_subs = []
@@ -742,11 +830,9 @@ for i, sub in enumerate(subs):
     # print("outputs", [GF.nodes[outp] for outp in outputs])
     io_sub = GF.subgraph(list(sub.nodes) + inputs)
     # print("io_sub", io_sub)
-    # input("Q")
     io_subs.append(io_sub)
 
 # print("io_subs", [str(x) for x in io_subs], len(io_subs))
-# input("%%%")
 io_isos = set()
 for i, io_sub in enumerate(io_subs):
     # break  # TODO
@@ -761,7 +847,6 @@ for i, io_sub in enumerate(io_subs):
 print("subs_df")
 print(subs_df)
 print("io_isos", io_isos, len(io_isos))
-input("%%%")
 
 for i, sub in enumerate(subs):
     if i in io_isos:
@@ -777,15 +862,11 @@ for i, sub in enumerate(subs):
     outputs = sub_data["Outputs"]
     num_outputs = int(sub_data["#Outputs"])
     if num_inputs_noconst == 0 or num_outputs == 0:
-        # input("INVALID")
         invalid.add(i)
     elif num_inputs_noconst <= MAX_INPUTS and num_outputs <= MAX_OUTPUTS:
-        # input("OK")
-        pass
         if num_nodes > MAX_NODES:
             filtered_complex.add(i)
     else:
-        # input("FILTERED")
         filtered_io.add(i)
 
 for i, sub in enumerate(subs):
@@ -806,7 +887,6 @@ for i, sub in enumerate(subs):
     # print("inputs", [GF.nodes[inp] for inp in inputs])
     # print("inputs_noconst", [GF.nodes[inp] for inp in inputs_noconst])
     # print("outputs", [GF.nodes[outp] for outp in outputs])
-    # input("?!")
     j = 0  # reg's
     # j_ = 0  # imm's
     for inp in inputs:
@@ -910,14 +990,14 @@ body: |
     mir_code = gen_mir_func(f"result{i}", code, desc=desc)
     # print(f"Code3:\n{mir_code}")
     # print(mir_code)
-    with open(OUT / f"result{i}.mir", "w") as f:
-        f.write(mir_code)
+    if WRITE_RESULT:
+        if WRITE_RESULT_FMT & ExportFormat.MIR:
+            with open(OUT / f"result{i}.mir", "w") as f:
+                f.write(mir_code)
     if num_outputs == 0 or num_inputs == 0:
         pass
-        # input(">?")
     elif num_outputs in [1] and num_inputs in [1, 2, 3]:
         pass
-        # input(">")
     # print("---------------------------")
     try:
         tree, cdsl_code = gen_tree(GF, sub, inputs, outputs)
@@ -929,8 +1009,10 @@ body: |
     # print("tree", tree)
     # print("cdsl_code", cdsl_code)
     # TODO: add encoding etc.!
-    with open(OUT / f"result{i}.core_desc", "w") as f:
-        f.write(full_cdsl_code)
+    if WRITE_RESULT:
+        if WRITE_RESULT_FMT & ExportFormat.CDSL:
+            with open(OUT / f"result{i}.core_desc", "w") as f:
+                f.write(full_cdsl_code)
 
 # if len(duplicate_counts) > 0:
 #     print()
@@ -953,5 +1035,11 @@ print(pie_df)
 fig = px.pie(pie_df, values="Count", names="Label", title="Candidates")
 fig.update_traces(hoverinfo='label+percent', textinfo='value')
 # fig.show()
-fig.write_image(OUT / "pie.pdf")
-input("%")
+if WRITE_PIE:
+    if WRITE_PIE_FMT & ExportFormat.PDF:
+        fig.write_image(OUT / "pie.pdf")
+    if WRITE_PIE_FMT & ExportFormat.PNG:
+        fig.write_image(OUT / "pie.png")
+if WRITE_DF:
+    if WRITE_DF_FMT & ExportFormat.CSV:
+        raise NotImplementedError
