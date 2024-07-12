@@ -20,11 +20,11 @@ def handle_cmdline():
     parser.add_argument("--max-inputs", default=3, help="TODO")
     parser.add_argument("--max-outputs", default=2, help="TODO")
     parser.add_argument("--max-nodes", default=5, help="TODO")
-    parser.add_argument("--min-path-length", default=?, help="TODO")
-    parser.add_argument("--max-path-length", default=?, help="TODO")
-    parser.add_argument("--max-path-width", default=?, help="TODO")
-    parser.add_argument("--function", "--func", default="?", help="TODO")
-    parser.add_argument("--basic-block", "--bb", default="?", help="TODO")
+    parser.add_argument("--min-path-length", default=1, help="TODO")
+    parser.add_argument("--max-path-length", default=3, help="TODO")
+    parser.add_argument("--max-path-width", default=2, help="TODO")
+    parser.add_argument("--function", "--func", default=None, help="TODO")
+    parser.add_argument("--basic-block", "--bb", default=None, help="TODO")
     parser.add_argument("--ignore-names", default=["PHI", "COPY", "PseudoCALLIndirect", "PseudoLGA", "Select_GPR_Using_CC_GPR")], help="TODO")
     parser.add_argument("--ignore-op_types", default=["input", "constant"], help="TODO")
     parser.add_argument("--ignore-const-inputs", action"store_true", help="TODO")
@@ -412,6 +412,8 @@ MAX_PATH_WIDTH = args.max_path_width
 IGNORE_NAMES = args.ignore_names
 IGNORE_OP_TYPES = args.ignore_op_types
 IGNORE_CONST_INPUTS = args.ignore_const_inputs
+
+assert FUNC is not None
 
 
 driver = connect_memgraph(HOST, PORT, user="", password="")
