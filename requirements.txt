@@ -6,3 +6,6 @@ matplotlib
 anytree
 plotly
 kaleido
+black
+pandas
+numpy
