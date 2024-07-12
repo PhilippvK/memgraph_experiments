@@ -1,26 +1,42 @@
+import argparse
 from collections import defaultdict
-from neo4j import GraphDatabase
-import networkx as nx
-from networkx.drawing.nx_agraph import write_dot
-import matplotlib.pyplot as plt
-import pandas as pd
-import plotly.express as px
+
 import numpy as np
-
-
-driver = GraphDatabase.driver('bolt://localhost:7687', auth=("", ""))
-
-SESSION = "default"
-
-MAX_INPUTS = 3
-MAX_OUTPUTS = 2
-MAX_NODES = 5
-
+import pandas as pd
+import networkx as nx
+import plotly.express as px
+import matplotlib.pyplot as plt
+from neo4j import GraphDatabase
 from anytree import AnyNode, RenderTree
 from anytree.iterators import AbstractIter
+from networkx.drawing.nx_agraph import write_dot
 
 
-XLEN = 64
+def handle_cmdline():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--host", default="localhost", help="TODO")
+    parser.add_argument("--port", default=7687, help="TODO")
+    parser.add_argument("--session", default="default", help="TODO")
+    parser.add_argument("--max-inputs", default=3, help="TODO")
+    parser.add_argument("--max-outputs", default=2, help="TODO")
+    parser.add_argument("--max-nodes", default=5, help="TODO")
+    parser.add_argument("--min-path-length", default=?, help="TODO")
+    parser.add_argument("--max-path-length", default=?, help="TODO")
+    parser.add_argument("--max-path-width", default=?, help="TODO")
+    parser.add_argument("--function", "--func", default="?", help="TODO")
+    parser.add_argument("--basic-block", "--bb", default="?", help="TODO")
+    parser.add_argument("--ignore-names", default=["PHI", "COPY", "PseudoCALLIndirect", "PseudoLGA", "Select_GPR_Using_CC_GPR")], help="TODO")
+    parser.add_argument("--ignore-op_types", default=["input", "constant"], help="TODO")
+    parser.add_argument("--ignore-const-inputs", action"store_true", help="TODO")
+    parser.add_argument("--xlen", default=64, help="TODO")
+    parser.add_argument("--output-dir", "-o", default="./out", help="TODO")
+    args = parser.parse_args()
+    return args
+
+
+def connect_memgraph(host, port, user="", password="")
+    driver = GraphDatabase.driver(f"bolt://{host}:{port}", auth=(user, password))
+    return driver
 
 
 def wrap_cdsl(name, code):
@@ -30,12 +46,9 @@ def wrap_cdsl(name, code):
     return ret
 
 
-# class CDSLEmitter(AbstractIter):
 class CDSLEmitter:
 
-    # def __init__(self, tree):
     def __init__(self):
-        # self.tree = tree
         self.output = ""
 
     def write(self, text):
@@ -233,18 +246,6 @@ class CDSLEmitter:
             else:
                 raise NotImplementedError(f"Unhandled: {name}")
 
-    # @staticmethod
-    # def _iter(children, filter_, stop, maxlevel):
-    #     print("_iter", children, filter_, stop, maxlevel)
-    #     for child_ in children:
-    #         if stop(child_):
-    #             continue
-    #         if filter_(child_):
-    #             yield child_
-    #         if not AbstractIter._abort_at_level(2, maxlevel):
-    #             descendantmaxlevel = maxlevel - 1 if maxlevel else None
-    #             for descendant_ in CDSLEmitter._iter(child_.children, filter_, stop, descendantmaxlevel):
-    #                 yield descendant_
 
 class TreeGenContext:
 
@@ -252,27 +253,12 @@ class TreeGenContext:
        self.graph = graph
        self.sub = sub
        self.inputs = inputs if inputs is not None else []
-       # self.tree = tree
-       # self.parent_stack = [root]
-       # self.visited = []  # self.node_map.keys()?
        self.node_map = {}
        self.defs = {}
 
     @property
     def visited(self):
         return set(self.node_map.keys())
-
-    # @property
-    # def parent(self):
-    #     return self.parent_stack[-1]
-
-    # def push(self, new_id):
-    #     print("push", new_id)
-    #     self.parent_stack.append(new_id)
-
-    # def pop(self):
-    #     print("pop")
-    #     return self.parent_stack.pop()
 
     def visit(self, node):
         # print("visit", node)
@@ -379,26 +365,6 @@ def gen_tree(GF, sub, inputs, outputs):
     codes = []
     header = "// TODO"
     codes.append(header)
-    # for lhs, rhs in ret.items():
-    #     if "inp" in lhs:
-    #         idx = int(lhs[3:])
-    #         src = f"rs{idx+1}"
-    #         codes.append(f"{lhs} = X[{src}];")
-    #         continue
-    #     # print("lhs", lhs)
-    #     # print("rhs", rhs)
-    #     emitter = CDSLEmitter()
-    #     # print("emitter", emitter, dir(emitter))
-    #     emitter.visit(rhs)
-    #     output = emitter.output
-    #     # print("output", output)
-    #     idx = int(lhs[4:])
-    #     dest = f"rd{idx+1}" if idx > 0 else "rd"
-    #     codes.append(f"{lhs} = {output};")
-    #     codes.append(f"X[{dest}] = {lhs};")
-    #     # for node in emitter:
-    #     #     pass
-    #     #     # print("node", node)
     for item in ret_:
         print("item", item)
         emitter = CDSLEmitter()
@@ -429,56 +395,89 @@ body: |
     return ret
 
 
-# PHI nodes sometimes create cycles which are not allowed,
-# hence we drop all ingoing edges to PHIs as their src MI
-# is automatically marked as OUTPUT anyways.
-query_func = f"""
-MATCH p0=(n00)-[r01:DFG]->(n01)
-WHERE n00.func_name = 'tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_per_axis_add_clip_cast_subtract_1_compute_'
-AND n01.name != "PHI"
-AND n00.session = "{SESSION}"
-RETURN p0;
-"""
-query = f"""
-MATCH p0=(n00)-[r01:DFG]->(n01)
-WHERE n00.func_name = 'tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_per_axis_add_clip_cast_subtract_1_compute_'
-AND n00.session = "{SESSION}"
-AND n00.op_type != "input" AND n01.op_type != "input"
-AND n00.name != "COPY" AND n01.name != "COPY"
-AND n00.name != "PHI" AND n01.name != "PHI"
-AND n00.name != "Const" AND n01.name != "Const"
-// AND n00.name != "Reg" AND n01.name != "Reg"
-// AND n00.name != "$x0" AND n01.name != "$x0"
-// AND n00.name != "$x1" AND n01.name != "$x1"
-// AND n00.name != "$x2" AND n01.name != "$x2"
-AND n00.name != "PseudoCALLIndirect" AND n01.name != "PseudoCALLIndirect"
-AND n00.name != "PseudoLGA" AND n01.name != "PseudoLGA"
-AND n00.name != "Select_GPR_Using_CC_GPR" AND n01.name != "Select_GPR_Using_CC_GPR"
+args = handle_cmdline()
+MAX_INPUTS = args.max_inputs
+MAX_OUTPUTS = args.max_outputs
+MAX_NODES = args.max_nodes
+XLEN = args.xlen
+OUT = args.output_dir
+SESSION = args.session
+HOST = args.host
+PORT = args.port
+FUNC = args.function
+BB = args.basic_block
+MIN_PATH_LEN = args.min_path_length
+MAX_PATH_LEN = args.max_path_length
+MAX_PATH_WIDTH = args.max_path_width
+IGNORE_NAMES = args.ignore_names
+IGNORE_OP_TYPES = args.ignore_op_types
+IGNORE_CONST_INPUTS = args.ignore_const_inputs
 
-RETURN p0
-// , count(*) as count
-// ORDER BY count DESC
-"""
-query2 = f"""
-MATCH p0=(n00)-[r01:DFG]->(n01)-[r02:DFG]->(n02)
-WHERE n00.func_name = 'tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_per_axis_add_clip_cast_subtract_1_compute_'
-AND n00.session = "{SESSION}"
-AND n00.op_type != "input" AND n01.op_type != "input"
-AND n00.name != "COPY" AND n01.name != "COPY"
-AND n00.name != "PHI" AND n01.name != "PHI"
-AND n00.name != "Const" AND n01.name != "Const"
-// AND n00.name != "Reg" AND n01.name != "Reg"
-// AND n00.name != "$x0" AND n01.name != "$x0"
-// AND n00.name != "$x1" AND n01.name != "$x1"
-// AND n00.name != "$x2" AND n01.name != "$x2"
-AND n00.name != "PseudoCALLIndirect" AND n01.name != "PseudoCALLIndirect"
-AND n00.name != "PseudoLGA" AND n01.name != "PseudoLGA"
-AND n00.name != "Select_GPR_Using_CC_GPR" AND n01.name != "Select_GPR_Using_CC_GPR"
 
-RETURN p0
-// , count(*) as count
-// ORDER BY count DESC
+driver = connect_memgraph(HOST, PORT, user="", password="")
+
+
+
+def generate_func_query(session: str, func: str, fix_cycles: bool = True):
+    ret = f"""MATCH p0=(n00:INSTR)-[r01:DFG]->(n01:INSTR)
+WHERE n00.func_name = '{func}'
+AND n00.session = "{session}"
 """
+    if fix_cycles:
+        # PHI nodes sometimes create cycles which are not allowed,
+        # hence we drop all ingoing edges to PHIs as their src MI
+        # is automatically marked as OUTPUT anyways.
+        ret += """AND n01.name != "PHI"
+"""
+    ret += "RETURN p0;"
+    return ret
+
+
+def generate_candidates_query(session: str, func: str, bb: Optional[str], min_path_length: int, max_path_length: int, max_path_width: int, ignore_names: List[str], ignore_op_types: List[str], shared_input: bool = False, shared_output: bool = True):
+
+query_func = generate_func_query(SESSION, FUNC)
+query = generate_candidates_query(SESSION, FUNC, BB, MIN_PATH_LEN, MAX_PATH_LEN, MAX_PATH_WIDTH, IGNORE_NAMES, IGNORE_OP_TYPES)
+
+### query = f"""
+### MATCH p0=(n00)-[r01:DFG]->(n01)
+### WHERE n00.func_name = 'tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_per_axis_add_clip_cast_subtract_1_compute_'
+### AND n00.session = "{SESSION}"
+### AND n00.op_type != "input" AND n01.op_type != "input"
+### AND n00.name != "COPY" AND n01.name != "COPY"
+### AND n00.name != "PHI" AND n01.name != "PHI"
+### AND n00.name != "Const" AND n01.name != "Const"
+### // AND n00.name != "Reg" AND n01.name != "Reg"
+### // AND n00.name != "$x0" AND n01.name != "$x0"
+### // AND n00.name != "$x1" AND n01.name != "$x1"
+### // AND n00.name != "$x2" AND n01.name != "$x2"
+### AND n00.name != "PseudoCALLIndirect" AND n01.name != "PseudoCALLIndirect"
+### AND n00.name != "PseudoLGA" AND n01.name != "PseudoLGA"
+### AND n00.name != "Select_GPR_Using_CC_GPR" AND n01.name != "Select_GPR_Using_CC_GPR"
+###
+### RETURN p0
+### // , count(*) as count
+### // ORDER BY count DESC
+### """
+### query2 = f"""
+### MATCH p0=(n00)-[r01:DFG]->(n01)-[r02:DFG]->(n02)
+### WHERE n00.func_name = 'tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_per_axis_add_clip_cast_subtract_1_compute_'
+### AND n00.session = "{SESSION}"
+### AND n00.op_type != "input" AND n01.op_type != "input"
+### AND n00.name != "COPY" AND n01.name != "COPY"
+### AND n00.name != "PHI" AND n01.name != "PHI"
+### AND n00.name != "Const" AND n01.name != "Const"
+### // AND n00.name != "Reg" AND n01.name != "Reg"
+### // AND n00.name != "$x0" AND n01.name != "$x0"
+### // AND n00.name != "$x1" AND n01.name != "$x1"
+### // AND n00.name != "$x2" AND n01.name != "$x2"
+### AND n00.name != "PseudoCALLIndirect" AND n01.name != "PseudoCALLIndirect"
+### AND n00.name != "PseudoLGA" AND n01.name != "PseudoLGA"
+### AND n00.name != "Select_GPR_Using_CC_GPR" AND n01.name != "Select_GPR_Using_CC_GPR"
+###
+### RETURN p0
+### // , count(*) as count
+### // ORDER BY count DESC
+### """
 query_2x1to3 = f"""
 MATCH p0=(a0)-[:DFG*1..3]->(b)
 MATCH p1=(a1)-[:DFG*1..3]->(b)
