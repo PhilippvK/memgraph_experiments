@@ -1,3 +1,4 @@
+import logging
 import argparse
 from enum import IntFlag, auto
 from pathlib import Path
@@ -14,6 +15,7 @@ from anytree import AnyNode, RenderTree
 from anytree.iterators import AbstractIter
 from networkx.drawing.nx_agraph import write_dot
 
+logger = logging.getLogger("main")
 
 class ExportFormat(IntFlag):
     TXT = auto()  # 1
@@ -49,7 +51,8 @@ DF_FMT_DEFAULT = ExportFormat.CSV
 
 
 def handle_cmdline():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("--log", default="info", choices=["critical", "error", "warning", "info", "debug"])
     parser.add_argument("--host", default="localhost", help="TODO")
     parser.add_argument("--port", default=7687, help="TODO")
     parser.add_argument("--session", default="default", help="TODO")
@@ -79,6 +82,9 @@ def handle_cmdline():
     parser.add_argument("--write-df-fmt", type=int, default=DF_FMT_DEFAULT ,help="TODO")
     # TODO: df filters?
     args = parser.parse_args()
+    logging.basicConfig(level=getattr(logging, args.log.upper()))
+    logging.getLogger("neo4j.io").setLevel(logging.INFO)
+    logging.getLogger("neo4j.pool").setLevel(logging.INFO)
     return args
 
 
@@ -89,7 +95,7 @@ def connect_memgraph(host, port, user="", password=""):
 
 def run_query(driver, query):
     # TODO: use logging module
-    print("QUERY>", query)
+    logger.debug("QUERY> %s", query)
     return driver.session().run(query)
 
 
@@ -127,7 +133,7 @@ class CDSLEmitter:
         self.write("]")
 
     def visit_assignment(self, node):
-        print("visit_assignment", node, node.children)
+        # print("visit_assignment", node, node.children)
         assert len(node.children) == 2
         lhs, rhs = node.children
         self.visit(lhs)
@@ -144,7 +150,7 @@ class CDSLEmitter:
         assert res is not None
         pred, imm = res
         assert not imm, "Immediated branching not supported"
-        print("node.children", node.children)
+        # print("node.children", node.children)
         assert len(node.children) == 2  # TODO: fix missing offset label
         lhs, rhs = node.children
         # TODO: check alignment
@@ -400,10 +406,10 @@ def gen_tree(GF, sub, inputs, outputs):
             ref = AnyNode(id=-1, name=name, op_type="ref")
             ref_ = AnyNode(id=-1, name=name, op_type="ref")
             # import pdb; pdb.set_trace()
-            print("ref", ref, ref.children)
-            print("res", res, res.children)
+            # print("ref", ref, ref.children)
+            # print("res", res, res.children)
             root = AnyNode(id=-1, name="ASSIGN2", children=[ref, res], op_type="assignment")
-            print("root", root, root.children)
+            # print("root", root, root.children)
             ret_.append(root)
             idx = j + 1
             name_ = "rd" if idx == 1 else f"rd{idx}"
@@ -420,17 +426,17 @@ def gen_tree(GF, sub, inputs, outputs):
     header = "// TODO"
     codes.append(header)
     for item in ret_:
-        print("item", item)
+        # print("item", item)
         emitter = CDSLEmitter()
         emitter.visit(item)
         output = emitter.output
-        print("output", output)
+        # print("output", output)
         codes.append(output)
-    print("CDSL Code:")
+    # print("CDSL Code:")
     codes = ["    " + code for code in codes]
     codes = ["operands: TODO;", "encoding: auto;", "assembly: {TODO, \"TODO\"};", "behavior: {"] + codes + ["}"]
     code = "\n".join(codes) + "\n"
-    print(code)
+    # print(code)
     # print("Done!")
     return ret, code
 
@@ -787,8 +793,8 @@ subs_df["InputsNC"] = [np.array([])] * len(subs_df)
 subs_df["#InputsNC"] = np.nan
 subs_df["Outputs"] = [np.array([])] * len(subs_df)
 subs_df["#Outputs"] = np.nan
-print("subs_df")
-print(subs_df)
+# print("subs_df")
+# print(subs_df)
 
 # if True:
 for i, sub in enumerate(subs):
@@ -797,8 +803,8 @@ for i, sub in enumerate(subs):
     # i = 3
     # sub = subs[i]
     # print("topo", topo)
-    print("===========================")
-    print("i, sub", i, sub)
+    # print("===========================")
+    # print("i, sub", i, sub)
     codes = []
     # for node in sorted(sub.nodes):
     # print("sub.nodes", sub.nodes)
@@ -823,9 +829,9 @@ for i, sub in enumerate(subs):
     subs_df.loc[i, "#InputsNC"] = num_inputs_noconst
     subs_df.at[i, "Outputs"] = set(outputs)
     subs_df.loc[i, "#Outputs"] = num_outputs
-    print("num_inputs", num_inputs)
-    print("num_inputs_noconst", num_inputs_noconst)
-    print("num_outputs", num_outputs)
+    # print("num_inputs", num_inputs)
+    # print("num_inputs_noconst", num_inputs_noconst)
+    # print("num_outputs", num_outputs)
     # print("inputs", [GF.nodes[inp] for inp in inputs])
     # print("outputs", [GF.nodes[outp] for outp in outputs])
     io_sub = GF.subgraph(list(sub.nodes) + inputs)
@@ -844,15 +850,15 @@ for i, io_sub in enumerate(io_subs):
     io_iso_count = len(io_isos_)
     # print("io_iso_count", io_iso_count)
     io_isos |= io_isos_
-print("subs_df")
-print(subs_df)
-print("io_isos", io_isos, len(io_isos))
+# print("subs_df")
+# print(subs_df)
+# print("io_isos", io_isos, len(io_isos))
 
 for i, sub in enumerate(subs):
     if i in io_isos:
         continue
-    print("===========================")
-    print("i, sub", i, sub)
+    # print("===========================")
+    # print("i, sub", i, sub)
     num_nodes = len(sub.nodes)
     sub_data = subs_df.iloc[i]
     inputs = sub_data["Inputs"]
@@ -872,8 +878,8 @@ for i, sub in enumerate(subs):
 for i, sub in enumerate(subs):
     if i in io_isos or i in filtered_io or i in filtered_complex:
         continue
-    print("===========================")
-    print("i, sub", i, sub)
+    # print("===========================")
+    # print("i, sub", i, sub)
     sub_data = subs_df.iloc[i]
     inputs = sub_data["Inputs"]
     num_inputs = int(sub_data["#Inputs"])
@@ -978,7 +984,7 @@ body: |
     # print(f"Code2:\n{code}")
     code = "\n".join([line[:-1] if line.endswith("_") else line for line in code.splitlines()])
     if code in all_codes.values():
-        print("Duplicate!")
+        # print("Duplicate!")
         orig = list(all_codes.keys())[list(all_codes.values()).index(code)]
         duplicate_counts[orig] += 1
         # continue
@@ -1027,11 +1033,11 @@ subs_df.loc[list(filtered_io), "Label"] = "Filtered (I/O)"
 subs_df.loc[list(filtered_complex), "Label"] = "Filtered (Complex)"
 subs_df.loc[list(invalid), "Label"] = "Invalid"
 subs_df.loc[list(errs), "Label"] = "Error"
-print("subs_df")
-print(subs_df)
+# print("subs_df")
+# print(subs_df)
 pie_df = subs_df.value_counts("Label").rename_axis("Label").reset_index(name="Count")
-print("pie_df")
-print(pie_df)
+# print("pie_df")
+# print(pie_df)
 fig = px.pie(pie_df, values="Count", names="Label", title="Candidates")
 fig.update_traces(hoverinfo='label+percent', textinfo='value')
 # fig.show()
