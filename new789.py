@@ -434,71 +434,46 @@ AND n00.session = "{session}"
 
 
 def generate_candidates_query(session: str, func: str, bb: Optional[str], min_path_length: int, max_path_length: int, max_path_width: int, ignore_names: List[str], ignore_op_types: List[str], shared_input: bool = False, shared_output: bool = True):
+    if shared_input:
+        starts = ["a"] * len(max_path_width)
+    else:
+        starts = [f"a{i}" for i in range(max_path_width)]
+    if shared_output:
+        ends = ["b"] * len(max_path_width)
+    else:
+        ends = [f"b{i}" for i in range(max_path_width)]
+    paths = ["p{i}" for i in range(max_path_width)]
+    match_rows = [f"MATCH {paths[i]}=({starts[i]}:INSTR)-[:DFG*{min_path_length}..{max_path_length}]->({ends[i]}:INSTR)" for i in range(max_path_width)]
+    match_str = "\n".join(match_rows)
+    session_conds = [f"{x}.session = '{session}'" for x in set(starts) | set(ends)]
+    bb_conds = [f"{x}.func_name = '{func}'" for x in set(starts) | set(ends)]
+    conds = session_conds + func_conds + bb_conds
+    conds_str = " AND ".join(conds)
+
+    def gen_filter(path):
+        name_filts =[f"node.name != '{name}'" for name in ignore_names]
+        op_type_filts =[f"node.op_type != '{op_type}'" for name in ignore_op_types]
+        filts = name_filts + op_type_filts
+        filts_str = " AND ".join(filts)
+        return f"all(node in nodes({path}) WHERE {filts_str})"
+
+    filters = [gen_filter(path) for path in paths]
+    filters_str = " AND ".join(filters)
+    return_str = ", ".join(paths)
+    order_by_str = "size(collections.union(" + ", ".join([f"nodes({paths[i]})"]) + ")"
+    ret = f"""
+    {match_str}
+    WHERE {conds_str}
+    AND {filter_str}
+    RETURN {return_str}
+    ORDER BY {order_by_str} desc
+"""
 
 query_func = generate_func_query(SESSION, FUNC)
 query = generate_candidates_query(SESSION, FUNC, BB, MIN_PATH_LEN, MAX_PATH_LEN, MAX_PATH_WIDTH, IGNORE_NAMES, IGNORE_OP_TYPES)
 
-### query = f"""
-### MATCH p0=(n00)-[r01:DFG]->(n01)
-### WHERE n00.func_name = 'tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_per_axis_add_clip_cast_subtract_1_compute_'
-### AND n00.session = "{SESSION}"
-### AND n00.op_type != "input" AND n01.op_type != "input"
-### AND n00.name != "COPY" AND n01.name != "COPY"
-### AND n00.name != "PHI" AND n01.name != "PHI"
-### AND n00.name != "Const" AND n01.name != "Const"
-### // AND n00.name != "Reg" AND n01.name != "Reg"
-### // AND n00.name != "$x0" AND n01.name != "$x0"
-### // AND n00.name != "$x1" AND n01.name != "$x1"
-### // AND n00.name != "$x2" AND n01.name != "$x2"
-### AND n00.name != "PseudoCALLIndirect" AND n01.name != "PseudoCALLIndirect"
-### AND n00.name != "PseudoLGA" AND n01.name != "PseudoLGA"
-### AND n00.name != "Select_GPR_Using_CC_GPR" AND n01.name != "Select_GPR_Using_CC_GPR"
-###
-### RETURN p0
-### // , count(*) as count
-### // ORDER BY count DESC
-### """
-### query2 = f"""
-### MATCH p0=(n00)-[r01:DFG]->(n01)-[r02:DFG]->(n02)
-### WHERE n00.func_name = 'tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_per_axis_add_clip_cast_subtract_1_compute_'
-### AND n00.session = "{SESSION}"
-### AND n00.op_type != "input" AND n01.op_type != "input"
-### AND n00.name != "COPY" AND n01.name != "COPY"
-### AND n00.name != "PHI" AND n01.name != "PHI"
-### AND n00.name != "Const" AND n01.name != "Const"
-### // AND n00.name != "Reg" AND n01.name != "Reg"
-### // AND n00.name != "$x0" AND n01.name != "$x0"
-### // AND n00.name != "$x1" AND n01.name != "$x1"
-### // AND n00.name != "$x2" AND n01.name != "$x2"
-### AND n00.name != "PseudoCALLIndirect" AND n01.name != "PseudoCALLIndirect"
-### AND n00.name != "PseudoLGA" AND n01.name != "PseudoLGA"
-### AND n00.name != "Select_GPR_Using_CC_GPR" AND n01.name != "Select_GPR_Using_CC_GPR"
-###
-### RETURN p0
-### // , count(*) as count
-### // ORDER BY count DESC
-### """
-query_2x1to3 = f"""
-MATCH p0=(a0)-[:DFG*1..3]->(b)
-MATCH p1=(a1)-[:DFG*1..3]->(b)
-WHERE a0.func_name = 'tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_per_axis_add_clip_cast_subtract_1_compute_'
-AND a0.session = "default" AND a1.session = "default"
-// AND b.op_type = "output"
-// AND a0 = a1
-AND all(node in nodes(p0) WHERE node.name != "PHI" AND node.name != "COPY" AND node.op_type != "input" AND node.op_type != "constant" AND node.name != "PseudoCALLIndirect" AND node.name != "PseudoLGA" AND node.name != "Select_GPR_Using_CC_GPR")
-AND all(node in nodes(p1) WHERE node.name != "PHI" AND node.name != "COPY" AND node.op_type != "input" AND node.op_type != "constant" AND node.name != "PseudoCALLIndirect" AND node.name != "PseudoLGA" AND node.name != "Select_GPR_Using_CC_GPR")
-RETURN p0, p1
-ORDER BY size(collections.union(nodes(p0), nodes(p1))) desc;
-// *, size(nodes(p0)) as s0, size(nodes(p1)) as s1, size(nodes(p0) + nodes(p1)) as s01_, size(collections.union (nodes(p0), nodes(p1))) as s01__
-// ORDER BY s01__ desc;
-"""
-
 func_results = driver.session().run(query_func)
-# results = driver.session().run(query)
-results = driver.session().run(query_2x1to3)
-# print("results", results, dir(results))
-# print("results.df", results.to_df())
-# nodes = list(func_results.graph()._nodes.values())
+results = driver.session().run(query)
 
 GF = nx.MultiDiGraph()
 nodes = list(func_results.graph()._nodes.values())
@@ -518,7 +493,7 @@ for rel in rels:
     # GF.add_edge(rel.start_node.element_id, rel.end_node.element_id, key=rel.element_id, label=label, type=rel.type, properties=rel._properties)
     GF.add_edge(rel.start_node.id, rel.end_node.id, key=rel.id, label=label, type=rel.type, properties=rel._properties)
 # print("GF", GF)
-write_dot(GF, f"func.dot")
+write_dot(GF, OUT / f"func.dot")
 # input("?")
 
 G = nx.MultiDiGraph()
@@ -540,7 +515,7 @@ for rel in rels:
     # G.add_edge(rel.start_node.element_id, rel.end_node.element_id, key=rel.element_id, label=label, type=rel.type, properties=rel._properties)
     G.add_edge(rel.start_node.id, rel.end_node.id, key=rel.id, label=label, type=rel.type, properties=rel._properties)
 # print("G", G)
-write_dot(G, f"results.dot")
+write_dot(G, OUT / f"results.dot")
 
 subs = []
 for i, result in enumerate(results):
@@ -561,7 +536,7 @@ for i, result in enumerate(results):
     G_ = G.subgraph(nodes_)
     # G_ = nx.subgraph_view(G, filter_node=lambda x: x in nodes_)
     # print("G_", G_)
-    write_dot(G_, f"result{i}.dot")
+    write_dot(G_, OUT / f"result{i}.dot")
     count = subs.count(G_)
     if count > 0:
         pass
@@ -933,7 +908,7 @@ body: |
     mir_code = gen_mir_func(f"result{i}", code, desc=desc)
     # print(f"Code3:\n{mir_code}")
     # print(mir_code)
-    with open(f"result{i}.mir", "w") as f:
+    with open(OUT / f"result{i}.mir", "w") as f:
         f.write(mir_code)
     if num_outputs == 0 or num_inputs == 0:
         pass
@@ -952,7 +927,7 @@ body: |
     # print("tree", tree)
     # print("cdsl_code", cdsl_code)
     # TODO: add encoding etc.!
-    with open(f"result{i}.core_desc", "w") as f:
+    with open(OUT / f"result{i}.core_desc", "w") as f:
         f.write(full_cdsl_code)
 
 # if len(duplicate_counts) > 0:
@@ -976,5 +951,5 @@ print(pie_df)
 fig = px.pie(pie_df, values="Count", names="Label", title="Candidates")
 fig.update_traces(hoverinfo='label+percent', textinfo='value')
 # fig.show()
-fig.write_image("pie.pdf")
+fig.write_image(OUT / "pie.pdf")
 input("%")
