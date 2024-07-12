@@ -3,7 +3,7 @@ import networkx as nx
 from networkx.drawing.nx_agraph import write_dot
 import matplotlib.pyplot as plt
 
-driver = GraphDatabase.driver('bolt://localhost:7687', auth=("", ""))
+driver = GraphDatabase.driver("bolt://localhost:7687", auth=("", ""))
 
 query = """
 MATCH (n)-[r]->(c) RETURN *
@@ -35,15 +35,22 @@ write_dot(G, "out2.dot")
 # print("G[]", G.nodes[2595], dir(G.nodes[2595]))
 # print("G[]2", G.edges, dir(G.edges))
 
+
 def filter_graph(G):
-    view = nx.subgraph_view(G, filter_node=lambda node: G.nodes[node]["properties"].get("basic_block") == "%bb.7" and "%bb" not in G.nodes[node].get("label"))
+    view = nx.subgraph_view(
+        G,
+        filter_node=lambda node: G.nodes[node]["properties"].get("basic_block") == "%bb.7"
+        and "%bb" not in G.nodes[node].get("label"),
+    )
     G_ = G.subgraph([node for node in view.nodes])
     # G__ = nx.subgraph_view(G_, filter_edge=lambda n1, n2: G_[n1][n2]["type"] == "DFG")
     return G_
 
+
 G_ = filter_graph(G)
 print("G_", G_)
 write_dot(G_, "out3.dot")
+
 
 def algo(G):
     print("algo")
@@ -69,7 +76,7 @@ def algo(G):
         fanout_org[topo.index(node)] = od
         is_input = G.nodes[node].get("label") == "Const"  # TODO: add to db
         load_instrs = ["LB", "LBU", "LH", "LHU", "LW"]
-        is_load = G.nodes[node].get("label") in load_instrs # TODO: add to db
+        is_load = G.nodes[node].get("label") in load_instrs  # TODO: add to db
         is_invalid = is_input or is_load
         if is_invalid:
             invalid[topo.index(node)] = True
@@ -84,6 +91,7 @@ def algo(G):
             continue
         max_miso = [False] * len(topo)
         max_miso[topo.index(node)] = True
+
         def generate_max_miso(node, count):
             ins = G.in_edges(node)
             print("ins", ins)
@@ -96,6 +104,7 @@ def algo(G):
                     processed[topo.index(src)] = True
                     count = generate_max_miso(src, count + 1)
             return count
+
         size = generate_max_miso(node, 1)
         # size = generate_max_miso(node, G, max_miso, 1, invalid, fanout, processed)
         print("size", size)
@@ -103,6 +112,7 @@ def algo(G):
             max_misos.append(max_miso)
     print("max_misos", max_misos, len(max_misos))
     from itertools import compress
+
     max_misos_ = [list(compress(topo, max_miso)) for max_miso in max_misos]
     print("max_misos_", max_misos_)
     # max_misos__ = [nx.subgraph_view(G, filter_node=lambda node: max_miso[topo.index(node)]) for max_miso in max_misos]
@@ -128,5 +138,6 @@ def algo(G):
     print("fanout", fanout)
     print("processed", processed)
     print("fanout_org", fanout_org)
+
 
 algo(G_)

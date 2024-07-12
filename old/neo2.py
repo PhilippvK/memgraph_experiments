@@ -2,7 +2,7 @@ from neo4j import GraphDatabase
 import networkx as nx
 from networkx.drawing.nx_agraph import write_dot
 
-driver = GraphDatabase.driver('bolt://localhost:7687', auth=("", ""))
+driver = GraphDatabase.driver("bolt://localhost:7687", auth=("", ""))
 
 query = """
 MATCH (n)-[r]->(c) RETURN *

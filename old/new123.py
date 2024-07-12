@@ -3,7 +3,7 @@ import networkx as nx
 from networkx.drawing.nx_agraph import write_dot
 import matplotlib.pyplot as plt
 
-driver = GraphDatabase.driver('bolt://localhost:7687', auth=("", ""))
+driver = GraphDatabase.driver("bolt://localhost:7687", auth=("", ""))
 
 query_func = """
 MATCH p0=(n00)-[r01:DFG]->(n01)
@@ -124,54 +124,57 @@ print("G.nodes", G.nodes)
 print("subs[0]", subs[0])
 print("subs[0].nodes", subs[0].nodes)
 
+
 def calc_inputs(G, sub):
-   print("calc_inputs", sub)
-   inputs = []
-   ret = 0
-   sub_nodes = sub.nodes
-   print("sub_nodes", sub_nodes)
-   for node in sub_nodes:
-     print("node", node, G.nodes[node].get("label"))
-     ins = G.in_edges(node)
-     print("ins", ins)
-     for in_ in ins:
-       # print("in_", in_, G.nodes[in_[0]].get("label"))
-       src = in_[0]
-       print("src", src, G.nodes[src].get("label"))
-       # print("src in sub_nodes", src in sub_nodes)
-       # print("src not in inputs", src not in inputs)
-       if not (src in sub_nodes) and (src not in inputs):
-         print("IN")
-         ret += 1
-         inputs.append(src)
-   print("ret", ret)
-   return ret
+    print("calc_inputs", sub)
+    inputs = []
+    ret = 0
+    sub_nodes = sub.nodes
+    print("sub_nodes", sub_nodes)
+    for node in sub_nodes:
+        print("node", node, G.nodes[node].get("label"))
+        ins = G.in_edges(node)
+        print("ins", ins)
+        for in_ in ins:
+            # print("in_", in_, G.nodes[in_[0]].get("label"))
+            src = in_[0]
+            print("src", src, G.nodes[src].get("label"))
+            # print("src in sub_nodes", src in sub_nodes)
+            # print("src not in inputs", src not in inputs)
+            if not (src in sub_nodes) and (src not in inputs):
+                print("IN")
+                ret += 1
+                inputs.append(src)
+    print("ret", ret)
+    return ret
+
 
 def calc_outputs(G, sub):
-   print("calc_outputs", sub)
-   ret = 0
-   sub_nodes = sub.nodes
-   print("sub_nodes", sub_nodes)
-   for node in sub_nodes:
-     print("node", node, G.nodes[node].get("label"))
-     if G.nodes[node]["properties"]["op_type"] == "output":
-       # print("A")
-       print("OUT2")
-       ret += 1
-     else:
-       # print("B")
-       outs = G.out_edges(node)
-       print("outs", outs)
-       for out_ in outs:
-         # print("out_", out_, G.nodes[out_[0]].get("label"))
-         dst = out_[1]
-         print("dst", dst, G.nodes[dst].get("label"))
-         if dst not in sub_nodes:
-           print("OUT")
-           ret += 1
-   print("ret", ret)
-   # input("1")
-   return ret
+    print("calc_outputs", sub)
+    ret = 0
+    sub_nodes = sub.nodes
+    print("sub_nodes", sub_nodes)
+    for node in sub_nodes:
+        print("node", node, G.nodes[node].get("label"))
+        if G.nodes[node]["properties"]["op_type"] == "output":
+            # print("A")
+            print("OUT2")
+            ret += 1
+        else:
+            # print("B")
+            outs = G.out_edges(node)
+            print("outs", outs)
+            for out_ in outs:
+                # print("out_", out_, G.nodes[out_[0]].get("label"))
+                dst = out_[1]
+                print("dst", dst, G.nodes[dst].get("label"))
+                if dst not in sub_nodes:
+                    print("OUT")
+                    ret += 1
+    print("ret", ret)
+    # input("1")
+    return ret
+
 
 # if True:
 for i, sub in enumerate(subs):
