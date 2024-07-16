@@ -1,3 +1,4 @@
+import pickle
 import logging
 import argparse
 from pathlib import Path
@@ -216,17 +217,11 @@ with MeasureTime("Subgraph Generation", verbose=TIMES):
         G_ = G.subgraph(nodes_)
         # G_ = nx.subgraph_view(G, filter_node=lambda x: x in nodes_)
         # print("G_", G_)
-        if WRITE_SUB:
-            if WRITE_SUB_FMT & ExportFormat.DOT:
-                graph_to_file(G_, OUT / f"sub{i}.dot")
-            if WRITE_SUB_FMT & ExportFormat.PDF:
-                graph_to_file(G_, OUT / f"sub{i}.pdf")
-            if WRITE_SUB_FMT & ExportFormat.PNG:
-                graph_to_file(G_, OUT / f"sub{i}.png")
         count = subs.count(G_)
         if count > 0:
             pass
         subs.append(G_)
+
 
 # for i, result in enumerate(results):
 #     print("result", result, i, dir(result), result.data())
@@ -403,18 +398,6 @@ with MeasureTime("Isomorphism Check", verbose=TIMES):
     # print(subs_df)
     # print("io_isos", io_isos, len(io_isos))
 
-if WRITE_IO_SUB:
-    with MeasureTime("Dumping I/O Subgraphs", verbose=TIMES):
-        logger.info("Exporting I/O subgraphs...")
-        for i, io_sub in enumerate(tqdm(io_subs, disable=not PROGRESS)):
-            if i in io_isos:
-                continue
-            if WRITE_IO_SUB_FMT & ExportFormat.DOT:
-                graph_to_file(io_sub, OUT / f"io_sub{i}.dot")
-            if WRITE_IO_SUB_FMT & ExportFormat.PDF:
-                graph_to_file(io_sub, OUT / f"io_sub{i}.pdf")
-            if WRITE_IO_SUB_FMT & ExportFormat.PNG:
-                graph_to_file(io_sub, OUT / f"io_sub{i}.png")
 
 
 with MeasureTime("Filtering subgraphs", verbose=TIMES):
