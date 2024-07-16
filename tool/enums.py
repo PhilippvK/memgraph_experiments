@@ -18,9 +18,11 @@ class ExportFilter(IntFlag):
     ISO = auto()  # 2
     FILTERED_IO = auto()  # 4
     FILTERED_COMPLEX = auto()  # 8
-    INVALID = auto()  # 16
-    ERROR = auto()  # 32
-    ALL = SELECTED | ISO | FILTERED_IO | FILTERED_COMPLEX | INVALID | ERROR
+    FILTERED_SIMPLE = auto()  # 16
+    FILTERED_PRED = auto()  # 32
+    INVALID = auto()  # 64
+    ERROR = auto()  # 128
+    ALL = SELECTED | ISO | FILTERED_IO | FILTERED_COMPLEX | FILTERED_SIMPLE | FILTERED_PRED | INVALID | ERROR
 
 
 class InstrPredicate(IntFlag):

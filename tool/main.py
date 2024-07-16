@@ -32,14 +32,16 @@ logger = logging.getLogger("main")
 FUNC_FMT_DEFAULT = ExportFormat.DOT
 FUNC_FLT_DEFAULT = ExportFilter.SELECTED
 # SUB_FMT_DEFAULT = ExportFormat.DOT  # | ExportFormat.PDF | ExportFormat.PNG
-SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PDF | ExportFormat.PNG
+SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PDF  # | ExportFormat.PNG | ExportFormat.PKL
 SUB_FLT_DEFAULT = ExportFilter.SELECTED
 IO_SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PDF | ExportFormat.PNG
 IO_SUB_FLT_DEFAULT = ExportFilter.SELECTED
 GEN_FMT_DEFAULT = ExportFormat.CDSL | ExportFormat.MIR | ExportFormat.TXT
 GEN_FLT_DEFAULT = ExportFilter.SELECTED
 PIE_FMT_DEFAULT = ExportFormat.PDF | ExportFormat.CSV
+PIE_FLT_DEFAULT = ExportFilter.ALL
 DF_FMT_DEFAULT = ExportFormat.CSV
+DF_FLT_DEFAULT = ExportFilter.SELECTED
 INSTR_PREDICATES_DEFAULT = InstrPredicate.ALL
 IGNORE_NAMES_DEFAULT = ["PHI", "COPY", "PseudoCALLIndirect", "PseudoLGA", "Select_GPR_Using_CC_GPR"]
 IGNORE_OP_TYPES_DEFAULT = ["input", "constant"]
@@ -86,10 +88,10 @@ def handle_cmdline():
     parser.add_argument("--write-gen-flt", type=int, default=GEN_FLT_DEFAULT, help="TODO")
     parser.add_argument("--write-pie", action="store_true", help="TODO")
     parser.add_argument("--write-pie-fmt", type=int, default=PIE_FMT_DEFAULT, help="TODO")
-    # TODO: pie filters?
+    parser.add_argument("--write-pie-flt", type=int, default=PIE_FLT_DEFAULT, help="TODO")
     parser.add_argument("--write-df", action="store_true", help="TODO")
     parser.add_argument("--write-df-fmt", type=int, default=DF_FMT_DEFAULT, help="TODO")
-    # TODO: df filters?
+    parser.add_argument("--write-df-flt", type=int, default=DF_FLT_DEFAULT, help="TODO")
     args = parser.parse_args()
     logging.basicConfig(level=getattr(logging, args.log.upper()))
     logging.getLogger("neo4j.io").setLevel(logging.INFO)
@@ -135,8 +137,10 @@ WRITE_GEN_FMT = args.write_gen_fmt
 WRITE_GEN_FLT = args.write_gen_flt
 WRITE_PIE = args.write_pie
 WRITE_PIE_FMT = args.write_pie_fmt
+WRITE_PIE_FLT = args.write_pie_flt
 WRITE_DF = args.write_df
 WRITE_DF_FMT = args.write_df_fmt
+WRITE_DF_FLT = args.write_df_flt
 
 with MeasureTime("Settings Validation", verbose=TIMES):
     logger.info("Validating settings...")
@@ -621,28 +625,89 @@ with MeasureTime("Finish DF", verbose=TIMES):
     logger.info("Finalizing DataFrame...")
 
     # subs_df["Iso"] = subs_df["result"].apply(lambda x: x in isos)
-    subs_df["Label"] = "Selected"
-    subs_df.loc[list(io_isos), "Label"] = "Iso"
-    subs_df.loc[list(filtered_io), "Label"] = "Filtered (I/O)"
-    subs_df.loc[list(filtered_complex), "Label"] = "Filtered (Complex)"
-    subs_df.loc[list(filtered_simple), "Label"] = "Filtered (Simple)"
-    subs_df.loc[list(filtered_predicates), "Label"] = "Filtered (Pred)"
-    subs_df.loc[list(invalid), "Label"] = "Invalid"
-    subs_df.loc[list(errs), "Label"] = "Error"
+    subs_df["Status"] = ExportFilter.SELECTED
+    subs_df.loc[list(io_isos), "Status"] = ExportFilter.ISO
+    subs_df.loc[list(filtered_io), "Status"] = ExportFilter.FILTERED_IO
+    subs_df.loc[list(filtered_complex), "Status"] = ExportFilter.FILTERED_COMPLEX
+    subs_df.loc[list(filtered_simple), "Status"] = ExportFilter.FILTERED_SIMPLE
+    subs_df.loc[list(filtered_predicates), "Status"] = ExportFilter.FILTERED_PRED
+    subs_df.loc[list(invalid), "Status"] = ExportFilter.INVALID
+    subs_df.loc[list(errs), "Status"] = ExportFilter.ERROR
+    subs_df["Status (str)"] = subs_df["Status"].apply(lambda x: str(ExportFilter(x)))
+    subs_df["Predicates (str)"] = subs_df["Predicates"].apply(lambda x: str(InstrPredicate(x)))
     # print("subs_df")
     # print(subs_df)
 
+
+if WRITE_SUB:
+    with MeasureTime("Subgraph Export", verbose=TIMES):
+        logger.info("Exporting subgraphs...")
+        filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_SUB_FLT) > 0].copy()
+        for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
+            if i not in filtered_subs_df.index:
+                continue
+            if WRITE_SUB_FMT & ExportFormat.DOT:
+                graph_to_file(G_, OUT / f"sub{i}.dot")
+            if WRITE_SUB_FMT & ExportFormat.PDF:
+                graph_to_file(G_, OUT / f"sub{i}.pdf")
+            if WRITE_SUB_FMT & ExportFormat.PNG:
+                graph_to_file(G_, OUT / f"sub{i}.png")
+            if WRITE_SUB_FMT & ExportFormat.PKL:
+                with open(OUT / f"sub{i}.pkl", "wb") as f:
+                    pickle.dump(G_.copy(), f)
+
+
+if WRITE_IO_SUB:
+    with MeasureTime("Dumping I/O Subgraphs", verbose=TIMES):
+        logger.info("Exporting I/O subgraphs...")
+        filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_IO_SUB_FLT) > 0].copy()
+        for i, io_sub in enumerate(tqdm(io_subs, disable=not PROGRESS)):
+            if i in io_isos or i not in filtered_subs_df.index:
+                continue
+            if WRITE_IO_SUB_FMT & ExportFormat.DOT:
+                graph_to_file(io_sub, OUT / f"io_sub{i}.dot")
+            if WRITE_IO_SUB_FMT & ExportFormat.PDF:
+                graph_to_file(io_sub, OUT / f"io_sub{i}.pdf")
+            if WRITE_IO_SUB_FMT & ExportFormat.PNG:
+                graph_to_file(io_sub, OUT / f"io_sub{i}.png")
+
+
 if WRITE_DF:
     with MeasureTime("Dump DF", verbose=TIMES):
+        filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_DF_FLT) > 0].copy()
         logger.info("Exporting DataFrame...")
         if WRITE_DF_FMT & ExportFormat.CSV:
-            subs_df.to_csv(OUT / "subs.csv")
+            filtered_subs_df.to_csv(OUT / "subs.csv")
         elif WRITE_DF_FMT & ExportFormat.PKL:
-            subs_df.to_pickle(OUT / "subs.pkl")
+            filtered_subs_df.to_pickle(OUT / "subs.pkl")
+
+
 if WRITE_PIE:
     with MeasureTime("Generate Pie", verbose=TIMES):
         logger.info("Generating PieChart...")
-        pie_df = subs_df.value_counts("Label").rename_axis("Label").reset_index(name="Count")
+        filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_PIE_FLT) > 0].copy()
+
+        def helper(x):
+            if x & ExportFilter.SELECTED:
+                return "Selected"
+            if x & ExportFilter.ISO:
+                return "Iso"
+            if x & ExportFilter.FILTERED_IO:
+                return "Filtered (I/O)"
+            if x & ExportFilter.FILTERED_COMPLEX:
+                return "Filtered (Complex)"
+            if x & ExportFilter.FILTERED_SIMPLE:
+                return "Filtered (Simple)"
+            if x & ExportFilter.FILTERED_PRED:
+                return "Filtered (Pred)"
+            if x & ExportFilter.INVALID:
+                return "Invalid"
+            if x & ExportFilter.ERROR:
+                return "ERROR"
+            return "Unknown"
+
+        filtered_subs_df["Label"] = filtered_subs_df["Status"].apply(helper)
+        pie_df = filtered_subs_df.value_counts("Label").rename_axis("Label").reset_index(name="Count")
         # print("pie_df")
         # print(pie_df)
         fig = px.pie(pie_df, values="Count", names="Label", title="Candidates")
