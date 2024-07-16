@@ -3,5 +3,5 @@
 *.pdf
 venv/
 .venv/
-out/
+out*/
 *.pyc
