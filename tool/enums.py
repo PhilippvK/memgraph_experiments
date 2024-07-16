@@ -11,6 +11,7 @@ class ExportFormat(IntFlag):
     MIR = auto()  # 64
     CDSL = auto()  # 128
     FLAT = auto()  # 256
+    YAML = auto()  # 512
 
 
 class ExportFilter(IntFlag):

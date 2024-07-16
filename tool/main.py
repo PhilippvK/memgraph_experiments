@@ -24,6 +24,7 @@ from .queries import generate_func_query, generate_candidates_query
 from .pred import check_predicates, detect_predicates
 from .timing import MeasureTime
 from .pie import generate_pie_chart
+from .index import write_index_file
 
 logger = logging.getLogger("main")
 
@@ -33,9 +34,9 @@ logger = logging.getLogger("main")
 FUNC_FMT_DEFAULT = ExportFormat.DOT
 FUNC_FLT_DEFAULT = ExportFilter.SELECTED
 # SUB_FMT_DEFAULT = ExportFormat.DOT  # | ExportFormat.PDF | ExportFormat.PNG
-SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PDF  # | ExportFormat.PNG | ExportFormat.PKL
+SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PKL  # | ExportFormat.PNG | ExportFormat.PDF
 SUB_FLT_DEFAULT = ExportFilter.SELECTED
-IO_SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PDF | ExportFormat.PNG
+IO_SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PKL  # | ExportFormat.PNG | ExportFormat.PDF
 IO_SUB_FLT_DEFAULT = ExportFilter.SELECTED
 GEN_FMT_DEFAULT = ExportFormat.CDSL | ExportFormat.MIR | ExportFormat.FLAT
 GEN_FLT_DEFAULT = ExportFilter.SELECTED
@@ -43,6 +44,8 @@ PIE_FMT_DEFAULT = ExportFormat.PDF | ExportFormat.CSV
 PIE_FLT_DEFAULT = ExportFilter.ALL
 DF_FMT_DEFAULT = ExportFormat.CSV
 DF_FLT_DEFAULT = ExportFilter.ALL
+INDEX_FMT_DEFAULT = ExportFormat.YAML
+INDEX_FLT_DEFAULT = ExportFilter.SELECTED
 INSTR_PREDICATES_DEFAULT = InstrPredicate.ALL
 IGNORE_NAMES_DEFAULT = ["PHI", "COPY", "PseudoCALLIndirect", "PseudoLGA", "Select_GPR_Using_CC_GPR"]
 IGNORE_OP_TYPES_DEFAULT = ["input", "constant"]
@@ -93,6 +96,9 @@ def handle_cmdline():
     parser.add_argument("--write-df", action="store_true", help="TODO")
     parser.add_argument("--write-df-fmt", type=int, default=DF_FMT_DEFAULT, help="TODO")
     parser.add_argument("--write-df-flt", type=int, default=DF_FLT_DEFAULT, help="TODO")
+    parser.add_argument("--write-index", action="store_true", help="TODO")
+    parser.add_argument("--write-index-fmt", type=int, default=INDEX_FMT_DEFAULT, help="TODO")
+    parser.add_argument("--write-index-flt", type=int, default=INDEX_FLT_DEFAULT, help="TODO")
     args = parser.parse_args()
     logging.basicConfig(level=getattr(logging, args.log.upper()))
     logging.getLogger("neo4j.io").setLevel(logging.INFO)
@@ -110,7 +116,7 @@ MAX_OUTPUTS = args.max_outputs
 MAX_NODES = args.max_nodes
 MIN_NODES = args.min_nodes
 XLEN = args.xlen
-OUT = Path(args.output_dir)
+OUT = Path(args.output_dir).resolve()
 SESSION = args.session
 HOST = args.host
 PORT = args.port
@@ -142,6 +148,9 @@ WRITE_PIE_FLT = args.write_pie_flt
 WRITE_DF = args.write_df
 WRITE_DF_FMT = args.write_df_fmt
 WRITE_DF_FLT = args.write_df_flt
+WRITE_INDEX = args.write_index
+WRITE_INDEX_FMT = args.write_index_fmt
+WRITE_INDEX_FLT = args.write_index_flt
 
 with MeasureTime("Settings Validation", verbose=TIMES):
     logger.info("Validating settings...")
@@ -301,6 +310,7 @@ with MeasureTime("Relabeling", verbose=TIMES):
 #     isos |= isos_
 #     print("iso_count", iso_count)
 # print("isos", isos, len(isos))
+index_data = defaultdict(dict)
 
 
 io_subs = []
@@ -588,6 +598,7 @@ body: |
                 # print(mir_code)
                 with open(OUT / f"result{i}.mir", "w") as f:
                     f.write(mir_code)
+                index_data[i]["mir"] = OUT / f"result{i}.mir"
     # TODO: split cdsl from gen_tree!
     xtrees = None
     if WRITE_GEN_FMT & ExportFormat.CDSL:
@@ -618,6 +629,7 @@ body: |
                 full_cdsl_code = wrap_cdsl(f"RESULT_{i}", cdsl_code)
                 with open(OUT / f"result{i}.core_desc", "w") as f:
                     f.write(full_cdsl_code)
+                index_data[i]["cdsl"] = OUT / f"result{i}.core_desc"
     if WRITE_GEN_FMT & ExportFormat.FLAT:
         with MeasureTime("FLAT Generation", verbose=TIMES):
             logger.info("Generation of FLAT...")
@@ -629,6 +641,7 @@ body: |
                 flat_code = gen_flat_code(xtrees, desc=desc)
                 with open(OUT / f"result{i}.flat", "w") as f:
                     f.write(flat_code)
+                index_data[i]["flat"] = OUT / f"result{i}.flat"
     subs_df.loc[list(errs), "Status"] = ExportFilter.ERROR
 
 # TODO: loop multiple times (tree -> MIR -> CDSL -> FLAT) not interleaved
@@ -668,6 +681,7 @@ if WRITE_SUB:
             if WRITE_SUB_FMT & ExportFormat.PKL:
                 with open(OUT / f"sub{i}.pkl", "wb") as f:
                     pickle.dump(G_.copy(), f)
+                index_data[i]["sub"] = OUT / f"sub{i}.pkl"
 
 
 if WRITE_IO_SUB:
@@ -684,8 +698,9 @@ if WRITE_IO_SUB:
             if WRITE_IO_SUB_FMT & ExportFormat.PNG:
                 graph_to_file(io_sub, OUT / f"io_sub{i}.png")
             if WRITE_SUB_FMT & ExportFormat.PKL:
-                with open(OUT / f"sub{i}.pkl", "wb") as f:
-                    pickle.dump(G_.copy(), f)
+                with open(OUT / f"io_sub{i}.pkl", "wb") as f:
+                    pickle.dump(io_sub.copy(), f)
+                index_data[i]["io_sub"] = OUT / f"io_sub{i}.pkl"
 
 
 if WRITE_DF:
@@ -696,6 +711,14 @@ if WRITE_DF:
             filtered_subs_df.to_csv(OUT / "subs.csv")
         elif WRITE_DF_FMT & ExportFormat.PKL:
             filtered_subs_df.to_pickle(OUT / "subs.pkl")
+
+
+if WRITE_INDEX:
+    with MeasureTime("Write Index", verbose=TIMES):
+        filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_INDEX_FLT) > 0].copy()
+        logger.info("Writing Index File...")
+        if WRITE_INDEX_FMT & ExportFormat.YAML:
+            write_index_file(OUT / "index.yml", filtered_subs_df, index_data)
 
 
 if WRITE_PIE:
