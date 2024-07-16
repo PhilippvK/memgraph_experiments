@@ -22,7 +22,7 @@ from .mir_utils import gen_mir_func
 from .graph_utils import graph_to_file, calc_inputs, calc_outputs, memgraph_to_nx
 from .tree import gen_tree, gen_flat_code
 from .queries import generate_func_query, generate_candidates_query
-from .pred import check_predicates
+from .pred import check_predicates, detect_predicates
 from .timing import MeasureTime
 
 logger = logging.getLogger("main")
@@ -399,6 +399,15 @@ with MeasureTime("Isomorphism Check", verbose=TIMES):
     # print("io_isos", io_isos, len(io_isos))
 
 
+with MeasureTime("Predicate Detection", verbose=TIMES):
+    logger.info("Detecting Predicates...")
+    subs_df["Predicates"] = InstrPredicate.NONE
+    for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
+        if i in io_isos:
+            continue
+        pred = detect_predicates(sub)
+        subs_df.loc[i, "Predicates"] = pred
+
 
 with MeasureTime("Filtering subgraphs", verbose=TIMES):
     logger.info("Filtering subgraphs...")
@@ -418,11 +427,12 @@ with MeasureTime("Filtering subgraphs", verbose=TIMES):
         if num_inputs_noconst == 0 or num_outputs == 0:
             invalid.add(i)
         elif MIN_INPUTS <= num_inputs_noconst <= MAX_INPUTS and MIN_OUTPUTS <= num_outputs <= MAX_OUTPUTS:
+            pred = subs_df.loc[i, "Predicates"]
             if num_nodes > MAX_NODES:
                 filtered_complex.add(i)
             elif num_nodes < MIN_NODES:
                 filtered_simple.add(i)
-            elif not check_predicates(sub, INSTR_PREDICATES):
+            elif not check_predicates(pred, INSTR_PREDICATES):
                 # TODO: add predicates details to df in prerequisite step
                 filtered_predicates.add(i)
         else:

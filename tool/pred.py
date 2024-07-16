@@ -1,7 +1,7 @@
 from .enums import InstrPredicate
 
 
-def check_predicates(sub, allowed_predicates):
+def detect_predicates(sub):
     sub_predicates = InstrPredicate.NONE
     print("check_predicates", sub)
     for node in sub.nodes:
@@ -18,8 +18,10 @@ def check_predicates(sub, allowed_predicates):
             sub_predicates |= InstrPredicate.MAY_STORE
         if name in BRANCHES:
             sub_predicates |= InstrPredicate.IS_BRANCH
-    print("sub_predicates", sub_predicates)
-    print("allowed_predicates", allowed_predicates)
-    ret = (sub_predicates & allowed_predicates) == sub_predicates
+    return sub_predicates
+
+
+def check_predicates(pred, allowed_predicates):
+    ret = (pred & allowed_predicates) == pred
     print("ret", ret)
     return ret
