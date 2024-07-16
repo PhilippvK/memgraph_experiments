@@ -507,7 +507,6 @@ with MeasureTime("Generation", verbose=TIMES):
 
                             def get_ty_for_val(val):
                                 def get_min_pow(x):
-                                    # print("x", x)
                                     assert x >= 0
                                     max_pow = 6
                                     for i in range(max_pow + 1):
