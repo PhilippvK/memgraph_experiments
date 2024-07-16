@@ -37,12 +37,12 @@ SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PDF  # | ExportFormat.PNG | Ex
 SUB_FLT_DEFAULT = ExportFilter.SELECTED
 IO_SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PDF | ExportFormat.PNG
 IO_SUB_FLT_DEFAULT = ExportFilter.SELECTED
-GEN_FMT_DEFAULT = ExportFormat.CDSL | ExportFormat.MIR | ExportFormat.TXT
+GEN_FMT_DEFAULT = ExportFormat.CDSL | ExportFormat.MIR | ExportFormat.FLAT
 GEN_FLT_DEFAULT = ExportFilter.SELECTED
 PIE_FMT_DEFAULT = ExportFormat.PDF | ExportFormat.CSV
 PIE_FLT_DEFAULT = ExportFilter.ALL
 DF_FMT_DEFAULT = ExportFormat.CSV
-DF_FLT_DEFAULT = ExportFilter.SELECTED
+DF_FLT_DEFAULT = ExportFilter.ALL
 INSTR_PREDICATES_DEFAULT = InstrPredicate.ALL
 IGNORE_NAMES_DEFAULT = ["PHI", "COPY", "PseudoCALLIndirect", "PseudoLGA", "Select_GPR_Using_CC_GPR"]
 IGNORE_OP_TYPES_DEFAULT = ["input", "constant"]
@@ -305,12 +305,6 @@ with MeasureTime("Relabeling", verbose=TIMES):
 
 io_subs = []
 all_codes = {}
-errs = set()
-filtered_io = set()
-filtered_complex = set()
-filtered_simple = set()
-filtered_predicates = set()
-invalid = set()
 duplicate_counts = defaultdict(int)
 
 
@@ -321,6 +315,7 @@ subs_df["InputsNC"] = [np.array([])] * len(subs_df)
 subs_df["#InputsNC"] = np.nan
 subs_df["Outputs"] = [np.array([])] * len(subs_df)
 subs_df["#Outputs"] = np.nan
+subs_df["Status"] = ExportFilter.SELECTED  # TODO: init with UNKNOWN
 # print("subs_df")
 # print(subs_df)
 
@@ -397,6 +392,7 @@ with MeasureTime("Isomorphism Check", verbose=TIMES):
     # print("subs_df")
     # print(subs_df)
     # print("io_isos", io_isos, len(io_isos))
+    subs_df.loc[list(io_isos), "Status"] = ExportFilter.ISO
 
 
 with MeasureTime("Predicate Detection", verbose=TIMES):
@@ -410,6 +406,11 @@ with MeasureTime("Predicate Detection", verbose=TIMES):
 
 
 with MeasureTime("Filtering subgraphs", verbose=TIMES):
+    filtered_io = set()
+    filtered_complex = set()
+    filtered_simple = set()
+    filtered_predicates = set()
+    invalid = set()
     logger.info("Filtering subgraphs...")
     for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
         if i in io_isos:
@@ -437,30 +438,37 @@ with MeasureTime("Filtering subgraphs", verbose=TIMES):
                 filtered_predicates.add(i)
         else:
             filtered_io.add(i)
+    subs_df.loc[list(filtered_io), "Status"] = ExportFilter.FILTERED_IO
+    subs_df.loc[list(filtered_complex), "Status"] = ExportFilter.FILTERED_COMPLEX
+    subs_df.loc[list(filtered_simple), "Status"] = ExportFilter.FILTERED_SIMPLE
+    subs_df.loc[list(filtered_predicates), "Status"] = ExportFilter.FILTERED_PRED
+    subs_df.loc[list(invalid), "Status"] = ExportFilter.INVALID
 
-with MeasureTime("Generation", verbose=TIMES):
-    logger.info("Generation...")
-    for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
-        if i in io_isos or i in filtered_io or i in filtered_complex or i in filtered_predicates:
-            continue
-        # print("===========================")
-        # print("i, sub", i, sub)
-        sub_data = subs_df.iloc[i]
-        inputs = sub_data["Inputs"]
-        num_inputs = int(sub_data["#Inputs"])
-        inputs_noconst = sub_data["InputsNC"]
-        num_inputs_noconst = int(sub_data["#InputsNC"])
-        outputs = sub_data["Outputs"]
-        num_outputs = int(sub_data["#Outputs"])
-        # print("num_inputs", num_inputs)
-        # print("num_inputs_noconst", num_inputs_noconst)
-        # print("num_outputs", num_outputs)
-        # print("inputs", [GF.nodes[inp] for inp in inputs])
-        # print("inputs_noconst", [GF.nodes[inp] for inp in inputs_noconst])
-        # print("outputs", [GF.nodes[outp] for outp in outputs])
-        if WRITE_GEN:
-            if WRITE_GEN_FMT & ExportFormat.MIR:
-                logger.info("Generating MIR")
+
+if WRITE_GEN:
+    errs = set()
+    filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_GEN_FLT) > 0].copy()
+    if WRITE_GEN_FMT & ExportFormat.MIR:
+        with MeasureTime("MIR Generation", verbose=TIMES):
+            logger.info("Generation of MIR...")
+            for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
+                if i not in filtered_subs_df.index:
+                    continue
+                # print("===========================")
+                # print("i, sub", i, sub)
+                sub_data = subs_df.iloc[i]
+                inputs = sub_data["Inputs"]
+                num_inputs = int(sub_data["#Inputs"])
+                inputs_noconst = sub_data["InputsNC"]
+                num_inputs_noconst = int(sub_data["#InputsNC"])
+                outputs = sub_data["Outputs"]
+                num_outputs = int(sub_data["#Outputs"])
+                # print("num_inputs", num_inputs)
+                # print("num_inputs_noconst", num_inputs_noconst)
+                # print("num_outputs", num_outputs)
+                # print("inputs", [GF.nodes[inp] for inp in inputs])
+                # print("inputs_noconst", [GF.nodes[inp] for inp in inputs_noconst])
+                # print("outputs", [GF.nodes[outp] for outp in outputs])
                 j = 0  # reg's
                 # j_ = 0  # imm's
                 codes = []
@@ -580,10 +588,23 @@ body: |
                 # print(mir_code)
                 with open(OUT / f"result{i}.mir", "w") as f:
                     f.write(mir_code)
-            # TODO: split cdsl from gen_tree!
-            xtrees = None
-            if WRITE_GEN_FMT & ExportFormat.CDSL:
-                logger.info("Generating CDSL")
+    # TODO: split cdsl from gen_tree!
+    xtrees = None
+    if WRITE_GEN_FMT & ExportFormat.CDSL:
+        with MeasureTime("CDSL Generation", verbose=TIMES):
+            logger.info("Generation of CDSL...")
+            for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
+                if i not in filtered_subs_df.index:
+                    continue
+                # print("===========================")
+                # print("i, sub", i, sub)
+                sub_data = subs_df.iloc[i]
+                inputs = sub_data["Inputs"]
+                num_inputs = int(sub_data["#Inputs"])
+                inputs_noconst = sub_data["InputsNC"]
+                num_inputs_noconst = int(sub_data["#InputsNC"])
+                outputs = sub_data["Outputs"]
+                num_outputs = int(sub_data["#Outputs"])
                 # TODO: tree to disk? (ExportFormat.TREE)
                 try:
                     tree, xtrees, cdsl_code = gen_tree(GF, sub, inputs, outputs, xlen=XLEN)
@@ -597,13 +618,18 @@ body: |
                 full_cdsl_code = wrap_cdsl(f"RESULT_{i}", cdsl_code)
                 with open(OUT / f"result{i}.core_desc", "w") as f:
                     f.write(full_cdsl_code)
-            if WRITE_GEN_FMT & ExportFormat.TXT:
-                logger.info("Generating FLAT")
-                assert xtrees is not None, ""
+    if WRITE_GEN_FMT & ExportFormat.FLAT:
+        with MeasureTime("FLAT Generation", verbose=TIMES):
+            logger.info("Generation of FLAT...")
+            for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
+                if i not in filtered_subs_df.index:
+                    continue
+                assert xtrees is not None, "FLAT needs xtrees"
                 header = f"Inputs (with imm): {num_inputs}, Inputs (without imm): {num_inputs_noconst}, Outputs: {num_outputs}"
                 flat_code = gen_flat_code(xtrees, desc=desc)
-                with open(OUT / f"result{i}.txt", "w") as f:
+                with open(OUT / f"result{i}.flat", "w") as f:
                     f.write(flat_code)
+    subs_df.loc[list(errs), "Status"] = ExportFilter.ERROR
 
 # TODO: loop multiple times (tree -> MIR -> CDSL -> FLAT) not interleaved
 
@@ -617,18 +643,13 @@ with MeasureTime("Finish DF", verbose=TIMES):
     logger.info("Finalizing DataFrame...")
 
     # subs_df["Iso"] = subs_df["result"].apply(lambda x: x in isos)
-    subs_df["Status"] = ExportFilter.SELECTED
-    subs_df.loc[list(io_isos), "Status"] = ExportFilter.ISO
-    subs_df.loc[list(filtered_io), "Status"] = ExportFilter.FILTERED_IO
-    subs_df.loc[list(filtered_complex), "Status"] = ExportFilter.FILTERED_COMPLEX
-    subs_df.loc[list(filtered_simple), "Status"] = ExportFilter.FILTERED_SIMPLE
-    subs_df.loc[list(filtered_predicates), "Status"] = ExportFilter.FILTERED_PRED
-    subs_df.loc[list(invalid), "Status"] = ExportFilter.INVALID
-    subs_df.loc[list(errs), "Status"] = ExportFilter.ERROR
     subs_df["Status (str)"] = subs_df["Status"].apply(lambda x: str(ExportFilter(x)))
     subs_df["Predicates (str)"] = subs_df["Predicates"].apply(lambda x: str(InstrPredicate(x)))
     # print("subs_df")
     # print(subs_df)
+
+
+# TODO: add helper to share code here!
 
 
 if WRITE_SUB:
@@ -662,6 +683,9 @@ if WRITE_IO_SUB:
                 graph_to_file(io_sub, OUT / f"io_sub{i}.pdf")
             if WRITE_IO_SUB_FMT & ExportFormat.PNG:
                 graph_to_file(io_sub, OUT / f"io_sub{i}.png")
+            if WRITE_SUB_FMT & ExportFormat.PKL:
+                with open(OUT / f"sub{i}.pkl", "wb") as f:
+                    pickle.dump(G_.copy(), f)
 
 
 if WRITE_DF:

@@ -10,6 +10,7 @@ class ExportFormat(IntFlag):
     PKL = auto()  # 32
     MIR = auto()  # 64
     CDSL = auto()  # 128
+    FLAT = auto()  # 256
 
 
 class ExportFilter(IntFlag):
