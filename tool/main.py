@@ -733,6 +733,8 @@ if WRITE_PIE:
             pie_fig.write_image(OUT / "pie.pdf")
         if WRITE_PIE_FMT & ExportFormat.PNG:
             pie_fig.write_image(OUT / "pie.png")
+        if WRITE_PIE_FMT & ExportFormat.HTML:
+            pie_fig.write_html(OUT / "pie.html")
         if WRITE_PIE_FMT & ExportFormat.CSV:
             pie_df.to_csv(OUT / "pie.csv")
 
