@@ -12,3 +12,4 @@ numpy
 flake8
 tqdm
 pyyaml
+# matplotlib-venn

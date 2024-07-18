@@ -16,6 +16,7 @@ def handle_cmdline():
     parser.add_argument("--log", default="info", choices=["critical", "error", "warning", "info", "debug"], help="TODO")
     parser.add_argument("--output", "-o", default=None, help="TODO")  # print if None
     parser.add_argument("--drop-duplicates", action="store_true", help="TODO")
+    parser.add_argument("--venn", default=None, help="TODO")
     args = parser.parse_args()
     logging.basicConfig(level=getattr(logging, args.log.upper()))
     return args
@@ -25,11 +26,13 @@ args = handle_cmdline()
 INS = args.index
 OUT = args.output
 DROP_DUPLICATES = args.drop_duplicates
+VENN_OUT = args.venn
 
 i = 0
 
 candidates = []
 candidate_io_subs = []
+venn_data = []
 
 for in_path in INS:
     print("in_path", in_path)
@@ -37,8 +40,10 @@ for in_path in INS:
         yaml_data = yaml.safe_load(f)
     candidates_data = yaml_data["candidates"]
     # print("candidates_data", candidates_data, len(candidates_data))
+    path_ids = set()
     for candidate_data in candidates_data:
         candidate_data["id"] = i
+        path_ids.add(i)
         candidates.append(candidate_data)
         if DROP_DUPLICATES:
             io_sub_path = candidate_data["artifacts"].get("io_sub", None)
@@ -47,6 +52,7 @@ for in_path in INS:
                 io_sub = pickle.load(f)
             candidate_io_subs.append(io_sub)
         i += 1
+    venn_data.append(path_ids)
 
 if DROP_DUPLICATES:
     duplicates = defaultdict(set)
@@ -73,12 +79,30 @@ if DROP_DUPLICATES:
         if len(io_isos_) > 0:
             duplicates[i] = io_isos_
             duplicate_count += len(io_isos_)
+            for k in range(len(venn_data)):
+                venn_data[k] = set(i if k2 in io_isos_ else k2 for k2 in venn_data[k])
         # input("@@")
+    all_duplicates = set(sum(map(list, duplicates.values()), []))
+    print("all_duplicates", all_duplicates)
+    candidates = [x for i, x in candidates if i not in all_duplicates]
     print("duplicates", duplicates)
     print("duplicate_count", duplicate_count)
+    print("venn_data", venn_data)
     # TODO: fix ids?
     input(">>")
 # print("candidates", candidates, len(candidates))
+
+if VENN_OUT is not None:
+    from matplotlib_venn import venn3, venn2
+    from matplotlib_venn.layout.venn3 import DefaultLayoutAlgorithm
+    from matplotlib import pyplot as plt
+    assert len(venn_data) > 0, "--venn needs --drop"
+    assert len(venn_data) in [2, 3], "--venn only works for 2 or 3 inputs"
+    if len(venn_data) == 3:
+        fig = venn3(venn_data, ('Set1', 'Set2', 'Set3'), layout_algorithm=DefaultLayoutAlgorithm(fixed_subset_sizes=(1, 1, 1, 1, 1, 1, 1)))
+    elif len(venn_data) == 2:
+        fig = venn2(venn_data, ('Set1', 'Set2'))
+    plt.savefig(VENN_OUT)
 
 # with MeasureTime("Isomorphism Check", verbose=TIMES):
 #     logger.info("Checking isomorphism...")
