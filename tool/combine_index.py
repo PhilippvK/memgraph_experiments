@@ -4,6 +4,7 @@ import argparse
 from collections import defaultdict
 
 import yaml
+from tqdm import tqdm
 import networkx as nx
 
 logger = logging.getLogger("combine_index")
@@ -17,6 +18,7 @@ def handle_cmdline():
     parser.add_argument("--output", "-o", default=None, help="TODO")  # print if None
     parser.add_argument("--drop-duplicates", action="store_true", help="TODO")
     parser.add_argument("--venn", default=None, help="TODO")
+    parser.add_argument("--progress", action="store_true", help="TODO")
     args = parser.parse_args()
     logging.basicConfig(level=getattr(logging, args.log.upper()))
     return args
@@ -35,13 +37,12 @@ candidate_io_subs = []
 venn_data = []
 
 for in_path in INS:
-    print("in_path", in_path)
+    logger.info("Loading input %s", in_path)
     with open(in_path, "r") as f:
         yaml_data = yaml.safe_load(f)
     candidates_data = yaml_data["candidates"]
-    # print("candidates_data", candidates_data, len(candidates_data))
     path_ids = set()
-    for candidate_data in candidates_data:
+    for candidate_data in tqdm(candidates_data, disable=not args.progress):
         candidate_data["id"] = i
         path_ids.add(i)
         candidates.append(candidate_data)
@@ -57,51 +58,50 @@ for in_path in INS:
 if DROP_DUPLICATES:
     duplicates = defaultdict(set)
     duplicate_count = 0
-    # print("candidate_io_subs", candidate_io_subs)
-    # print("candidate_io_subs", [(str(x), x.nodes) for x in candidate_io_subs])
-    # input("A")
-    for i, io_sub in enumerate(candidate_io_subs):
+    logger.info("Detecting duplicates...")
+    io_isos = set()
+    for i, io_sub in enumerate(tqdm(candidate_io_subs, disable=not args.progress)):
+        if i in io_isos:
+            continue
+
         def node_match(x, y):
-            # print("node_match")
-            # print("x", x)
-            # print("y", y)
-            # input("?")
             # TODO: check xlabel? (Const replaced with val!)
             return x["label"] == y["label"] and (
                 x["label"] != "Const" or x["properties"]["inst"] == y["properties"]["inst"]
             )
 
         io_isos_ = set(
-            j for j, io_sub_ in enumerate(candidate_io_subs) if j > i and nx.is_isomorphic(io_sub, io_sub_, node_match=node_match)
+            j
+            for j, io_sub_ in enumerate(candidate_io_subs)
+            if j > i and j not in io_isos and nx.is_isomorphic(io_sub, io_sub_, node_match=node_match)
         )
         # TODO: do not check in same index?
-        # print("io_isos_", io_isos_, len(io_isos_))
         if len(io_isos_) > 0:
+            io_isos |= io_isos_
             duplicates[i] = io_isos_
             duplicate_count += len(io_isos_)
             for k in range(len(venn_data)):
                 venn_data[k] = set(i if k2 in io_isos_ else k2 for k2 in venn_data[k])
         # input("@@")
     all_duplicates = set(sum(map(list, duplicates.values()), []))
-    print("all_duplicates", all_duplicates)
-    candidates = [x for i, x in candidates if i not in all_duplicates]
-    print("duplicates", duplicates)
-    print("duplicate_count", duplicate_count)
-    print("venn_data", venn_data)
+    candidates = [x for i, x in enumerate(candidates) if i not in all_duplicates]
     # TODO: fix ids?
-    input(">>")
-# print("candidates", candidates, len(candidates))
 
 if VENN_OUT is not None:
     from matplotlib_venn import venn3, venn2
     from matplotlib_venn.layout.venn3 import DefaultLayoutAlgorithm
     from matplotlib import pyplot as plt
+
     assert len(venn_data) > 0, "--venn needs --drop"
     assert len(venn_data) in [2, 3], "--venn only works for 2 or 3 inputs"
     if len(venn_data) == 3:
-        fig = venn3(venn_data, ('Set1', 'Set2', 'Set3'), layout_algorithm=DefaultLayoutAlgorithm(fixed_subset_sizes=(1, 1, 1, 1, 1, 1, 1)))
+        fig = venn3(
+            venn_data,
+            ("Set1", "Set2", "Set3"),
+            layout_algorithm=DefaultLayoutAlgorithm(fixed_subset_sizes=(1, 1, 1, 1, 1, 1, 1)),
+        )
     elif len(venn_data) == 2:
-        fig = venn2(venn_data, ('Set1', 'Set2'))
+        fig = venn2(venn_data, ("Set1", "Set2"))
     plt.savefig(VENN_OUT)
 
 # with MeasureTime("Isomorphism Check", verbose=TIMES):

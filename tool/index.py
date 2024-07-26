@@ -8,7 +8,6 @@ import pandas as pd
 def write_index_file(dest: Union[str, Path], subs_df: pd.DataFrame, index_data: Dict[int, Dict[str, Any]]):
     yaml_data = {"candidates": []}
     for sub_id in subs_df.index:
-        print("sub_idx", sub_id)
         assert sub_id in index_data
 
         def helper(x):

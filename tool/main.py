@@ -18,7 +18,7 @@ from .enums import ExportFormat, ExportFilter, InstrPredicate
 from .memgraph import connect_memgraph, run_query
 from .cdsl_utils import wrap_cdsl
 from .mir_utils import gen_mir_func
-from .graph_utils import graph_to_file, calc_inputs, calc_outputs, memgraph_to_nx
+from .graph_utils import graph_to_file, calc_inputs, calc_outputs, memgraph_to_nx, get_instructions, calc_weights
 from .tree import gen_tree, gen_flat_code
 from .queries import generate_func_query, generate_candidates_query
 from .pred import check_predicates, detect_predicates
@@ -34,15 +34,19 @@ logger = logging.getLogger("main")
 FUNC_FMT_DEFAULT = ExportFormat.DOT
 FUNC_FLT_DEFAULT = ExportFilter.SELECTED
 # SUB_FMT_DEFAULT = ExportFormat.DOT  # | ExportFormat.PDF | ExportFormat.PNG
-SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PKL  # | ExportFormat.PNG | ExportFormat.PDF
+# SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PKL  # | ExportFormat.PNG | ExportFormat.PDF
+SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PKL | ExportFormat.PDF
 SUB_FLT_DEFAULT = ExportFilter.SELECTED
-IO_SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PKL  # | ExportFormat.PNG | ExportFormat.PDF
+# SUB_FLT_DEFAULT = ExportFilter.ALL
+# IO_SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PKL  # | ExportFormat.PNG | ExportFormat.PDF
+IO_SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PKL | ExportFormat.PDF
 IO_SUB_FLT_DEFAULT = ExportFilter.SELECTED
-GEN_FMT_DEFAULT = ExportFormat.CDSL | ExportFormat.MIR | ExportFormat.FLAT
+# GEN_FMT_DEFAULT = ExportFormat.CDSL | ExportFormat.MIR | ExportFormat.FLAT
+GEN_FMT_DEFAULT = ExportFormat.FLAT | ExportFormat.CDSL
 GEN_FLT_DEFAULT = ExportFilter.SELECTED
 PIE_FMT_DEFAULT = ExportFormat.PDF | ExportFormat.CSV
 PIE_FLT_DEFAULT = ExportFilter.ALL
-DF_FMT_DEFAULT = ExportFormat.CSV
+DF_FMT_DEFAULT = ExportFormat.CSV | ExportFormat.PKL
 DF_FLT_DEFAULT = ExportFilter.ALL
 INDEX_FMT_DEFAULT = ExportFormat.YAML
 INDEX_FLT_DEFAULT = ExportFilter.SELECTED
@@ -99,6 +103,7 @@ def handle_cmdline():
     parser.add_argument("--write-index", action="store_true", help="TODO")
     parser.add_argument("--write-index-fmt", type=int, default=INDEX_FMT_DEFAULT, help="TODO")
     parser.add_argument("--write-index-flt", type=int, default=INDEX_FLT_DEFAULT, help="TODO")
+    parser.add_argument("--write-queries", action="store_true", help="TODO")
     args = parser.parse_args()
     logging.basicConfig(level=getattr(logging, args.log.upper()))
     logging.getLogger("neo4j.io").setLevel(logging.INFO)
@@ -115,6 +120,7 @@ MIN_OUTPUTS = args.min_outputs
 MAX_OUTPUTS = args.max_outputs
 MAX_NODES = args.max_nodes
 MIN_NODES = args.min_nodes
+# TODO: MIN_FREQ, MIN_WEIGHT, MAX_INSTRS, MAX_UNIQUE_INSTRS
 XLEN = args.xlen
 OUT = Path(args.output_dir).resolve()
 SESSION = args.session
@@ -151,6 +157,7 @@ WRITE_DF_FLT = args.write_df_flt
 WRITE_INDEX = args.write_index
 WRITE_INDEX_FMT = args.write_index_fmt
 WRITE_INDEX_FLT = args.write_index_flt
+WRITE_QUERIES = args.write_queries
 
 with MeasureTime("Settings Validation", verbose=TIMES):
     logger.info("Validating settings...")
@@ -167,6 +174,11 @@ with MeasureTime("Connect to DB", verbose=TIMES):
 with MeasureTime("Query func from DB", verbose=TIMES):
     query_func = generate_func_query(SESSION, FUNC)
     func_results = run_query(driver, query_func)
+    if WRITE_QUERIES:
+        logger.info("Exporting queries...")
+        with open(OUT / "query_func.cypher", "w") as f:
+            f.write(query_func)
+
 
 with MeasureTime("Query candidates from DB", verbose=TIMES):
     query = generate_candidates_query(
@@ -181,6 +193,10 @@ with MeasureTime("Query candidates from DB", verbose=TIMES):
         limit=LIMIT_RESULTS,
     )
     results = run_query(driver, query)
+    if WRITE_QUERIES:
+        logger.info("Exporting queries...")
+        with open(OUT / "query_candidates.cypher", "w") as f:
+            f.write(query)
 
 # TODO: move to helper func
 # TODO: print number of results
@@ -319,12 +335,24 @@ duplicate_counts = defaultdict(int)
 
 
 subs_df = pd.DataFrame({"result": list(range(len(subs)))})
+subs_df["Isos"] = [np.array([])] * len(subs_df)
+subs_df["#Isos"] = np.nan
+subs_df["IsosNO"] = [np.array([])] * len(subs_df)
+subs_df["#IsosNO"] = np.nan
+subs_df["Nodes"] = [np.array([])] * len(subs_df)
+subs_df["#Inputs"] = np.nan
 subs_df["Inputs"] = [np.array([])] * len(subs_df)
 subs_df["#Inputs"] = np.nan
 subs_df["InputsNC"] = [np.array([])] * len(subs_df)
 subs_df["#InputsNC"] = np.nan
+subs_df["Instrs"] = [np.array([])] * len(subs_df)
+subs_df["#Instrs"] = np.nan
+subs_df["UniqueInstrs"] = [np.array([])] * len(subs_df)
+subs_df["#UniqueInstrs"] = np.nan
 subs_df["Outputs"] = [np.array([])] * len(subs_df)
 subs_df["#Outputs"] = np.nan
+subs_df["Weight"] = np.nan
+subs_df["Freq"] = np.nan
 subs_df["Status"] = ExportFilter.SELECTED  # TODO: init with UNKNOWN
 # print("subs_df")
 # print(subs_df)
@@ -340,15 +368,28 @@ with MeasureTime("I/O Analysis", verbose=TIMES):
         # print("topo", topo)
         # print("===========================")
         # print("i, sub", i, sub)
+        nodes = sub.nodes
         num_inputs, inputs = calc_inputs(GF, sub)
         num_inputs_noconst, inputs_noconst = calc_inputs(GF, sub, ignore_const=True)
         num_outputs, outputs = calc_outputs(GF, sub)
+        instrs = get_instructions(sub)
+        unique_instrs = set(instrs)
+        total_weight, freq = calc_weights(sub)
+        subs_df.at[i, "Nodes"] = set(nodes)
         subs_df.at[i, "Inputs"] = set(inputs)
         subs_df.loc[i, "#Inputs"] = num_inputs
         subs_df.at[i, "InputsNC"] = set(inputs_noconst)
         subs_df.loc[i, "#InputsNC"] = num_inputs_noconst
         subs_df.at[i, "Outputs"] = set(outputs)
         subs_df.loc[i, "#Outputs"] = num_outputs
+        subs_df.at[i, "Instrs"] = instrs
+        subs_df.loc[i, "#Instrs"] = len(instrs)
+        subs_df.at[i, "UniqueInstrs"] = unique_instrs
+        subs_df.loc[i, "#UniqueInstrs"] = len(unique_instrs)
+        subs_df.loc[i, "Weight"] = total_weight
+        subs_df.loc[i, "Freq"] = freq
+        # TODO: also sum up weight and freq for isos? (be careful with overlaps!)
+
         # print("num_inputs", num_inputs)
         # print("num_inputs_noconst", num_inputs_noconst)
         # print("num_outputs", num_outputs)
@@ -383,18 +424,36 @@ with MeasureTime("Isomorphism Check", verbose=TIMES):
     logger.info("Checking isomorphism...")
     # print("io_subs", [str(x) for x in io_subs], len(io_subs))
     io_isos = set()
+    sub_io_isos = defaultdict(list)
     for i, io_sub in enumerate(tqdm(io_subs, disable=not PROGRESS)):
         # break  # TODO
         # print("io_sub", i, io_sub, io_sub.nodes)
         # print("io_sub nodes", [GF.nodes[n] for n in io_sub.nodes])
+        if i in io_isos:
+            continue
+
         def node_match(x, y):
+            # print("node_match")
+            # # print("x", x)
+            # print("x.label", x["label"])
+            # # print("y", y)
+            # print("y.label", y["label"])
             return x["label"] == y["label"] and (
                 x["label"] != "Const" or x["properties"]["inst"] == y["properties"]["inst"]
             )
 
+        def helper(i, j, io_sub, io_sub_):
+            # print("helper", i, j)
+            ret = nx.is_isomorphic(io_sub, io_sub_, node_match=node_match)
+            # if i == 805 and j == 807:
+            #     print("ret", ret)
+            #     input("?")
+            return ret
+
         io_isos_ = set(
-            j for j, io_sub_ in enumerate(io_subs) if j > i and nx.is_isomorphic(io_sub, io_sub_, node_match=node_match)
+            j for j, io_sub_ in enumerate(io_subs) if j > i and j not in io_isos and helper(i, j, io_sub, io_sub_)
         )
+        sub_io_isos[i] += list(io_isos_)
         # print("io_isos_", io_isos_)
         io_iso_count = len(io_isos_)
         # print("io_iso_count", io_iso_count)
@@ -403,6 +462,45 @@ with MeasureTime("Isomorphism Check", verbose=TIMES):
     # print(subs_df)
     # print("io_isos", io_isos, len(io_isos))
     subs_df.loc[list(io_isos), "Status"] = ExportFilter.ISO
+# print("sub_io_isos", sub_io_isos)
+# for key in sorted(sub_io_isos, key=lambda k: len(sub_io_isos[k]), reverse=True):
+for key in sub_io_isos:
+    val = sub_io_isos[key]
+    num_isos = len(val)
+    non_overlapping = set()
+
+    def check_overlap(x, y):
+        # print("check_overlap", x, y)
+        intersection = set(x.nodes) & set(y.nodes)
+        # print("intersection", intersection)
+        return len(intersection) > 0
+
+    for iso in val:
+        # print("iso", iso)
+        ol = False
+        ol |= check_overlap(subs[iso], subs[key])
+        if not ol:
+            for iso_ in non_overlapping:
+                # print("iso_", iso_)
+                ol |= check_overlap(subs[iso], subs[key])
+                if ol:
+                    break
+        print("ol", ol)
+        if not ol:
+            non_overlapping.add(iso)
+
+    # print("num_isos", num_isos)
+    # print("non_overlapping", non_overlapping)
+    # print("len(non_overlapping)", len(non_overlapping))
+    # input("LLL")
+    subs_df.loc[key, "#IsosNO"] = len(non_overlapping)
+    subs_df.at[key, "IsosNO"] = set(non_overlapping)
+    subs_df.loc[key, "#Isos"] = num_isos
+    subs_df.at[key, "Isos"] = set(val)
+    if num_isos == 0:
+        continue
+    assert key not in io_isos
+    # print(f"{key}: {num_isos}")
 
 
 with MeasureTime("Predicate Detection", verbose=TIMES):
@@ -415,6 +513,7 @@ with MeasureTime("Predicate Detection", verbose=TIMES):
         subs_df.loc[i, "Predicates"] = pred
 
 
+# TODO: filter before iso check?
 with MeasureTime("Filtering subgraphs", verbose=TIMES):
     filtered_io = set()
     filtered_complex = set()
@@ -473,6 +572,7 @@ if WRITE_GEN:
                 num_inputs_noconst = int(sub_data["#InputsNC"])
                 outputs = sub_data["Outputs"]
                 num_outputs = int(sub_data["#Outputs"])
+                desc = f"Inputs (with imm): {num_inputs}, Inputs (without imm): {num_inputs_noconst}, Outputs: {num_outputs}"
                 # print("num_inputs", num_inputs)
                 # print("num_inputs_noconst", num_inputs_noconst)
                 # print("num_outputs", num_outputs)
@@ -499,6 +599,7 @@ if WRITE_GEN:
                 for inp in inputs:
                     node = GF.nodes[inp]
                     inst = node["properties"]["inst"]
+                    print("inst")
                     op_type = node["properties"]["op_type"]
                     # print("inst", inst)
                     if "=" in inst:
@@ -507,6 +608,7 @@ if WRITE_GEN:
                         # print("if")
                         lhs, _ = inst.split("=", 1)
                         lhs = lhs.strip()
+                        print("lhs", lhs)
                         assert "gpr" in lhs
                         code = code.replace(lhs, name)
                     else:
@@ -590,7 +692,6 @@ body: |
                     # continue
                 else:
                     all_codes[i] = code
-                desc = f"Inputs (with imm): {num_inputs}, Inputs (without imm): {num_inputs_noconst}, Outputs: {num_outputs}"
                 if is_branch:
                     desc += ", IsBranch"
                 mir_code = gen_mir_func(f"result{i}", code, desc=desc)
@@ -602,6 +703,7 @@ body: |
     # TODO: split cdsl from gen_tree!
     xtrees = None
     if WRITE_GEN_FMT & ExportFormat.CDSL:
+        sub_xtrees = {}
         with MeasureTime("CDSL Generation", verbose=TIMES):
             logger.info("Generation of CDSL...")
             for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
@@ -619,10 +721,13 @@ body: |
                 # TODO: tree to disk? (ExportFormat.TREE)
                 try:
                     tree, xtrees, cdsl_code = gen_tree(GF, sub, inputs, outputs, xlen=XLEN)
+                    sub_xtrees[i] = xtrees
                 except AssertionError as e:
                     logger.exception(e)
                     errs.add(i)
                     continue
+                if cdsl_code is None:
+                    cdsl_code = "BROKEN"
                 # print("tree", tree)
                 # print("cdsl_code", cdsl_code)
                 # TODO: add encoding etc.!
@@ -636,9 +741,17 @@ body: |
             for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
                 if i not in filtered_subs_df.index:
                     continue
+                xtrees = sub_xtrees.get(i, None)
                 assert xtrees is not None, "FLAT needs xtrees"
-                header = f"Inputs (with imm): {num_inputs}, Inputs (without imm): {num_inputs_noconst}, Outputs: {num_outputs}"
-                flat_code = gen_flat_code(xtrees, desc=desc)
+                sub_data = subs_df.iloc[i]
+                inputs = sub_data["Inputs"]
+                num_inputs = int(sub_data["#Inputs"])
+                inputs_noconst = sub_data["InputsNC"]
+                num_inputs_noconst = int(sub_data["#InputsNC"])
+                outputs = sub_data["Outputs"]
+                num_outputs = int(sub_data["#Outputs"])
+                header = f"Sub: {i}, Inputs (with imm): {num_inputs}, Inputs (without imm): {num_inputs_noconst}, Outputs: {num_outputs}"
+                flat_code = gen_flat_code(xtrees, desc=header)
                 with open(OUT / f"result{i}.flat", "w") as f:
                     f.write(flat_code)
                 index_data[i]["flat"] = OUT / f"result{i}.flat"
@@ -709,7 +822,7 @@ if WRITE_DF:
         logger.info("Exporting DataFrame...")
         if WRITE_DF_FMT & ExportFormat.CSV:
             filtered_subs_df.to_csv(OUT / "subs.csv")
-        elif WRITE_DF_FMT & ExportFormat.PKL:
+        if WRITE_DF_FMT & ExportFormat.PKL:
             filtered_subs_df.to_pickle(OUT / "subs.pkl")
 
 

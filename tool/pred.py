@@ -3,14 +3,14 @@ from .enums import InstrPredicate
 
 def detect_predicates(sub):
     sub_predicates = InstrPredicate.NONE
-    print("check_predicates", sub)
+    # print("check_predicates", sub)
     for node in sub.nodes:
         node_data = sub.nodes[node]
         name = node_data.get("label", "?")
-        print("name", name)
+        # print("name", name)
         # TODO: do not hardcode here (rather add to memgraph db)
-        LOADS = ["LD", "LW", "LWU", "LH", "LHU", "LB", "LBU"]
-        STORES = ["SD", "SW", "SH", "SB"]
+        LOADS = ["LD", "LW", "LWU", "LH", "LHU", "LB", "LBU", "FLW", "FLD"]
+        STORES = ["SD", "SW", "SH", "SB", "FSW", "FSD"]
         BRANCHES = ["BEQ", "BNE"]
         if name in LOADS:
             sub_predicates |= InstrPredicate.MAY_LOAD
@@ -23,5 +23,5 @@ def detect_predicates(sub):
 
 def check_predicates(pred, allowed_predicates):
     ret = (pred & allowed_predicates) == pred
-    print("ret", ret)
+    # print("ret", ret)
     return ret

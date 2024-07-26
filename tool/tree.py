@@ -1,8 +1,12 @@
+import logging
 import networkx as nx
 from anytree import AnyNode
 
 from .cdsl_utils import CDSLEmitter
 from .cdsl_utils import FlatCodeEmitter  # TODO: move
+
+
+logger = logging.getLogger("tree")
 
 
 class TreeGenContext:
@@ -126,20 +130,31 @@ def gen_tree(GF, sub, inputs, outputs, xlen=None):
     for item in ret_:
         # print("item", item)
         emitter = CDSLEmitter(xlen)
-        emitter.visit(item)
-        output = emitter.output
+        try:
+            emitter.visit(item)
+            output = emitter.output
+        except Exception as e:
+            logger.exception(e)
+            codes = None
+            break
         # print("output", output)
         codes.append(output)
     # print("CDSL Code:")
-    codes = ["    " + code for code in codes]
-    codes = ["operands: TODO;", "encoding: auto;", 'assembly: {TODO, "TODO"};', "behavior: {"] + codes + ["}"]
-    code = "\n".join(codes) + "\n"
+    if codes is not None:
+        codes = ["    " + code for code in codes]
+        codes = ["operands: TODO;", "encoding: auto;", 'assembly: {TODO, "TODO"};', "behavior: {"] + codes + ["}"]
+        code = "\n".join(codes) + "\n"
+    else:
+        code = None
     # print(code)
     # print("Done!")
     return ret, ret_, code
 
 
 def gen_flat_code(xtrees, desc=None):
+    print("gen_flat_code")
+    print("xtrees", xtrees)
+    input(">")
     codes = []
     if desc:
         header = f"// {desc}"
@@ -152,4 +167,6 @@ def gen_flat_code(xtrees, desc=None):
         # print("output", output)
         codes.append(output)
     code = "\n".join(codes) + "\n"
+    print("code", code)
+    input(">>")
     return code

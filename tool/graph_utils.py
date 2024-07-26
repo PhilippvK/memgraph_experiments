@@ -1,7 +1,11 @@
+import logging
 from pathlib import Path
 
 import networkx as nx
 from networkx.drawing.nx_agraph import write_dot
+
+
+logger = logging.getLogger("graph_utils")
 
 
 def graph_to_file(graph, dest, fmt="auto"):
@@ -105,3 +109,51 @@ def calc_outputs(G, sub):
                         outputs.append(node)
     # print("ret", ret)
     return ret, outputs
+
+
+def get_instructions(sub):
+    ret = []
+    sub_nodes = sub.nodes
+    for node in sub_nodes:
+        # print("node", node)
+        node_data = sub.nodes[node]
+        # print("node_data", node_data)
+        node_properties = node_data["properties"]
+        name = node_properties["name"]
+        op_type = node_properties["op_type"]
+        if op_type == "input":
+            continue
+        ret.append(name)
+    return ret
+
+
+def calc_weights(sub):
+    weights = []
+    freqs = []
+    sub_nodes = sub.nodes
+    for node in sub_nodes:
+        # print("node", node)
+        node_data = sub.nodes[node]
+        # print("node_data", node_data)
+        node_properties = node_data["properties"]
+        op_type = node_properties["op_type"]
+        if op_type == "input":
+            continue
+        instr_freq = node_properties.get("instr_freq", None)
+        if instr_freq is None:
+            return None, None
+        instr_rel_weight = node_properties.get("instr_rel_weight", None)
+        if instr_rel_weight is None:
+            return None, None
+        freqs.append(instr_freq)
+        weights.append(instr_rel_weight)
+    # print("weights", weights)
+    # print("freqs", freqs)
+    assert len(set(weights)) == 1
+    total_weight = sum(weights)
+    assert len(set(freqs)) == 1
+    freq = freqs[0]
+    # print("total_weight", total_weight)
+    # print("freq", freq)
+    # input("?!")
+    return total_weight, freq
