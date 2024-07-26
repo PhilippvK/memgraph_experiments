@@ -485,7 +485,6 @@ for key in sub_io_isos:
                 ol |= check_overlap(subs[iso], subs[key])
                 if ol:
                     break
-        print("ol", ol)
         if not ol:
             non_overlapping.add(iso)
 

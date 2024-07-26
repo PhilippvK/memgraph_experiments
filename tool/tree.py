@@ -152,9 +152,9 @@ def gen_tree(GF, sub, inputs, outputs, xlen=None):
 
 
 def gen_flat_code(xtrees, desc=None):
-    print("gen_flat_code")
-    print("xtrees", xtrees)
-    input(">")
+    # print("gen_flat_code")
+    # print("xtrees", xtrees)
+    # input(">")
     codes = []
     if desc:
         header = f"// {desc}"
@@ -167,6 +167,6 @@ def gen_flat_code(xtrees, desc=None):
         # print("output", output)
         codes.append(output)
     code = "\n".join(codes) + "\n"
-    print("code", code)
-    input(">>")
+    # print("code", code)
+    # input(">>")
     return code
