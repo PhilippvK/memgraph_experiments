@@ -3,6 +3,7 @@ import logging
 import argparse
 from pathlib import Path
 from collections import defaultdict
+import concurrent.futures
 
 import numpy as np
 import pandas as pd
@@ -450,9 +451,61 @@ with MeasureTime("Isomorphism Check", verbose=TIMES):
             #     input("?")
             return ret
 
-        io_isos_ = set(
-            j for j, io_sub_ in enumerate(io_subs) if j > i and j not in io_isos and helper(i, j, io_sub, io_sub_)
-        )
+        def helper2(args):
+            i, j, io_sub, io_sub_ = args
+            # print("helper", i, j)
+            ret = nx.is_isomorphic(io_sub, io_sub_, node_match=node_match)
+            # if i == 805 and j == 807:
+            #     print("ret", ret)
+            #     input("?")
+            return ret
+
+        def helper3(args):
+            ret = []
+            for i, j, io_sub, io_sub_ in args:
+                # print("helper", i, j)
+                ret_ = nx.is_isomorphic(io_sub, io_sub_, node_match=node_match)
+                ret.append(ret_)
+                # if i == 805 and j == 807:
+                #     print("ret", ret)
+                #     input("?")
+            return ret
+
+        # A:
+        # io_isos_ = set(
+        #     j for j, io_sub_ in enumerate(io_subs) if j > i and j not in io_isos and helper(i, j, io_sub, io_sub_)
+        # )
+        # B:
+        to_check = [(j, io_sub_) for j, io_sub_ in enumerate(io_subs) if j > i and j not in io_isos]
+        io_isos_ = set(j for j, io_sub_ in to_check if helper(i, j, io_sub, io_sub_))
+        # C:
+        # to_check = [(i, j, io_sub, io_sub_) for j, io_sub_ in enumerate(io_subs) if j > i and j not in io_isos]
+        # with concurrent.futures.ProcessPoolExecutor() as executor:
+        #     res = executor.map(helper2, to_check)
+        #     io_isos_ = set(to_check[k][1] for k, is_iso in enumerate(res) if is_iso)
+        # D:
+        # to_check = [(i, j, io_sub, io_sub_) for j, io_sub_ in enumerate(io_subs) if j > i and j not in io_isos]
+        # with concurrent.futures.ThreadPoolExecutor() as executor:
+        #     res = executor.map(helper2, to_check)
+        #     io_isos_ = set(to_check[k][1] for k, is_iso in enumerate(res) if is_iso)
+        # E:
+        # to_check = [(i, j, io_sub, io_sub_) for j, io_sub_ in enumerate(io_subs) if j > i and j not in io_isos]
+
+        # def batch(iterable, n=1):
+        #     l = len(iterable)
+        #     for ndx in range(0, l, n):
+        #         yield iterable[ndx : min(ndx + n, l)]
+
+        # batch_size = len(to_check) // 36
+        # to_check_batches = list(batch(to_check, n=batch_size))
+        # # with concurrent.futures.ProcessPoolExecutor() as executor:
+        # with concurrent.futures.ThreadPoolExecutor() as executor:
+        #     res_batched = executor.map(helper3, to_check_batches)
+        #     # print("res_batched", res_batched)
+        #     res = sum(res_batched, [])
+        #     # print("res", res)
+        #     io_isos_ = set(to_check[k][1] for k, is_iso in enumerate(res) if is_iso)
+
         sub_io_isos[i] += list(io_isos_)
         # print("io_isos_", io_isos_)
         io_iso_count = len(io_isos_)
