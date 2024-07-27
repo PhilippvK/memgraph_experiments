@@ -512,6 +512,42 @@ with MeasureTime("Predicate Detection", verbose=TIMES):
         subs_df.loc[i, "Predicates"] = pred
 
 
+# TODO: toggle on/off via cmdline?
+with MeasureTime("Schedule Subs", verbose=TIMES):
+    logger.info("Scheduling Subs...")
+    # Very coarse measure to find longest path in subgraph (between inputs and outputs)
+    subs_df["ScheduleLength"] = np.nan
+    for i, io_sub in enumerate(tqdm(io_subs, disable=not PROGRESS)):
+        if i in io_isos:
+            continue
+        # print("i", i)
+        # print("io_sub", io_sub)
+        inputs = subs_df.loc[i, "Inputs"]
+        # print("inputs", inputs)
+        outputs = subs_df.loc[i, "Outputs"]
+        # print("outputs", outputs)
+
+        def estimate_schedule_length(io_sub, ins, outs):
+            # TODO: allow resource constraints (regfile ports, alus, ...)
+            lengths = []
+            for inp in ins:
+                lengths_ = [
+                    nx.shortest_path_length(io_sub, source=inp, target=outp)
+                    for outp in outs
+                    if nx.has_path(io_sub, inp, outp)
+                ]
+                # print("lengths_", lengths_)
+                lengths += lengths_
+            # print("lengths", lengths)
+            # TODO: handle None?
+            return max(lengths)
+
+        length = estimate_schedule_length(io_sub, inputs, outputs)
+        # print("length", length)
+        #  TODO
+        subs_df.loc[i, "ScheduleLength"] = length
+
+
 # TODO: filter before iso check?
 with MeasureTime("Filtering subgraphs", verbose=TIMES):
     filtered_io = set()
