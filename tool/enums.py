@@ -32,5 +32,20 @@ class InstrPredicate(IntFlag):
     NONE = 0
     MAY_LOAD = auto()  # 1
     MAY_STORE = auto()  # 2
-    IS_BRANCH = auto()  # 4
-    ALL = MAY_LOAD | MAY_STORE | IS_BRANCH
+    IS_PSEUDO = auto()  # 4
+    IS_RETURN = auto()  # 8
+    IS_CALL = auto()  # 16
+    IS_TERMINATOR = auto()  # 32
+    IS_BRANCH = auto()  # 64
+    HAS_UNMODELED_SIDE_EFFECTS = auto()  # 128
+    ALL = MAY_LOAD | MAY_STORE | IS_PSEUDO | IS_RETURN | IS_CALL | IS_TERMINATOR | IS_BRANCH | HAS_UNMODELED_SIDE_EFFECTS
+
+
+class CDFGStage(IntFlag):
+    NONE = 0
+    STAGE_0 = 1  # post irtranslator
+    STAGE_1 = 2  # post legalizer
+    STAGE_2 = 4  # post regbankselect
+    STAGE_3 = 8  # post instructionselect
+    STAGE_4 = 16  # post fallback/iseldag
+    STAGE_5 = 32  # post finalizeisel/expandpseudos

@@ -15,7 +15,7 @@ from tqdm import tqdm
 # from anytree import RenderTree
 # from anytree.iterators import AbstractIter
 
-from .enums import ExportFormat, ExportFilter, InstrPredicate
+from .enums import ExportFormat, ExportFilter, InstrPredicate, CDFGStage
 from .memgraph import connect_memgraph, run_query
 from .cdsl_utils import wrap_cdsl
 from .mir_utils import gen_mir_func
@@ -54,6 +54,7 @@ INDEX_FLT_DEFAULT = ExportFilter.SELECTED
 INSTR_PREDICATES_DEFAULT = InstrPredicate.ALL
 IGNORE_NAMES_DEFAULT = ["PHI", "COPY", "PseudoCALLIndirect", "PseudoLGA", "Select_GPR_Using_CC_GPR"]
 IGNORE_OP_TYPES_DEFAULT = ["input", "constant"]
+STAGE_DEFAULT = CDFGStage.STAGE_3
 
 
 def handle_cmdline():
@@ -78,6 +79,7 @@ def handle_cmdline():
     parser.add_argument("--instr-predicates", type=int, default=INSTR_PREDICATES_DEFAULT, help="TODO")
     parser.add_argument("--function", "--func", default=None, help="TODO")
     parser.add_argument("--basic-block", "--bb", default=None, help="TODO")
+    parser.add_argument("--stage", default=STAGE_DEFAULT, help="TODO")
     parser.add_argument("--ignore-names", default=",".join(IGNORE_NAMES_DEFAULT), help="TODO")
     parser.add_argument("--ignore-op-types", default=",".join(IGNORE_OP_TYPES_DEFAULT), help="TODO")
     parser.add_argument("--ignore-const-inputs", action="store_true", help="TODO")
@@ -129,6 +131,7 @@ HOST = args.host
 PORT = args.port
 FUNC = args.function
 BB = args.basic_block
+STAGE = CDFGStage[args.stage]
 LIMIT_RESULTS = args.limit_results
 MIN_PATH_LEN = args.min_path_length
 MAX_PATH_LEN = args.max_path_length
@@ -173,7 +176,7 @@ with MeasureTime("Connect to DB", verbose=TIMES):
     driver = connect_memgraph(HOST, PORT, user="", password="")
 
 with MeasureTime("Query func from DB", verbose=TIMES):
-    query_func = generate_func_query(SESSION, FUNC)
+    query_func = generate_func_query(SESSION, FUNC, stage=STAGE)
     func_results = run_query(driver, query_func)
     if WRITE_QUERIES:
         logger.info("Exporting queries...")
@@ -191,6 +194,7 @@ with MeasureTime("Query candidates from DB", verbose=TIMES):
         MAX_PATH_WIDTH,
         IGNORE_NAMES,
         IGNORE_OP_TYPES,
+        stage=STAGE,
         limit=LIMIT_RESULTS,
     )
     results = run_query(driver, query)
