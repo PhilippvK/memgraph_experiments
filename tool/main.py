@@ -79,7 +79,7 @@ def handle_cmdline():
     parser.add_argument("--instr-predicates", type=int, default=INSTR_PREDICATES_DEFAULT, help="TODO")
     parser.add_argument("--function", "--func", default=None, help="TODO")
     parser.add_argument("--basic-block", "--bb", default=None, help="TODO")
-    parser.add_argument("--stage", default=STAGE_DEFAULT, help="TODO")
+    parser.add_argument("--stage", type=int, default=STAGE_DEFAULT, help="TODO")
     parser.add_argument("--ignore-names", default=",".join(IGNORE_NAMES_DEFAULT), help="TODO")
     parser.add_argument("--ignore-op-types", default=",".join(IGNORE_OP_TYPES_DEFAULT), help="TODO")
     parser.add_argument("--ignore-const-inputs", action="store_true", help="TODO")
@@ -131,7 +131,7 @@ HOST = args.host
 PORT = args.port
 FUNC = args.function
 BB = args.basic_block
-STAGE = CDFGStage[args.stage]
+STAGE = CDFGStage(args.stage)
 LIMIT_RESULTS = args.limit_results
 MIN_PATH_LEN = args.min_path_length
 MAX_PATH_LEN = args.max_path_length

@@ -5,6 +5,12 @@ import yaml
 import pandas as pd
 
 
+def yaml_types_helper(x):
+    if isinstance(x, Path):
+        x = str(x)
+    return x
+
+
 def write_index_file(
     dest: Union[str, Path],
     subs_df: pd.DataFrame,
@@ -12,16 +18,12 @@ def write_index_file(
     include_properties: bool = True,
 ):
     yaml_data = {"global": {}, "candidates": []}
-    yaml_data["global"]["artifacts"] = index_data[None]
+    global_artifacts_data = {key: yaml_types_helper(value) for key, value in index_data[None].items()}
+    yaml_data["global"]["artifacts"] = global_artifacts_data
     for sub_id, row in subs_df.iterrows():
         assert sub_id in index_data
 
-        def helper(x):
-            if isinstance(x, Path):
-                x = str(x)
-            return x
-
-        artifacts_data = {key: helper(value) for key, value in index_data[sub_id].items()}
+        artifacts_data = {key: yaml_types_helper(value) for key, value in index_data[sub_id].items()}
         new = {"id": sub_id, "artifacts": artifacts_data}
 
         if include_properties:
