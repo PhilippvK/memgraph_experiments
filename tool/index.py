@@ -11,7 +11,8 @@ def write_index_file(
     index_data: Dict[int, Dict[str, Any]],
     include_properties: bool = True,
 ):
-    yaml_data = {"candidates": []}
+    yaml_data = {"global": {}, "candidates": []}
+    yaml_data["global"]["artifacts"] = index_data[None]
     for sub_id, row in subs_df.iterrows():
         assert sub_id in index_data
 

@@ -332,6 +332,7 @@ with MeasureTime("Relabeling", verbose=TIMES):
 #     print("iso_count", iso_count)
 # print("isos", isos, len(isos))
 index_data = defaultdict(dict)
+index_data[None] = {}
 
 
 io_subs = []
@@ -916,14 +917,7 @@ if WRITE_DF:
             filtered_subs_df.to_csv(OUT / "subs.csv")
         if WRITE_DF_FMT & ExportFormat.PKL:
             filtered_subs_df.to_pickle(OUT / "subs.pkl")
-
-
-if WRITE_INDEX:
-    with MeasureTime("Write Index", verbose=TIMES):
-        filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_INDEX_FLT) > 0].copy()
-        logger.info("Writing Index File...")
-        if WRITE_INDEX_FMT & ExportFormat.YAML:
-            write_index_file(OUT / "index.yml", filtered_subs_df, index_data)
+            index_data[None]["subs"] = OUT / "subs.pkl"
 
 
 if WRITE_PIE:
@@ -942,6 +936,17 @@ if WRITE_PIE:
             pie_fig.write_html(OUT / "pie.html")
         if WRITE_PIE_FMT & ExportFormat.CSV:
             pie_df.to_csv(OUT / "pie.csv")
+        if WRITE_PIE_FMT & ExportFormat.PKL:
+            pie_df.to_pickle(OUT / "pie.pkl")
+            index_data[None]["pie"] = OUT / "pie.pkl"
+
+
+if WRITE_INDEX:
+    with MeasureTime("Write Index", verbose=TIMES):
+        filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_INDEX_FLT) > 0].copy()
+        logger.info("Writing Index File...")
+        if WRITE_INDEX_FMT & ExportFormat.YAML:
+            write_index_file(OUT / "index.yml", filtered_subs_df, index_data)
 
 if TIMES:
     print(MeasureTime.summary())
