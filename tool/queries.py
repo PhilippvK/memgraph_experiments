@@ -7,7 +7,7 @@ def generate_func_query(session: str, func: str, fix_cycles: bool = True, stage:
     ret = f"""MATCH p0=(n00:INSTR)-[r01:DFG]->(n01:INSTR)
 WHERE n00.func_name = '{func}'
 AND n00.session = "{session}"
-AND n00.stage = "{stage}"
+AND n00.stage = {stage}
 """
     if fix_cycles:
         # PHI nodes sometimes create cycles which are not allowed,
@@ -53,7 +53,7 @@ def generate_candidates_query(
         bb_conds = [f"{x}.basic_block = '{bb}'" for x in set(starts) | set(ends)]
     else:
         bb_conds = []
-    stage_conds = [f"{x}.stage = '{stage}'" for x in set(starts) | set(ends)]
+    stage_conds = [f"{x}.stage = {stage}" for x in set(starts) | set(ends)]
     conds = session_conds + func_conds + bb_conds + stage_conds
     conds_str = " AND ".join(conds)
 
