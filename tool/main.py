@@ -2,8 +2,10 @@ import pickle
 import logging
 import argparse
 from pathlib import Path
+from datetime import datetime
 from collections import defaultdict
-import concurrent.futures
+
+# import concurrent.futures
 
 import numpy as np
 import pandas as pd
@@ -331,14 +333,39 @@ with MeasureTime("Relabeling", verbose=TIMES):
 #     isos |= isos_
 #     print("iso_count", iso_count)
 # print("isos", isos, len(isos))
-index_data = defaultdict(dict)
-index_data[None] = {}
+index_artifacts = defaultdict(dict)
 
 
 io_subs = []
 all_codes = {}
 duplicate_counts = defaultdict(int)
 
+
+global_df = pd.DataFrame()
+
+now = datetime.now()
+ts = now.strftime("%Y%m%dT%H%M%S")
+global_df["timestamp"] = [ts]
+global_df["min_inputs"] = [MIN_INPUTS]
+global_df["max_inputs"] = [MAX_INPUTS]
+global_df["min_outputs"] = [MIN_OUTPUTS]
+global_df["max_outputs"] = [MAX_OUTPUTS]
+global_df["min_nodes"] = [MIN_NODES]
+global_df["max_nodes"] = [MAX_NODES]
+global_df["xlen"] = [XLEN]
+global_df["session"] = [SESSION]
+global_df["func"] = [FUNC]
+global_df["bb"] = [BB]
+global_df["stage"] = [STAGE]
+global_df["limit_results"] = [LIMIT_RESULTS]
+global_df["min_path_len"] = [MIN_PATH_LEN]
+global_df["max_path_len"] = [MAX_PATH_LEN]
+global_df["max_path_width"] = [MAX_PATH_WIDTH]
+global_df["instr_predicates"] = [INSTR_PREDICATES]
+global_df["ignore_names"] = [IGNORE_NAMES]
+global_df["ignore_op_types"] = [IGNORE_OP_TYPES]
+global_df["ignore_const_inputs"] = [IGNORE_CONST_INPUTS]
+# TODO: MIN_FREQ, MIN_WEIGHT, MAX_INSTRS, MAX_UNIQUE_INSTRS
 
 subs_df = pd.DataFrame({"result": list(range(len(subs)))})
 subs_df["Isos"] = [np.array([])] * len(subs_df)
@@ -792,7 +819,7 @@ body: |
                 # print(mir_code)
                 with open(OUT / f"result{i}.mir", "w") as f:
                     f.write(mir_code)
-                index_data[i]["mir"] = OUT / f"result{i}.mir"
+                index_artifacts[i]["mir"] = OUT / f"result{i}.mir"
     # TODO: split cdsl from gen_tree!
     xtrees = None
     if WRITE_GEN_FMT & ExportFormat.CDSL:
@@ -827,7 +854,7 @@ body: |
                 full_cdsl_code = wrap_cdsl(f"RESULT_{i}", cdsl_code)
                 with open(OUT / f"result{i}.core_desc", "w") as f:
                     f.write(full_cdsl_code)
-                index_data[i]["cdsl"] = OUT / f"result{i}.core_desc"
+                index_artifacts[i]["cdsl"] = OUT / f"result{i}.core_desc"
     if WRITE_GEN_FMT & ExportFormat.FLAT:
         with MeasureTime("FLAT Generation", verbose=TIMES):
             logger.info("Generation of FLAT...")
@@ -847,7 +874,7 @@ body: |
                 flat_code = gen_flat_code(xtrees, desc=header)
                 with open(OUT / f"result{i}.flat", "w") as f:
                     f.write(flat_code)
-                index_data[i]["flat"] = OUT / f"result{i}.flat"
+                index_artifacts[i]["flat"] = OUT / f"result{i}.flat"
     subs_df.loc[list(errs), "Status"] = ExportFilter.ERROR
 
 # TODO: loop multiple times (tree -> MIR -> CDSL -> FLAT) not interleaved
@@ -887,7 +914,7 @@ if WRITE_SUB:
             if WRITE_SUB_FMT & ExportFormat.PKL:
                 with open(OUT / f"sub{i}.pkl", "wb") as f:
                     pickle.dump(G_.copy(), f)
-                index_data[i]["sub"] = OUT / f"sub{i}.pkl"
+                index_artifacts[i]["sub"] = OUT / f"sub{i}.pkl"
 
 
 if WRITE_IO_SUB:
@@ -906,7 +933,7 @@ if WRITE_IO_SUB:
             if WRITE_SUB_FMT & ExportFormat.PKL:
                 with open(OUT / f"io_sub{i}.pkl", "wb") as f:
                     pickle.dump(io_sub.copy(), f)
-                index_data[i]["io_sub"] = OUT / f"io_sub{i}.pkl"
+                index_artifacts[i]["io_sub"] = OUT / f"io_sub{i}.pkl"
 
 
 if WRITE_DF:
@@ -917,7 +944,7 @@ if WRITE_DF:
             filtered_subs_df.to_csv(OUT / "subs.csv")
         if WRITE_DF_FMT & ExportFormat.PKL:
             filtered_subs_df.to_pickle(OUT / "subs.pkl")
-            index_data[None]["subs"] = OUT / "subs.pkl"
+            index_artifacts[None]["subs"] = OUT / "subs.pkl"
 
 
 if WRITE_PIE:
@@ -938,7 +965,7 @@ if WRITE_PIE:
             pie_df.to_csv(OUT / "pie.csv")
         if WRITE_PIE_FMT & ExportFormat.PKL:
             pie_df.to_pickle(OUT / "pie.pkl")
-            index_data[None]["pie"] = OUT / "pie.pkl"
+            index_artifacts[None]["pie"] = OUT / "pie.pkl"
 
 
 if WRITE_INDEX:
@@ -946,7 +973,7 @@ if WRITE_INDEX:
         filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_INDEX_FLT) > 0].copy()
         logger.info("Writing Index File...")
         if WRITE_INDEX_FMT & ExportFormat.YAML:
-            write_index_file(OUT / "index.yml", filtered_subs_df, index_data)
+            write_index_file(OUT / "index.yml", filtered_subs_df, global_df, index_artifacts)
 
 if TIMES:
     print(MeasureTime.summary())
