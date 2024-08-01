@@ -5,6 +5,13 @@ def wrap_cdsl(name, code):
     return ret
 
 
+mem_lookup = {
+    "gpr": "X",
+    "fpr": "F",
+    "csr": "CSR",
+}
+
+
 class CDSLEmitter:
 
     def __init__(self, xlen):
@@ -28,7 +35,10 @@ class CDSLEmitter:
     def visit_register(self, node):
         assert len(node.children) == 1
         idx = node.children[0]
-        self.write("X")
+        reg_class = node.reg_class
+        mem_name = mem_lookup.get(reg_class, None)
+        assert mem_name is not None, f"Unable to find mem_name for reg_class: {reg_class}"
+        self.write(mem_name)
         self.write("[")
         self.visit(idx)
         self.write("]")
