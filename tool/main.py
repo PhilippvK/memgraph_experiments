@@ -613,9 +613,11 @@ with MeasureTime("Overlap Check", verbose=TIMES):
 with MeasureTime("Predicate Detection", verbose=TIMES):
     logger.info("Detecting Predicates...")
     subs_df["Predicates"] = InstrPredicate.NONE
-    for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
-        if i in io_isos:
-            continue
+    subs_iter = [(i, sub) for i, sub in enumerate(subs) if i not in io_isos]
+    # for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
+    for i, sub in tqdm(subs_iter, disable=not PROGRESS):
+        # if i in io_isos:
+        #     continue
         pred = detect_predicates(sub)
         subs_df.loc[i, "Predicates"] = pred
 
@@ -625,9 +627,11 @@ with MeasureTime("Schedule Subs", verbose=TIMES):
     logger.info("Scheduling Subs...")
     # Very coarse measure to find longest path in subgraph (between inputs and outputs)
     subs_df["ScheduleLength"] = np.nan
-    for i, io_sub in enumerate(tqdm(io_subs, disable=not PROGRESS)):
-        if i in io_isos:
-            continue
+    io_subs_iter = [(i, io_sub) for i, io_sub in enumerate(io_subs) if i not in io_isos]
+    # for i, io_sub in enumerate(tqdm(io_subs, disable=not PROGRESS)):
+    for i, io_sub in tqdm(io_subs_iter, disable=not PROGRESS):
+        # if i in io_isos:
+        #     continue
         # print("i", i)
         # print("io_sub", io_sub)
         inputs = subs_df.loc[i, "Inputs"]
@@ -664,9 +668,11 @@ with MeasureTime("Filtering subgraphs", verbose=TIMES):
     filtered_predicates = set()
     invalid = set()
     logger.info("Filtering subgraphs...")
-    for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
-        if i in io_isos:
-            continue
+    subs_iter = [(i, sub) for i, sub in enumerate(subs) if i not in io_isos]
+    # for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
+    for i, sub in tqdm(subs_iter, disable=not PROGRESS):
+        # if i in io_isos:
+        #     continue
         # print("===========================")
         # print("i, sub", i, sub)
         num_nodes = len(sub.nodes)
@@ -703,9 +709,11 @@ if WRITE_GEN:
     if WRITE_GEN_FMT & ExportFormat.MIR:
         with MeasureTime("MIR Generation", verbose=TIMES):
             logger.info("Generation of MIR...")
-            for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
-                if i not in filtered_subs_df.index:
-                    continue
+            subs_iter = [(i, sub) for i, sub in enumerate(subs) if i in filtered_subs_df.index]
+            # for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
+            for i, sub in tqdm(subs_iter, disable=not PROGRESS):
+                # if i not in filtered_subs_df.index:
+                #     continue
                 # print("===========================")
                 # print("i, sub", i, sub)
                 sub_data = subs_df.iloc[i]
@@ -844,14 +852,15 @@ body: |
                     f.write(mir_code)
                 index_artifacts[i]["mir"] = OUT / f"result{i}.mir"
     # TODO: split cdsl from gen_tree!
-    xtrees = None
     if WRITE_GEN_FMT & ExportFormat.CDSL:
         sub_xtrees = {}
         with MeasureTime("CDSL Generation", verbose=TIMES):
             logger.info("Generation of CDSL...")
-            for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
-                if i not in filtered_subs_df.index:
-                    continue
+            subs_iter = [(i, sub) for i, sub in enumerate(subs) if i in filtered_subs_df.index]
+            # for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
+            for i, sub in tqdm(subs_iter, disable=not PROGRESS):
+                # if i not in filtered_subs_df.index:
+                #     continue
                 # print("===========================")
                 # print("i, sub", i, sub)
                 sub_data = subs_df.iloc[i]
@@ -868,22 +877,22 @@ body: |
                 except AssertionError as e:
                     logger.exception(e)
                     errs.add(i)
+                    input("???")
                     continue
                 if cdsl_code is None:
                     cdsl_code = "BROKEN"
                 # print("tree", tree)
                 # print("cdsl_code", cdsl_code)
-                # TODO: add encoding etc.!
-                full_cdsl_code = wrap_cdsl(f"RESULT_{i}", cdsl_code)
                 with open(OUT / f"result{i}.core_desc", "w") as f:
-                    f.write(full_cdsl_code)
+                    f.write(cdsl_code)
                 index_artifacts[i]["cdsl"] = OUT / f"result{i}.core_desc"
     if WRITE_GEN_FMT & ExportFormat.FLAT:
         with MeasureTime("FLAT Generation", verbose=TIMES):
             logger.info("Generation of FLAT...")
-            for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
-                if i not in filtered_subs_df.index:
-                    continue
+            subs_iter = [(i, sub) for i, sub in enumerate(subs) if i in filtered_subs_df.index]
+            for i, sub in tqdm(subs_iter, disable=not PROGRESS):
+                # if i not in filtered_subs_df.index:
+                #     continue
                 xtrees = sub_xtrees.get(i, None)
                 assert xtrees is not None, "FLAT needs xtrees"
                 sub_data = subs_df.iloc[i]
@@ -925,9 +934,10 @@ if WRITE_SUB:
     with MeasureTime("Subgraph Export", verbose=TIMES):
         logger.info("Exporting subgraphs...")
         filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_SUB_FLT) > 0].copy()
-        for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
-            if i not in filtered_subs_df.index:
-                continue
+        subs_iter = [(i, sub) for i, sub in enumerate(subs) if i in filtered_subs_df.index]
+        for i, sub in tqdm(subs_iter, disable=not PROGRESS):
+            # if i not in filtered_subs_df.index:
+            #     continue
             if WRITE_SUB_FMT & ExportFormat.DOT:
                 graph_to_file(G_, OUT / f"sub{i}.dot")
             if WRITE_SUB_FMT & ExportFormat.PDF:
@@ -944,9 +954,11 @@ if WRITE_IO_SUB:
     with MeasureTime("Dumping I/O Subgraphs", verbose=TIMES):
         logger.info("Exporting I/O subgraphs...")
         filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_IO_SUB_FLT) > 0].copy()
-        for i, io_sub in enumerate(tqdm(io_subs, disable=not PROGRESS)):
-            if i in io_isos or i not in filtered_subs_df.index:
-                continue
+        io_subs_iter = [(i, io_sub) for i, io_sub in enumerate(io_subs) if i in filtered_subs_df.index]
+        # for i, io_sub in enumerate(tqdm(io_subs, disable=not PROGRESS)):
+        for i, io_sub in tqdm(io_subs_iter, disable=not PROGRESS):
+            # if i in io_isos or i not in filtered_subs_df.index:
+            #     continue
             if WRITE_IO_SUB_FMT & ExportFormat.DOT:
                 graph_to_file(io_sub, OUT / f"io_sub{i}.dot")
             if WRITE_IO_SUB_FMT & ExportFormat.PDF:
