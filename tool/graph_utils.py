@@ -157,3 +157,35 @@ def calc_weights(sub):
     # print("freq", freq)
     # input("?!")
     return total_weight, freq
+
+
+def calc_weights_iso(graph, nodes):
+    weights = []
+    freqs = []
+    assert len(nodes) == len(set(nodes))
+    for node in nodes:
+        # print("node", node)
+        node_data = graph.nodes[node]
+        # print("node_data", node_data)
+        node_properties = node_data["properties"]
+        op_type = node_properties["op_type"]
+        if op_type == "input":
+            continue
+        instr_freq = node_properties.get("instr_freq", None)
+        if instr_freq is None:
+            return None, None
+        instr_rel_weight = node_properties.get("instr_rel_weight", None)
+        if instr_rel_weight is None:
+            return None, None
+        freqs.append(instr_freq)
+        weights.append(instr_rel_weight)
+    # print("weights", weights)
+    # print("freqs", freqs)
+    assert len(set(weights)) == 1
+    total_weight = sum(weights)
+    assert len(set(freqs)) == 1
+    freq = freqs[0]
+    # print("total_weight", total_weight)
+    # print("freq", freq)
+    # input("?!")
+    return total_weight, freq
