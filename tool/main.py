@@ -380,6 +380,7 @@ global_df["ignore_const_inputs"] = [IGNORE_CONST_INPUTS]
 # TODO: MIN_FREQ, MIN_WEIGHT, MAX_INSTRS, MAX_UNIQUE_INSTRS
 
 subs_df = pd.DataFrame({"result": list(range(len(subs)))})
+subs_df["Parent"] = np.nan  # used to find the original sub for a variation
 subs_df["Isos"] = [np.array([])] * len(subs_df)
 subs_df["#Isos"] = np.nan
 subs_df["IsosNO"] = [np.array([])] * len(subs_df)
@@ -658,6 +659,58 @@ with MeasureTime("Schedule Subs", verbose=TIMES):
         # print("length", length)
         #  TODO
         subs_df.loc[i, "ScheduleLength"] = length
+
+
+with MeasureTime("Variation generation", verbose=TIMES):
+    logger.info("Generating variations...")
+    # 1. look for singleUse edges to reuse as output reg
+    io_subs_iter = [(i, io_sub) for i, io_sub in enumerate(io_subs) if i not in io_isos]
+    # for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
+    for i, io_sub in tqdm(io_subs_iter, disable=not PROGRESS):
+        sub_data = subs_df.iloc[i]
+        inputs = sub_data["Inputs"]
+        num_inputs = int(sub_data["#Inputs"])
+        inputs_noconst = sub_data["InputsNC"]
+        num_inputs_noconst = int(sub_data["#InputsNC"])
+        outputs = sub_data["Outputs"]
+        num_outputs = int(sub_data["#Outputs"])
+        if num_inputs < 1 or num_outputs < 1:
+            continue
+        for j in inputs:
+            print("j", j)
+            new = []
+            # TODO: reuse input node id for output or vice-versa?
+            # Would create loop? Add constraint inp0 == outp0 to df?
+            # TODO: check if input and output reg types match
+            input_node_data = GF.nodes[j]
+            print("input_node_data", input_node_data)
+            input_properties = input_node_data["properties"]
+            print("input_properties", input_properties)
+            edge_count = 0
+            single_use = None
+            for src, dst, edge_data in GF.out_edges(j, data=True):
+                print("src", src)
+                print("dst", dst)
+                print("edge_data", edge_data)
+                edge_properties = edge_data["properties"]
+                print("edge_properties", edge_properties)
+                single_use_ = edge_properties.get("op_reg_single_use", None)
+                print("single_use_", single_use_)
+                if single_use_ is not None:
+                    single_use = single_use_
+                edge_count += 1
+            print("edge_count", edge_count)
+            print("single_use", single_use)
+            if single_use:
+                assert edge_count == 1
+                for k in outputs:
+                    output_node_data = GF.nodes[j]
+                    print("output_node_data", output_node_data)
+                    output_properties = output_node_data["properties"]
+                    print("output_properties", output_properties)
+                    new_io_sub_ = io_sub.copy()
+                    print("new_io_sub_", new_io_sub_)
+                    input("||")
 
 
 # TODO: filter before iso check?
