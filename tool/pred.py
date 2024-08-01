@@ -45,6 +45,8 @@ def detect_predicates(sub):
             sub_predicates |= InstrPredicate.IS_BRANCH
         if properties.get("hasUnmodeledSideEffects", False):
             sub_predicates |= InstrPredicate.HAS_UNMODELED_SIDE_EFFECTS
+        if properties.get("isCommutable", False):
+            sub_predicates |= InstrPredicate.IS_COMMUTABLE
     return sub_predicates
 
 
