@@ -1071,3 +1071,12 @@ if WRITE_INDEX:
 if TIMES:
     print(MeasureTime.summary())
     MeasureTime.write_csv(OUT / "times.csv")
+
+# TODO: estimate encoding usage (free bits, rel. for enc_size 16/32/48)
+# TODO: for all constants query isomorph subs and count the different values
+# TODO: pass allowed imm width (5bit, 12bits)
+# TODO: also allow non-sequential imm ranges? (i.e. 1,2,4,8,...)?
+# TODO: check if STAGE_6 (64, post regalloc) works?
+# TODO: figure out if rd_wb = rs1 can be detected automatically? -> check single_use edge property
+# TODO: Merge equivalent subs with respect to isCommutable
+# TODO: Generate variations (generalize/specialize)
