@@ -52,6 +52,25 @@ class CDSLEmitter:
         self.visit(rhs)
         self.write(";")
 
+    def visit_declaration(self, node):
+        # print("visit_declaration", node, node.children)
+        assert len(node.children) == 2
+        lhs, rhs = node.children
+        decl_type = node.decl_type
+        self.write(f"{decl_type} ")
+        self.visit_assignment(node)
+
+    def visit_cast(self, node):
+        # print("visit_assignment", node, node.children)
+        # print("node", node, dir(node))
+        assert len(node.children) == 1
+        lhs = node.children[0]
+        to_type = node.to
+        self.write(f"({to_type})")
+        self.write("(")
+        self.visit(lhs)
+        self.write(")")
+
     def visit_branch(self, node):
         lookup = {
             "BNE": ("!=", False),
@@ -159,8 +178,17 @@ class CDSLEmitter:
         self.write("(")
         assert len(node.children) == 2
         lhs, rhs = node.children
+        # TODO: add size only of != xlen?
+        if signed:
+            self.write(f"(signed<{sz}>)")
+        else:
+            self.write(f"(unsigned<{sz}>)")
         self.visit(lhs)
         self.write(op)
+        if signed:
+            self.write(f"(signed<{sz}>)")
+        else:
+            self.write(f"(unsigned<{sz}>)")
         self.visit(rhs)
         self.write(")")
 
@@ -191,6 +219,10 @@ class CDSLEmitter:
         # print("op_type", op_type)
         if op_type == "assignment":
             self.visit_assignment(node)
+        elif op_type == "declaration":
+            self.visit_declaration(node)
+        elif op_type == "cast":
+            self.visit_cast(node)
         elif op_type == "ref":
             self.visit_ref(node)
         elif op_type == "constant":
@@ -256,7 +288,10 @@ class FlatCodeEmitter:
     def visit_register(self, node):
         assert len(node.children) == 1
         idx = node.children[0]
-        self.write("X")
+        reg_class = node.reg_class
+        mem_name = mem_lookup.get(reg_class, None)
+        assert mem_name is not None, f"Unable to find mem_name for reg_class: {reg_class}"
+        self.write(mem_name)
         self.write("[")
         self.visit(idx)
         self.write("]")
@@ -269,6 +304,25 @@ class FlatCodeEmitter:
         self.write("=")
         self.visit(rhs)
         self.write(";")
+
+    def visit_declaration(self, node):
+        # print("visit_declaration", node, node.children)
+        assert len(node.children) == 2
+        lhs, rhs = node.children
+        decl_type = node.decl_type
+        self.write(f"{decl_type} ")
+        self.visit_assignment(node)
+
+    def visit_cast(self, node):
+        # print("visit_assignment", node, node.children)
+        # print("node", node, dir(node))
+        assert len(node.children) == 1
+        lhs = node.children[0]
+        to_type = node.to
+        self.write(f"({to_type})")
+        self.write("(")
+        self.visit(lhs)
+        self.write(")")
 
     def visit_call(self, node):
         # print("visit_assignment", node, node.children)
@@ -289,6 +343,10 @@ class FlatCodeEmitter:
         # print("op_type", op_type)
         if op_type == "assignment":
             self.visit_assignment(node)
+        elif op_type == "declaration":
+            self.visit_declaration(node)
+        elif op_type == "cast":
+            self.visit_cast(node)
         elif op_type == "ref":
             self.visit_ref(node)
         elif op_type == "constant":
