@@ -19,9 +19,16 @@ from tqdm import tqdm
 
 from .enums import ExportFormat, ExportFilter, InstrPredicate, CDFGStage
 from .memgraph import connect_memgraph, run_query
-from .cdsl_utils import wrap_cdsl
 from .mir_utils import gen_mir_func
-from .graph_utils import graph_to_file, calc_inputs, calc_outputs, memgraph_to_nx, get_instructions, calc_weights
+from .graph_utils import (
+    graph_to_file,
+    calc_inputs,
+    calc_outputs,
+    memgraph_to_nx,
+    get_instructions,
+    calc_weights,
+    calc_weights_iso,
+)
 from .tree import gen_tree, gen_flat_code
 from .queries import generate_func_query, generate_candidates_query
 from .pred import check_predicates, detect_predicates
