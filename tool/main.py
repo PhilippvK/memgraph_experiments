@@ -398,6 +398,8 @@ subs_df["Outputs"] = [np.array([])] * len(subs_df)
 subs_df["#Outputs"] = np.nan
 subs_df["Weight"] = np.nan
 subs_df["Freq"] = np.nan
+subs_df["IsoNodes"] = [np.array([])] * len(subs_df)
+subs_df["IsoWeight"] = np.nan
 subs_df["Status"] = ExportFilter.SELECTED  # TODO: init with UNKNOWN
 # print("subs_df")
 # print(subs_df)
@@ -561,42 +563,51 @@ with MeasureTime("Isomorphism Check", verbose=TIMES):
     subs_df.loc[list(io_isos), "Status"] = ExportFilter.ISO
 # print("sub_io_isos", sub_io_isos)
 # for key in sorted(sub_io_isos, key=lambda k: len(sub_io_isos[k]), reverse=True):
-for key in sub_io_isos:
-    val = sub_io_isos[key]
-    num_isos = len(val)
-    non_overlapping = set()
 
-    def check_overlap(x, y):
-        # print("check_overlap", x, y)
-        intersection = set(x.nodes) & set(y.nodes)
-        # print("intersection", intersection)
-        return len(intersection) > 0
+with MeasureTime("Overlap Check", verbose=TIMES):
+    logger.info("Checking overlaps...")
+    for key in sub_io_isos:
+        iso_nodes = set()
+        iso_nodes |= set(subs[key].nodes)
+        val = sub_io_isos[key]
+        num_isos = len(val)
+        non_overlapping = set()
 
-    for iso in val:
-        # print("iso", iso)
-        ol = False
-        ol |= check_overlap(subs[iso], subs[key])
-        if not ol:
-            for iso_ in non_overlapping:
-                # print("iso_", iso_)
-                ol |= check_overlap(subs[iso], subs[key])
-                if ol:
-                    break
-        if not ol:
-            non_overlapping.add(iso)
+        def check_overlap(x, y):
+            # print("check_overlap", x, y)
+            intersection = set(x.nodes) & set(y.nodes)
+            # print("intersection", intersection)
+            return len(intersection) > 0
 
-    # print("num_isos", num_isos)
-    # print("non_overlapping", non_overlapping)
-    # print("len(non_overlapping)", len(non_overlapping))
-    # input("LLL")
-    subs_df.loc[key, "#IsosNO"] = len(non_overlapping)
-    subs_df.at[key, "IsosNO"] = set(non_overlapping)
-    subs_df.loc[key, "#Isos"] = num_isos
-    subs_df.at[key, "Isos"] = set(val)
-    if num_isos == 0:
-        continue
-    assert key not in io_isos
-    # print(f"{key}: {num_isos}")
+        for iso in val:
+            iso_nodes |= set(subs[iso].nodes)
+            # print("iso", iso)
+            ol = False
+            ol |= check_overlap(subs[iso], subs[key])
+            if not ol:
+                for iso_ in non_overlapping:
+                    # print("iso_", iso_)
+                    ol |= check_overlap(subs[iso], subs[key])
+                    if ol:
+                        break
+            if not ol:
+                non_overlapping.add(iso)
+
+        # print("num_isos", num_isos)
+        # print("non_overlapping", non_overlapping)
+        # print("len(non_overlapping)", len(non_overlapping))
+        # input("LLL")
+        subs_df.at[key, "IsoNodes"] = iso_nodes
+        iso_weight, _ = calc_weights_iso(GF, iso_nodes)
+        subs_df.loc[key, "IsoWeight"] = iso_weight
+        subs_df.loc[key, "#IsosNO"] = len(non_overlapping)
+        subs_df.at[key, "IsosNO"] = set(non_overlapping)
+        subs_df.loc[key, "#Isos"] = num_isos
+        subs_df.at[key, "Isos"] = set(val)
+        if num_isos == 0:
+            continue
+        assert key not in io_isos
+        # print(f"{key}: {num_isos}")
 
 
 with MeasureTime("Predicate Detection", verbose=TIMES):
