@@ -1025,9 +1025,14 @@ if WRITE_IO_SUB:
 
 
 if WRITE_DF:
-    with MeasureTime("Dump DF", verbose=TIMES):
+    with MeasureTime("Dump DFs", verbose=TIMES):
         filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_DF_FLT) > 0].copy()
-        logger.info("Exporting DataFrame...")
+        logger.info("Exporting Global DataFrame...")
+        if WRITE_DF_FMT & ExportFormat.CSV:
+            global_df.to_csv(OUT / "global.csv")
+        if WRITE_DF_FMT & ExportFormat.PKL:
+            global_df.to_pickle(OUT / "global.pkl")
+        logger.info("Exporting Subs DataFrame...")
         if WRITE_DF_FMT & ExportFormat.CSV:
             filtered_subs_df.to_csv(OUT / "subs.csv")
         if WRITE_DF_FMT & ExportFormat.PKL:
