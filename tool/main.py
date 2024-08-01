@@ -346,7 +346,6 @@ if WRITE_FUNC:
 #     isos |= isos_
 #     print("iso_count", iso_count)
 # print("isos", isos, len(isos))
-index_artifacts = defaultdict(dict)
 
 
 io_subs = []
