@@ -38,7 +38,18 @@ class InstrPredicate(IntFlag):
     IS_TERMINATOR = auto()  # 32
     IS_BRANCH = auto()  # 64
     HAS_UNMODELED_SIDE_EFFECTS = auto()  # 128
-    ALL = MAY_LOAD | MAY_STORE | IS_PSEUDO | IS_RETURN | IS_CALL | IS_TERMINATOR | IS_BRANCH | HAS_UNMODELED_SIDE_EFFECTS
+    IS_COMMUTABLE = auto()  # 256
+    ALL = (
+        MAY_LOAD
+        | MAY_STORE
+        | IS_PSEUDO
+        | IS_RETURN
+        | IS_CALL
+        | IS_TERMINATOR
+        | IS_BRANCH
+        | HAS_UNMODELED_SIDE_EFFECTS
+        | IS_COMMUTABLE
+    )
 
 
 class CDFGStage(IntFlag):
