@@ -96,7 +96,7 @@ def handle_cmdline():
     parser.add_argument("--output-dir", "-o", default="./out", help="TODO")
     parser.add_argument("--write-func", action="store_true", help="TODO")
     parser.add_argument("--write-func-fmt", type=int, default=FUNC_FMT_DEFAULT, help="TODO")
-    parser.add_argument("--write-func-flt", type=int, default=FUNC_FLT_DEFAULT, help="TODO")
+    # parser.add_argument("--write-func-flt", type=int, default=FUNC_FLT_DEFAULT, help="TODO")
     parser.add_argument("--write-sub", action="store_true", help="TODO")
     parser.add_argument("--write-sub-fmt", type=int, default=SUB_FMT_DEFAULT, help="TODO")
     parser.add_argument("--write-sub-flt", type=int, default=SUB_FLT_DEFAULT, help="TODO")
@@ -151,7 +151,7 @@ IGNORE_OP_TYPES = args.ignore_op_types.split(",")
 IGNORE_CONST_INPUTS = args.ignore_const_inputs
 WRITE_FUNC = args.write_func
 WRITE_FUNC_FMT = args.write_func_fmt
-WRITE_FUNC_FLT = args.write_func_flt
+# WRITE_FUNC_FLT = args.write_func_flt
 WRITE_SUB = args.write_sub
 WRITE_SUB_FMT = args.write_sub_fmt
 WRITE_SUB_FLT = args.write_sub_flt
