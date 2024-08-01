@@ -41,8 +41,8 @@ logger = logging.getLogger("main")
 
 # TODO: rename result to sub & gen
 # TODO: actually implement filters
-FUNC_FMT_DEFAULT = ExportFormat.DOT
-FUNC_FLT_DEFAULT = ExportFilter.SELECTED
+FUNC_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PKL
+# FUNC_FLT_DEFAULT = ExportFilter.SELECTED
 # SUB_FMT_DEFAULT = ExportFormat.DOT  # | ExportFormat.PDF | ExportFormat.PNG
 # SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PKL  # | ExportFormat.PNG | ExportFormat.PDF
 SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PKL | ExportFormat.PDF
