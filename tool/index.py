@@ -31,7 +31,7 @@ def write_index_file(
     if include_properties:
         # assert len(global_df) == 1
         # row = global_df.iloc[0]
-        for index, row in subs_df.iterrows():
+        for index, row in global_df.iterrows():
             row_data = {key: yaml_types_helper(value) for key, value in row.to_dict().items()}
             # print("row_data", row_data)
             yaml_data["global"]["properties"].append(row_data)
