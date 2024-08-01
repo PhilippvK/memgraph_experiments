@@ -220,17 +220,6 @@ with MeasureTime("Conversion to NX (func)", verbose=TIMES):
     # print("GF", GF)
 
 
-if WRITE_FUNC:
-    with MeasureTime("Dumping GF graph", verbose=TIMES):
-        logger.info("Exporting GF graph...")
-        if WRITE_FUNC_FMT & ExportFormat.DOT:
-            graph_to_file(GF, OUT / "func.dot")
-        if WRITE_FUNC_FMT & ExportFormat.PDF:
-            graph_to_file(GF, OUT / "func.pdf")
-        if WRITE_FUNC_FMT & ExportFormat.PNG:
-            graph_to_file(GF, OUT / "func.png")
-
-
 # TODO: move to helper and share code
 with MeasureTime("Conversion to NX (candidates)", verbose=TIMES):
     G = memgraph_to_nx(results)
@@ -328,6 +317,23 @@ with MeasureTime("Relabeling", verbose=TIMES):
 
     # print("subs[0]", subs[0])
     # print("subs[0].nodes", subs[0].nodes)
+
+index_artifacts = defaultdict(dict)
+
+
+if WRITE_FUNC:
+    with MeasureTime("Dumping GF graph", verbose=TIMES):
+        logger.info("Exporting GF graph...")
+        if WRITE_FUNC_FMT & ExportFormat.DOT:
+            graph_to_file(GF, OUT / "func.dot")
+        if WRITE_FUNC_FMT & ExportFormat.PDF:
+            graph_to_file(GF, OUT / "func.pdf")
+        if WRITE_FUNC_FMT & ExportFormat.PNG:
+            graph_to_file(GF, OUT / "func.png")
+        if WRITE_FUNC_FMT & ExportFormat.PKL:
+            with open(OUT / "func.pkl", "wb") as f:
+                pickle.dump(GF.copy(), f)
+            index_artifacts[None]["func"] = OUT / "func.pkl"
 
 
 # print("subs", subs, len(subs))
