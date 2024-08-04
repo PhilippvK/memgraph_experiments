@@ -3,6 +3,7 @@ from typing import Union, Dict, Any
 
 import yaml
 import pandas as pd
+import numpy as np
 
 
 def yaml_types_helper(x, allow_missing: bool = False):
@@ -12,6 +13,8 @@ def yaml_types_helper(x, allow_missing: bool = False):
         return x
     if isinstance(x, (set, tuple)):
         return list(x)
+    if isinstance(x, np.ndarray):
+        return x.tolist()
     if not allow_missing:
         assert NotImplementedError("Unsupported Type: {type(x)}")
     return x
