@@ -535,33 +535,48 @@ with MeasureTime("Isomorphism Check", verbose=TIMES):
                 x["label"] != "Const" or x["properties"]["inst"] == y["properties"]["inst"]
             )
 
+        def edge_match(x, y):
+            # print("edge_match")
+            assert len(x.keys()) == 1
+            assert len(y.keys()) == 1
+            xkey = list(x.keys())[0]
+            ykey = list(y.keys())[0]
+            # print("x", x)
+            # print("x.op_idx", x[xkey]["properties"]["op_idx"])
+            # print("x.op_reg_single_use", x[xkey]["properties"]["op_reg_single_use"])
+            # print("y", y)
+            # print("y.op_idx", y[ykey]["properties"]["op_idx"])
+            # print("y.op_reg_single_use", y[ykey]["properties"]["op_reg_single_use"])
+            # input("o")
+            return x[xkey]["properties"]["op_idx"] == y[ykey]["properties"]["op_idx"]
+
         def helper(i, j, io_sub, io_sub_):
             # print("helper", i, j)
-            ret = nx.is_isomorphic(io_sub, io_sub_, node_match=node_match)
+            ret = nx.is_isomorphic(io_sub, io_sub_, node_match=node_match, edge_match=edge_match)
             # if i == 805 and j == 807:
-            #     print("ret", ret)
-            #     input("?")
+            # print("ret", ret)
+            # input("?")
             return ret
 
-        def helper2(args):
-            i, j, io_sub, io_sub_ = args
-            # print("helper", i, j)
-            ret = nx.is_isomorphic(io_sub, io_sub_, node_match=node_match)
-            # if i == 805 and j == 807:
-            #     print("ret", ret)
-            #     input("?")
-            return ret
+        # def helper2(args):
+        #     i, j, io_sub, io_sub_ = args
+        #     # print("helper", i, j)
+        #     ret = nx.is_isomorphic(io_sub, io_sub_, node_match=node_match)
+        #     # if i == 805 and j == 807:
+        #     #     print("ret", ret)
+        #     #     input("?")
+        #     return ret
 
-        def helper3(args):
-            ret = []
-            for i, j, io_sub, io_sub_ in args:
-                # print("helper", i, j)
-                ret_ = nx.is_isomorphic(io_sub, io_sub_, node_match=node_match)
-                ret.append(ret_)
-                # if i == 805 and j == 807:
-                #     print("ret", ret)
-                #     input("?")
-            return ret
+        # def helper3(args):
+        #     ret = []
+        #     for i, j, io_sub, io_sub_ in args:
+        #         # print("helper", i, j)
+        #         ret_ = nx.is_isomorphic(io_sub, io_sub_, node_match=node_match)
+        #         ret.append(ret_)
+        #         # if i == 805 and j == 807:
+        #         #     print("ret", ret)
+        #         #     input("?")
+        #     return ret
 
         # A:
         # io_isos_ = set(
