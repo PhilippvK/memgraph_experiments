@@ -34,6 +34,7 @@ class ExportFormat(IntFlag):
     FLAT = auto()  # 256
     YAML = auto()  # 512
     HTML = auto()  # 1024
+    TREE = auto()  # 2048
 
 
 class ExportFilter(IntFlag):

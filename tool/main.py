@@ -11,10 +11,10 @@ import numpy as np
 import pandas as pd
 import networkx as nx
 from tqdm import tqdm
+from anytree import RenderTree
 
 # import matplotlib.pyplot as plt
 
-# from anytree import RenderTree
 # from anytree.iterators import AbstractIter
 
 from .enums import ExportFormat, ExportFilter, InstrPredicate, CDFGStage, parse_enum_intflag
@@ -52,7 +52,7 @@ SUB_FLT_DEFAULT = ExportFilter.SELECTED
 IO_SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PKL | ExportFormat.PDF
 IO_SUB_FLT_DEFAULT = ExportFilter.SELECTED
 # GEN_FMT_DEFAULT = ExportFormat.CDSL | ExportFormat.MIR | ExportFormat.FLAT
-GEN_FMT_DEFAULT = ExportFormat.FLAT | ExportFormat.CDSL
+GEN_FMT_DEFAULT = ExportFormat.FLAT | ExportFormat.CDSL | ExportFormat.TREE
 GEN_FLT_DEFAULT = ExportFilter.SELECTED
 PIE_FMT_DEFAULT = ExportFormat.PDF | ExportFormat.CSV
 PIE_FLT_DEFAULT = ExportFilter.ALL
@@ -939,6 +939,16 @@ body: |
                 with open(OUT / f"result{i}.core_desc", "w") as f:
                     f.write(cdsl_code)
                 index_artifacts[i]["cdsl"] = OUT / f"result{i}.core_desc"
+                if WRITE_GEN_FMT & ExportFormat.TREE:
+                    pass
+                    # tree_txt = str(RenderTree(tree))
+                    # tree2_txt = str(RenderTree(xtrees))
+                    # with open(OUT / f"result{i}.tree", "w") as f:
+                    #     f.write(tree_txt)
+                    # with open(OUT / f"result{i}.tree2", "w") as f:
+                    #     f.write(tree2_txt)
+                    # index_artifacts[i]["tree"] = OUT / f"result{i}.tree"
+                    # index_artifacts[i]["tree2"] = OUT / f"result{i}.tree2"
     if WRITE_GEN_FMT & ExportFormat.FLAT:
         with MeasureTime("FLAT Generation", verbose=TIMES):
             logger.info("Generation of FLAT...")
