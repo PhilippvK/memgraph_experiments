@@ -45,9 +45,26 @@ class ExportFilter(IntFlag):
     FILTERED_COMPLEX = auto()  # 8
     FILTERED_SIMPLE = auto()  # 16
     FILTERED_PRED = auto()  # 32
-    INVALID = auto()  # 64
-    ERROR = auto()  # 128
-    ALL = SELECTED | ISO | FILTERED_IO | FILTERED_COMPLEX | FILTERED_SIMPLE | FILTERED_PRED | INVALID | ERROR
+    FILTERED_ENC = auto()  # 64
+    FILTERED_WEIGHTS = auto()  # 128
+    FILTERED_MEM = auto()  # 256
+    FILTERED_BRANCH = auto()  # 512
+    INVALID = auto()  # 1024
+    ERROR = auto()  # 2048
+    ALL = (
+        SELECTED
+        | ISO
+        | FILTERED_IO
+        | FILTERED_COMPLEX
+        | FILTERED_SIMPLE
+        | FILTERED_PRED
+        | FILTERED_ENC
+        | FILTERED_WEIGHTS
+        | FILTERED_MEM
+        | FILTERED_BRANCH
+        | INVALID
+        | ERROR
+    )
 
 
 class InstrPredicate(IntFlag):

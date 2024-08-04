@@ -63,7 +63,16 @@ INDEX_FLT_DEFAULT = ExportFilter.SELECTED
 INSTR_PREDICATES_DEFAULT = InstrPredicate.ALL
 IGNORE_NAMES_DEFAULT = ["PHI", "COPY", "PseudoCALLIndirect", "PseudoLGA", "Select_GPR_Using_CC_GPR"]
 IGNORE_OP_TYPES_DEFAULT = ["input", "constant"]
+ALLOWED_ENC_SIZES_DEFAULT = [32]
 STAGE_DEFAULT = CDFGStage.STAGE_3
+MAX_ENC_FOOTPRINT_DEFAULT = 1.0
+MAX_ENC_WEIGHT_DEFAULT = 1.0
+MIN_ENC_BITS_LEFT_DEFAULT = 3
+MIN_ISO_WEIGHT_DEFAULT = 0.05
+MAX_LOADS_DEFAULT = 1
+MAX_STORES_DEFAULT = 1
+MAX_MEMS_DEFAULT = 1
+MAX_BRANCHES_DEFAULT = 1
 
 
 def handle_cmdline():
@@ -80,7 +89,11 @@ def handle_cmdline():
     parser.add_argument("--max-inputs", type=int, default=3, help="TODO")
     parser.add_argument("--min-outputs", type=int, default=0, help="TODO")
     parser.add_argument("--max-outputs", type=int, default=2, help="TODO")
+    # TODO: --max-constants
     parser.add_argument("--max-nodes", type=int, default=5, help="TODO")
+    parser.add_argument("--max-enc-footprint", type=float, default=MAX_ENC_FOOTPRINT_DEFAULT, help="TODO")
+    parser.add_argument("--max-enc-weight", type=float, default=MAX_ENC_WEIGHT_DEFAULT, help="TODO")
+    parser.add_argument("--min-enc-bits-left", type=float, default=MIN_ENC_BITS_LEFT_DEFAULT, help="TODO")
     parser.add_argument("--min-nodes", type=int, default=1, help="TODO")
     parser.add_argument("--min-path-length", type=int, default=1, help="TODO")
     parser.add_argument("--max-path-length", type=int, default=3, help="TODO")
@@ -116,6 +129,12 @@ def handle_cmdline():
     parser.add_argument("--write-index-fmt", type=int, default=INDEX_FMT_DEFAULT, help="TODO")
     parser.add_argument("--write-index-flt", type=int, default=INDEX_FLT_DEFAULT, help="TODO")
     parser.add_argument("--write-queries", action="store_true", help="TODO")
+    parser.add_argument("--allowed-enc-sizes", type=int, nargs="+", default=ALLOWED_ENC_SIZES_DEFAULT, help="TODO")
+    parser.add_argument("--min-iso-weight", type=int, default=MIN_ISO_WEIGHT_DEFAULT, help="TODO")
+    parser.add_argument("--max-loads", type=int, default=MAX_LOADS_DEFAULT, help="TODO")
+    parser.add_argument("--max-stores", type=int, default=MAX_STORES_DEFAULT, help="TODO")
+    parser.add_argument("--max-mems", type=int, default=MAX_MEMS_DEFAULT, help="TODO")
+    parser.add_argument("--max-branches", type=int, default=MAX_BRANCHES_DEFAULT, help="TODO")
     args = parser.parse_args()
     logging.basicConfig(level=getattr(logging, args.log.upper()))
     logging.getLogger("neo4j.io").setLevel(logging.INFO)
@@ -171,6 +190,15 @@ WRITE_INDEX = args.write_index
 WRITE_INDEX_FMT = args.write_index_fmt
 WRITE_INDEX_FLT = args.write_index_flt
 WRITE_QUERIES = args.write_queries
+ALLOWED_ENC_SIZES = args.allowed_enc_sizes
+MAX_ENC_FOOTPRINT = args.max_enc_footprint
+MAX_ENC_WEIGHT = args.max_enc_weight
+MIN_ENC_BITS_LEFT = args.min_enc_bits_left
+MIN_ISO_WEIGHT = args.min_iso_weight
+MAX_LOADS = args.max_loads
+MAX_STORES = args.max_stores
+MAX_MEMS = args.max_mems
+MAX_BRANCHES = args.max_branches
 
 with MeasureTime("Settings Validation", verbose=TIMES):
     logger.info("Validating settings...")
@@ -393,10 +421,23 @@ subs_df["InputsNC"] = [np.array([])] * len(subs_df)
 subs_df["#InputsNC"] = np.nan
 subs_df["Instrs"] = [np.array([])] * len(subs_df)
 subs_df["#Instrs"] = np.nan
+subs_df["#Loads"] = np.nan
+subs_df["#Stores"] = np.nan
+subs_df["#Mems"] = np.nan
+subs_df["#Branches"] = np.nan
 subs_df["UniqueInstrs"] = [np.array([])] * len(subs_df)
 subs_df["#UniqueInstrs"] = np.nan
-subs_df["Outputs"] = [np.array([])] * len(subs_df)
-subs_df["#Outputs"] = np.nan
+subs_df["OutputNodes"] = [np.array([])] * len(subs_df)
+subs_df["OutputNames"] = [np.array([])] * len(subs_df)
+subs_df["#OutputNodes"] = np.nan
+subs_df["OperandNames"] = [np.array([])] * len(subs_df)
+subs_df["OperandTypes"] = [np.array([])] * len(subs_df)
+subs_df["OperandEncBits"] = [np.array([])] * len(subs_df)
+subs_df["OperandEncBitsSum"] = np.nan
+for enc_size in ALLOWED_ENC_SIZES:
+    subs_df[f"EncodingBitsLeft ({enc_size} bits)"] = np.nan
+    subs_df[f"EncodingWeight ({enc_size} bits)"] = np.nan
+    subs_df[f"EncodingFootprint ({enc_size} bits)"] = np.nan
 subs_df["Weight"] = np.nan
 subs_df["Freq"] = np.nan
 subs_df["IsoNodes"] = [np.array([])] * len(subs_df)
@@ -619,8 +660,13 @@ with MeasureTime("Predicate Detection", verbose=TIMES):
     for i, sub in tqdm(subs_iter, disable=not PROGRESS):
         # if i in io_isos:
         #     continue
-        pred = detect_predicates(sub)
+        pred, num_loads, num_stores, num_branches = detect_predicates(sub)
+        num_mems = num_loads + num_stores
         subs_df.loc[i, "Predicates"] = pred
+        subs_df.loc[i, "#Loads"] = num_loads
+        subs_df.loc[i, "#Stores"] = num_stores
+        subs_df.loc[i, "#Mems"] = num_mems
+        subs_df.loc[i, "#Branches"] = num_branches
 
 
 # TODO: toggle on/off via cmdline?
@@ -703,57 +749,103 @@ with MeasureTime("Variation generation", verbose=TIMES):
             print("single_use", single_use)
             if single_use:
                 assert edge_count == 1
-                for k in outputs:
+                for output_idx, k in enumerate(outputs):
+                    print("output_idx", output_idx)
+                    print("k", k)
                     output_node_data = GF.nodes[j]
                     print("output_node_data", output_node_data)
                     output_properties = output_node_data["properties"]
                     print("output_properties", output_properties)
-                    new_io_sub_ = io_sub.copy()
-                    print("new_io_sub_", new_io_sub_)
-                    input("||")
+                    new_sub = sub.copy()
+                    print("new_sub", new_sub)
+                    new_sub_data = sub_data.copy()
+                    print("new_sub_data", new_sub_data)
+                    new_io_sub = io_sub.copy()
+                    print("new_io_sub", new_io_sub)
+                    input_op_name = input_op_names[input_idx]
+                    output_op_name = output_op_names[output_idx]
+                    new_constraint = f"{input_op_name} == {output_op_name}"
+                    print("new_constraint", new_constraint)
+                    new_sub_data["Constraints"] = [new_constraint]
+                    new_operand_names = [x for x in operand_names if x != input_op_name]
+                    new_operand_types = [
+                        operand_types[iii] for iii, x in enumerate(operand_names) if x != input_op_name
+                    ]
+                    new_operand_enc_bits = [
+                        operand_enc_bits[iii] for iii, x in enumerate(operand_names) if x != input_op_name
+                    ]
+                    new_operand_enc_bits_sum = sum(new_operand_enc_bits)
+                    parent = i
+                    new_sub_data["Parent"] = parent
+                    new_sub_data["Variations"] = ["ReuseIO"]
+                    new_sub_data["OperandNames"] = new_operand_names
+                    new_sub_data["OperandTypes"] = new_operand_types
+                    new_sub_data["OperandEncBits"] = new_operand_enc_bits
+                    new_sub_data["OperandEncBitsSum"] = new_operand_enc_bits_sum
+                    for enc_size in ALLOWED_ENC_SIZES:
+                        enc_bits_left, enc_weight, enc_footprint = calc_encoding_footprint(enc_bits_sum, enc_size)
+                        new_sub_data[f"EncodingBitsLeft ({enc_size} bits)"] = enc_bits_left
+                        new_sub_data[f"EncodingWeight ({enc_size} bits)"] = enc_weight
+                        new_sub_data[f"EncodingFootprint ({enc_size} bits)"] = enc_footprint
+                    # TODO: re-calculate encoding footprint
+                    new_sub_id = len(io_subs)
+                    print("new_sub_id", new_sub_id)
+                    new_sub_data["result"] = new_sub_id
+                    print("new_sub_data_", new_sub_data)
+                    subs_df.loc[new_sub_id] = new_sub_data
+                    subs.append(new_sub)
+                    io_subs.append(new_io_sub)
+                    # new.append(None)
+                    # input("||")
+        # print("new", new)
 
+# TODO: if excoding space left (pre/post filter?) insert imm operands here where possible.
+# (as new variation)
 
 # TODO: filter before iso check?
-with MeasureTime("Filtering subgraphs", verbose=TIMES):
-    filtered_io = set()
-    filtered_complex = set()
-    filtered_simple = set()
-    filtered_predicates = set()
-    invalid = set()
-    logger.info("Filtering subgraphs...")
-    subs_iter = [(i, sub) for i, sub in enumerate(subs) if i not in io_isos]
+with MeasureTime("Filtering subgraphs (Encoding)", verbose=TIMES):
+    filtered_enc = set()
+    logger.info("Filtering subgraphs (Encoding)...")
+    filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_GEN_FLT) > 0].copy()
+    subs_iter = [(i, sub) for i, sub in enumerate(subs) if i in filtered_subs_df.index]
     # for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
     for i, sub in tqdm(subs_iter, disable=not PROGRESS):
-        # if i in io_isos:
-        #     continue
-        # print("===========================")
-        # print("i, sub", i, sub)
-        num_nodes = len(sub.nodes)
         sub_data = subs_df.iloc[i]
-        inputs = sub_data["Inputs"]
-        num_inputs = int(sub_data["#Inputs"])
-        inputs_noconst = sub_data["InputsNC"]
-        num_inputs_noconst = int(sub_data["#InputsNC"])
-        outputs = sub_data["Outputs"]
-        num_outputs = int(sub_data["#Outputs"])
-        if num_inputs_noconst == 0 or num_outputs == 0:
-            invalid.add(i)
-        elif MIN_INPUTS <= num_inputs_noconst <= MAX_INPUTS and MIN_OUTPUTS <= num_outputs <= MAX_OUTPUTS:
-            pred = subs_df.loc[i, "Predicates"]
-            if num_nodes > MAX_NODES:
-                filtered_complex.add(i)
-            elif num_nodes < MIN_NODES:
-                filtered_simple.add(i)
-            elif not check_predicates(pred, INSTR_PREDICATES):
-                # TODO: add predicates details to df in prerequisite step
-                filtered_predicates.add(i)
-        else:
-            filtered_io.add(i)
-    subs_df.loc[list(filtered_io), "Status"] = ExportFilter.FILTERED_IO
-    subs_df.loc[list(filtered_complex), "Status"] = ExportFilter.FILTERED_COMPLEX
-    subs_df.loc[list(filtered_simple), "Status"] = ExportFilter.FILTERED_SIMPLE
-    subs_df.loc[list(filtered_predicates), "Status"] = ExportFilter.FILTERED_PRED
-    subs_df.loc[list(invalid), "Status"] = ExportFilter.INVALID
+        valids = []
+        for enc_size in ALLOWED_ENC_SIZES:
+            enc_bits_left = sub_data[f"EncodingBitsLeft ({enc_size} bits)"]
+            enc_weight = sub_data[f"EncodingWeight ({enc_size} bits)"]
+            enc_footprint = sub_data[f"EncodingFootprint ({enc_size} bits)"]
+            valid = True
+            if enc_bits_left < MIN_ENC_BITS_LEFT:
+                valid = False
+            elif enc_weight > MAX_ENC_WEIGHT:
+                valid = False
+            elif enc_footprint > MAX_ENC_FOOTPRINT:
+                valid = False
+            valids.append(valid)
+        print("valids", valids)
+        valid = any(valids)
+        print("valid", valid)
+        if not valid:
+            filtered_enc.add(i)
+    print("filtered_enc", filtered_enc)
+    subs_df.loc[list(filtered_enc), "Status"] = ExportFilter.FILTERED_ENC
+
+
+with MeasureTime("Filtering subgraphs (Weights)", verbose=TIMES):
+    filtered_weights = set()
+    logger.info("Filtering subgraphs (Weights)...")
+    filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_GEN_FLT) > 0].copy()
+    subs_iter = [(i, sub) for i, sub in enumerate(subs) if i in filtered_subs_df.index]
+    # for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
+    for i, sub in tqdm(subs_iter, disable=not PROGRESS):
+        sub_data = subs_df.iloc[i]
+        iso_weight = sub_data["IsoWeight"]
+        if iso_weight < MIN_ISO_WEIGHT:
+            filtered_weights.add(i)
+    print("filtered_weights", filtered_weights)
+    subs_df.loc[list(filtered_weights), "Status"] = ExportFilter.FILTERED_WEIGHTS
 
 
 if WRITE_GEN:
