@@ -409,16 +409,20 @@ global_df["ignore_const_inputs"] = [IGNORE_CONST_INPUTS]
 
 subs_df = pd.DataFrame({"result": list(range(len(subs)))})
 subs_df["Parent"] = np.nan  # used to find the original sub for a variation
+subs_df["Variations"] = np.nan  # used to specify applied variations for Children
 subs_df["Isos"] = [np.array([])] * len(subs_df)
 subs_df["#Isos"] = np.nan
 subs_df["IsosNO"] = [np.array([])] * len(subs_df)
 subs_df["#IsosNO"] = np.nan
 subs_df["Nodes"] = [np.array([])] * len(subs_df)
-subs_df["#Inputs"] = np.nan
-subs_df["Inputs"] = [np.array([])] * len(subs_df)
-subs_df["#Inputs"] = np.nan
-subs_df["InputsNC"] = [np.array([])] * len(subs_df)
-subs_df["#InputsNC"] = np.nan
+# subs_df["#Nodes"] = np.nan
+subs_df["InputNodes"] = [np.array([])] * len(subs_df)
+subs_df["#InputNodes"] = np.nan
+# subs_df["InputNames"] = [np.array([])] * len(subs_df)
+subs_df["InputNodesNC"] = [np.array([])] * len(subs_df)
+subs_df["#InputNodesNC"] = np.nan
+subs_df["InputNamesNC"] = [np.array([])] * len(subs_df)
+subs_df["Constraints"] = [np.array([])] * len(subs_df)
 subs_df["Instrs"] = [np.array([])] * len(subs_df)
 subs_df["#Instrs"] = np.nan
 subs_df["#Loads"] = np.nan
@@ -465,12 +469,12 @@ with MeasureTime("I/O Analysis", verbose=TIMES):
         unique_instrs = set(instrs)
         total_weight, freq = calc_weights(sub)
         subs_df.at[i, "Nodes"] = set(nodes)
-        subs_df.at[i, "Inputs"] = set(inputs)
-        subs_df.loc[i, "#Inputs"] = num_inputs
-        subs_df.at[i, "InputsNC"] = set(inputs_noconst)
-        subs_df.loc[i, "#InputsNC"] = num_inputs_noconst
-        subs_df.at[i, "Outputs"] = set(outputs)
-        subs_df.loc[i, "#Outputs"] = num_outputs
+        subs_df.at[i, "InputNodes"] = set(inputs)
+        subs_df.loc[i, "#InputNodes"] = num_inputs
+        subs_df.at[i, "InputNodesNC"] = set(inputs_noconst)
+        subs_df.loc[i, "#InputNodesNC"] = num_inputs_noconst
+        subs_df.at[i, "OutputNodes"] = set(outputs)
+        subs_df.loc[i, "#OutputNodes"] = num_outputs
         subs_df.at[i, "Instrs"] = instrs
         subs_df.loc[i, "#Instrs"] = len(instrs)
         subs_df.at[i, "UniqueInstrs"] = unique_instrs
@@ -681,9 +685,9 @@ with MeasureTime("Schedule Subs", verbose=TIMES):
         #     continue
         # print("i", i)
         # print("io_sub", io_sub)
-        inputs = subs_df.loc[i, "Inputs"]
+        inputs = subs_df.loc[i, "InputNodes"]
         # print("inputs", inputs)
-        outputs = subs_df.loc[i, "Outputs"]
+        outputs = subs_df.loc[i, "OutputNodes"]
         # print("outputs", outputs)
 
         def estimate_schedule_length(io_sub, ins, outs):
@@ -707,24 +711,181 @@ with MeasureTime("Schedule Subs", verbose=TIMES):
         subs_df.loc[i, "ScheduleLength"] = length
 
 
+# TODO: filter before iso check?
+with MeasureTime("Filtering subgraphs", verbose=TIMES):
+    filtered_io = set()
+    filtered_complex = set()
+    filtered_simple = set()
+    filtered_predicates = set()
+    filtered_mem = set()
+    filtered_branch = set()
+    invalid = set()
+    logger.info("Filtering subgraphs...")
+    subs_iter = [(i, sub) for i, sub in enumerate(subs) if i not in io_isos]
+    # for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
+    for i, sub in tqdm(subs_iter, disable=not PROGRESS):
+        # if i in io_isos:
+        #     continue
+        # print("===========================")
+        # print("i, sub", i, sub)
+        num_nodes = len(sub.nodes)
+        sub_data = subs_df.iloc[i]
+        inputs = sub_data["InputNodes"]
+        num_inputs = int(sub_data["#InputNodes"])
+        inputs_noconst = sub_data["InputNodesNC"]
+        num_inputs_noconst = int(sub_data["#InputNodesNC"])
+        outputs = sub_data["OutputNodes"]
+        num_outputs = int(sub_data["#OutputNodes"])
+        if num_inputs_noconst == 0 or num_outputs == 0:
+            invalid.add(i)
+        elif MIN_INPUTS <= num_inputs_noconst <= MAX_INPUTS and MIN_OUTPUTS <= num_outputs <= MAX_OUTPUTS:
+            pred = subs_df.loc[i, "Predicates"]
+            if num_nodes > MAX_NODES:
+                filtered_complex.add(i)
+            elif num_nodes < MIN_NODES:
+                filtered_simple.add(i)
+            elif not check_predicates(pred, INSTR_PREDICATES):
+                # TODO: add predicates details to df in prerequisite step
+                filtered_predicates.add(i)
+            else:
+                num_loads = subs_df.loc[i, "#Loads"]
+                num_stores = subs_df.loc[i, "#Stores"]
+                num_mems = subs_df.loc[i, "#Mems"]
+                if num_loads > MAX_LOADS or num_stores > MAX_STORES or num_mems > MAX_MEMS:
+                    filtered_mem.add(i)
+                else:
+                    num_branches = subs_df.loc[i, "#Branches"]
+                    if num_branches > MAX_BRANCHES:
+                        filtered_branch.add(i)
+        else:
+            filtered_io.add(i)
+    subs_df.loc[list(filtered_io), "Status"] = ExportFilter.FILTERED_IO
+    subs_df.loc[list(filtered_complex), "Status"] = ExportFilter.FILTERED_COMPLEX
+    subs_df.loc[list(filtered_simple), "Status"] = ExportFilter.FILTERED_SIMPLE
+    subs_df.loc[list(filtered_predicates), "Status"] = ExportFilter.FILTERED_PRED
+    subs_df.loc[list(filtered_mem), "Status"] = ExportFilter.FILTERED_MEM
+    subs_df.loc[list(filtered_branch), "Status"] = ExportFilter.FILTERED_BRANCH
+    subs_df.loc[list(invalid), "Status"] = ExportFilter.INVALID
+
+
+# TODO: move to other file
+def calc_encoding_footprint(enc_bits_sum, enc_size):
+    if enc_size == 32:
+        opcode_bits = 7
+        remaining_bits = enc_size - opcode_bits
+        enc_bits_left = remaining_bits - enc_bits_sum
+        if enc_bits_left >= 0:
+            enc_weight = 1 / (2**enc_bits_left)
+        else:
+            enc_weight = np.nan
+
+        enc_footprint = enc_bits_sum / remaining_bits
+    else:
+        NotImplementedError(f"Encoding Size: {enc_size}")
+    return enc_bits_left, enc_weight, enc_footprint
+
+
+with MeasureTime("Determining IO names", verbose=TIMES):
+    logger.info("Determining IO names...")
+    filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_GEN_FLT) > 0].copy()
+    io_subs_iter = [(i, io_sub) for i, io_sub in enumerate(io_subs) if i in filtered_subs_df.index]
+    # for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
+    for i, io_sub in tqdm(io_subs_iter, disable=not PROGRESS):
+        sub = subs[i]
+        sub_data = subs_df.iloc[i]
+        if IGNORE_CONST_INPUTS:
+            inputs = sub_data["InputNodesNC"]
+        else:
+            raise NotImplementedError
+        outputs = sub_data["OutputNodes"]
+        operand_names = []
+        operand_types = []
+        operand_enc_bits = []
+        output_names = []
+        for output_idx, j in enumerate(outputs):
+            output_name = f"outp{output_idx}"
+            output_node = io_sub.nodes[j]
+            output_properties = output_node["properties"]
+            op_type = output_properties["op_type"]
+            output_names.append(output_name)
+            # TODO: do not hardcode
+            op_type_ = "REG"
+            enc_bits = 5
+            # reg_class = "GPR"
+            op_name = "rd" if output_idx == 0 else f"rd{output_idx+1}"
+            operand_names.append(op_name)
+            operand_types.append(op_type_)
+            operand_enc_bits.append(enc_bits)
+        input_names = []
+        for input_idx, j in enumerate(inputs):
+            input_name = f"inp{input_idx}"
+            input_node = io_sub.nodes[j]
+            input_properties = input_node["properties"]
+            op_type = input_properties["op_type"]
+            input_names.append(input_name)
+            # TODO: do not hardcode
+            op_type_ = "REG"
+            enc_bits = 5
+            # reg_class = "GPR"
+            op_name = f"rs{input_idx+1}"
+            operand_names.append(op_name)
+            operand_types.append(op_type_)
+            operand_enc_bits.append(enc_bits)
+        subs_df.at[i, "OutputNames"] = output_names
+        subs_df.at[i, "InputNamesNC"] = input_names
+        subs_df.at[i, "OperandNames"] = operand_names
+        subs_df.at[i, "OperandTypes"] = operand_types
+        subs_df.at[i, "OperandEncBits"] = operand_enc_bits
+        enc_bits_sum = sum(operand_enc_bits)
+        subs_df.loc[i, "OperandEncBitsSum"] = enc_bits_sum
+        for enc_size in ALLOWED_ENC_SIZES:
+            enc_bits_left, enc_weight, enc_footprint = calc_encoding_footprint(enc_bits_sum, enc_size)
+            subs_df.loc[i, f"EncodingBitsLeft ({enc_size} bits)"] = enc_bits_left
+            subs_df.loc[i, f"EncodingWeight ({enc_size} bits)"] = enc_weight
+            subs_df.loc[i, f"EncodingFootprint ({enc_size} bits)"] = enc_footprint
+
+
 with MeasureTime("Variation generation", verbose=TIMES):
     logger.info("Generating variations...")
     # 1. look for singleUse edges to reuse as output reg
-    io_subs_iter = [(i, io_sub) for i, io_sub in enumerate(io_subs) if i not in io_isos]
+    filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_GEN_FLT) > 0].copy()
+    io_subs_iter = [(i, io_sub) for i, io_sub in enumerate(io_subs) if i in filtered_subs_df.index]
     # for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
     for i, io_sub in tqdm(io_subs_iter, disable=not PROGRESS):
+        print("i", i)
+        print("io_sub", io_sub)
+        sub = subs[i]
+        print("sub", sub)
         sub_data = subs_df.iloc[i]
-        inputs = sub_data["Inputs"]
-        num_inputs = int(sub_data["#Inputs"])
-        inputs_noconst = sub_data["InputsNC"]
-        num_inputs_noconst = int(sub_data["#InputsNC"])
-        outputs = sub_data["Outputs"]
-        num_outputs = int(sub_data["#Outputs"])
+        print("sub_data", sub_data)
+        if IGNORE_CONST_INPUTS:
+            inputs = sub_data["InputNodesNC"]
+            input_names = sub_data["InputNamesNC"]
+            num_inputs = int(sub_data["#InputNodesNC"])
+        else:
+            raise NotImplementedError
+        print("inputs", inputs)
+        print("input_names", input_names)
+        print("num_inputs", num_inputs)
+        operand_names = sub_data["OperandNames"]
+        operand_types = sub_data["OperandTypes"]
+        operand_enc_bits = sub_data["OperandEncBits"]
+        outputs = sub_data["OutputNodes"]
+        print("outputs", outputs)
+        output_names = sub_data["OutputNames"]
+        print("output_names", output_names)
+        output_op_names = operand_names[: len(outputs)]
+        print("output_op_names", output_op_names)
+        input_op_names = operand_names[len(outputs) :]
+        print("input_op_names", input_op_names)
+        num_outputs = int(sub_data["#OutputNodes"])
+        print("num_outputs", num_outputs)
         if num_inputs < 1 or num_outputs < 1:
             continue
-        for j in inputs:
+        # new = []
+        for input_idx, j in enumerate(inputs):
+            print("input_idx", input_idx)
             print("j", j)
-            new = []
             # TODO: reuse input node id for output or vice-versa?
             # Would create loop? Add constraint inp0 == outp0 to df?
             # TODO: check if input and output reg types match
@@ -862,12 +1023,12 @@ if WRITE_GEN:
                 # print("===========================")
                 # print("i, sub", i, sub)
                 sub_data = subs_df.iloc[i]
-                inputs = sub_data["Inputs"]
-                num_inputs = int(sub_data["#Inputs"])
-                inputs_noconst = sub_data["InputsNC"]
-                num_inputs_noconst = int(sub_data["#InputsNC"])
-                outputs = sub_data["Outputs"]
-                num_outputs = int(sub_data["#Outputs"])
+                inputs = sub_data["InputNodes"]
+                num_inputs = int(sub_data["#InputNodes"])
+                inputs_noconst = sub_data["InputNodesNC"]
+                num_inputs_noconst = int(sub_data["#InputNodesNC"])
+                outputs = sub_data["OutputNodes"]
+                num_outputs = int(sub_data["#OutputNodes"])
                 desc = f"Inputs (with imm): {num_inputs}, Inputs (without imm): {num_inputs_noconst}, Outputs: {num_outputs}"
                 # print("num_inputs", num_inputs)
                 # print("num_inputs_noconst", num_inputs_noconst)
@@ -1009,12 +1170,12 @@ body: |
                 # print("===========================")
                 # print("i, sub", i, sub)
                 sub_data = subs_df.iloc[i]
-                inputs = sub_data["Inputs"]
-                num_inputs = int(sub_data["#Inputs"])
-                inputs_noconst = sub_data["InputsNC"]
-                num_inputs_noconst = int(sub_data["#InputsNC"])
-                outputs = sub_data["Outputs"]
-                num_outputs = int(sub_data["#Outputs"])
+                inputs = sub_data["InputNodes"]
+                num_inputs = int(sub_data["#InputNodes"])
+                inputs_noconst = sub_data["InputNodesNC"]
+                num_inputs_noconst = int(sub_data["#InputNodesNC"])
+                outputs = sub_data["OutputNodes"]
+                num_outputs = int(sub_data["#OutputNodes"])
                 # TODO: tree to disk? (ExportFormat.TREE)
                 try:
                     tree, xtrees, cdsl_code = gen_tree(GF, sub, inputs, outputs, xlen=XLEN)
@@ -1051,12 +1212,12 @@ body: |
                 xtrees = sub_xtrees.get(i, None)
                 assert xtrees is not None, "FLAT needs xtrees"
                 sub_data = subs_df.iloc[i]
-                inputs = sub_data["Inputs"]
-                num_inputs = int(sub_data["#Inputs"])
-                inputs_noconst = sub_data["InputsNC"]
-                num_inputs_noconst = int(sub_data["#InputsNC"])
-                outputs = sub_data["Outputs"]
-                num_outputs = int(sub_data["#Outputs"])
+                inputs = sub_data["InputNodes"]
+                num_inputs = int(sub_data["#InputNodes"])
+                inputs_noconst = sub_data["InputNodesNC"]
+                num_inputs_noconst = int(sub_data["#InputNodesNC"])
+                outputs = sub_data["OutputNodes"]
+                num_outputs = int(sub_data["#OutputNodes"])
                 header = f"Sub: {i}, Inputs (with imm): {num_inputs}, Inputs (without imm): {num_inputs_noconst}, Outputs: {num_outputs}"
                 flat_code = gen_flat_code(xtrees, desc=header)
                 with open(OUT / f"result{i}.flat", "w") as f:
