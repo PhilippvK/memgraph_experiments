@@ -1,4 +1,25 @@
 from enum import IntFlag, auto
+from functools import reduce
+
+
+def parse_enum_intflag(arg, cls):
+    if isinstance(arg, cls):
+        return arg
+    if isinstance(arg, int):
+        return cls(arg)
+    not_allowed = [",", "(", ")", ";", "&"]
+    for na in not_allowed:
+        assert na not in arg, f"{na} not allowed in arg"
+    splitted = arg.split("|")
+
+    def helper(x):
+        if x[0] == "~":
+            return ~helper(x[1:])
+        return cls[x]
+    res = list(map(helper, splitted))
+    reduced = reduce(lambda x, y: x | y, res)
+    print("reduced", reduced)
+    return reduced
 
 
 class ExportFormat(IntFlag):

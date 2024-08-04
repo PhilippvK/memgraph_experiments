@@ -17,7 +17,7 @@ from tqdm import tqdm
 # from anytree import RenderTree
 # from anytree.iterators import AbstractIter
 
-from .enums import ExportFormat, ExportFilter, InstrPredicate, CDFGStage
+from .enums import ExportFormat, ExportFilter, InstrPredicate, CDFGStage, parse_enum_intflag
 from .memgraph import connect_memgraph, run_query
 from .mir_utils import gen_mir_func
 from .graph_utils import (
@@ -145,7 +145,7 @@ LIMIT_RESULTS = args.limit_results
 MIN_PATH_LEN = args.min_path_length
 MAX_PATH_LEN = args.max_path_length
 MAX_PATH_WIDTH = args.max_path_width
-INSTR_PREDICATES = args.instr_predicates
+INSTR_PREDICATES = parse_enum_intflag(args.instr_predicates, InstrPredicate)
 IGNORE_NAMES = args.ignore_names.split(",")
 IGNORE_OP_TYPES = args.ignore_op_types.split(",")
 IGNORE_CONST_INPUTS = args.ignore_const_inputs
@@ -153,8 +153,8 @@ WRITE_FUNC = args.write_func
 WRITE_FUNC_FMT = args.write_func_fmt
 # WRITE_FUNC_FLT = args.write_func_flt
 WRITE_SUB = args.write_sub
-WRITE_SUB_FMT = args.write_sub_fmt
-WRITE_SUB_FLT = args.write_sub_flt
+WRITE_SUB_FMT = parse_enum_intflag(args.write_sub_fmt, ExportFormat)
+WRITE_SUB_FLT = parse_enum_intflag(args.write_sub_flt, ExportFilter)
 WRITE_IO_SUB = args.write_io_sub
 WRITE_IO_SUB_FMT = args.write_io_sub_fmt
 WRITE_IO_SUB_FLT = args.write_io_sub_flt
