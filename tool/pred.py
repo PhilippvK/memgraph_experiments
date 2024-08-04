@@ -23,6 +23,9 @@ from .enums import InstrPredicate
 
 def detect_predicates(sub):
     sub_predicates = InstrPredicate.NONE
+    num_loads = 0
+    num_stores = 0
+    num_branches = 0
     # print("check_predicates", sub)
     for node in sub.nodes:
         node_data = sub.nodes[node]
@@ -31,8 +34,10 @@ def detect_predicates(sub):
         # print("name", name)
         if properties.get("mayLoad", False):
             sub_predicates |= InstrPredicate.MAY_LOAD
+            num_loads += 1
         if properties.get("mayStore", False):
             sub_predicates |= InstrPredicate.MAY_STORE
+            num_stores += 1
         if properties.get("isPseudo", False):
             sub_predicates |= InstrPredicate.IS_PSEUDO
         if properties.get("isReturn", False):
@@ -43,11 +48,12 @@ def detect_predicates(sub):
             sub_predicates |= InstrPredicate.IS_TERMINATOR
         if properties.get("isBranch", False):
             sub_predicates |= InstrPredicate.IS_BRANCH
+            num_branches += 1
         if properties.get("hasUnmodeledSideEffects", False):
             sub_predicates |= InstrPredicate.HAS_UNMODELED_SIDE_EFFECTS
-        if properties.get("isCommutable", False):
+        if properties.get("isCommutable", False):  # TODO: This only makes sense per node?
             sub_predicates |= InstrPredicate.IS_COMMUTABLE
-    return sub_predicates
+    return sub_predicates, num_loads, num_stores, num_branches
 
 
 def check_predicates(pred, allowed_predicates):
