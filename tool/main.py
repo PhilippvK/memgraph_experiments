@@ -33,7 +33,7 @@ from .tree import gen_tree, gen_flat_code
 from .queries import generate_func_query, generate_candidates_query
 from .pred import check_predicates, detect_predicates
 from .timing import MeasureTime
-from .pie import generate_pie_chart
+from .pie import generate_pie_chart, generate_pie2_chart
 from .index import write_index_file
 
 logger = logging.getLogger("main")
@@ -1147,20 +1147,27 @@ if WRITE_PIE:
         logger.info("Generating PieChart...")
         filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_PIE_FLT) > 0].copy()
         pie_df, pie_fig = generate_pie_chart(filtered_subs_df)
+        pie2_df, pie2_fig = generate_pie2_chart(filtered_subs_df)
 
     with MeasureTime("Dump Pie", verbose=TIMES):
         logger.info("Exporting PieChart...")
         if WRITE_PIE_FMT & ExportFormat.PDF:
             pie_fig.write_image(OUT / "pie.pdf")
+            pie2_fig.write_image(OUT / "pie2.pdf")
         if WRITE_PIE_FMT & ExportFormat.PNG:
             pie_fig.write_image(OUT / "pie.png")
+            pie2_fig.write_image(OUT / "pie2.png")
         if WRITE_PIE_FMT & ExportFormat.HTML:
             pie_fig.write_html(OUT / "pie.html")
+            pie2_fig.write_html(OUT / "pie2.html")
         if WRITE_PIE_FMT & ExportFormat.CSV:
             pie_df.to_csv(OUT / "pie.csv")
+            pie2_df.to_csv(OUT / "pie2.csv")
         if WRITE_PIE_FMT & ExportFormat.PKL:
             pie_df.to_pickle(OUT / "pie.pkl")
+            pie2_df.to_pickle(OUT / "pie2.pkl")
             index_artifacts[None]["pie"] = OUT / "pie.pkl"
+            index_artifacts[None]["pie2"] = OUT / "pie2.pkl"
 
 
 if WRITE_INDEX:
