@@ -35,19 +35,25 @@ i = 0
 candidates = []
 candidate_io_subs = []
 venn_data = []
+global_properties = []
 
-for in_path in INS:
+for j, in_path in enumerate(INS):
     logger.info("Loading input %s", in_path)
     with open(in_path, "r") as f:
         yaml_data = yaml.safe_load(f)
+    global_data = yaml_data["global"]
+    global_properties_ = global_data["properties"]
+    global_properties += global_properties_
     candidates_data = yaml_data["candidates"]
     path_ids = set()
     for candidate_data in tqdm(candidates_data, disable=not args.progress):
         candidate_data["id"] = i
+        artifacts = candidate_data["artifacts"]
+        properties = candidate_data["properties"]
         path_ids.add(i)
         candidates.append(candidate_data)
         if DROP_DUPLICATES:
-            io_sub_path = candidate_data["artifacts"].get("io_sub", None)
+            io_sub_path = artifacts.get("io_sub", None)
             assert io_sub_path is not None, "PKL for io_sub not found in artifacts"
             with open(io_sub_path, "rb") as f:
                 io_sub = pickle.load(f)
@@ -123,7 +129,7 @@ if VENN_OUT is not None:
 
 # logger.info("Writing Combined Index File...")
 # write_index_file(OUT / "index.yml", filtered_subs_df, index_data)
-temp = {"candidates": candidates}
+temp = {"global": {"artifacts": [], "properties": global_properties}, "candidates": candidates}
 if OUT:
     with open(OUT, "w") as f:
         yaml.dump(temp, f)
