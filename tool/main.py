@@ -404,8 +404,16 @@ global_df["max_path_width"] = [MAX_PATH_WIDTH]
 global_df["instr_predicates"] = [INSTR_PREDICATES]
 global_df["ignore_names"] = [IGNORE_NAMES]
 global_df["ignore_op_types"] = [IGNORE_OP_TYPES]
-global_df["ignore_const_inputs"] = [IGNORE_CONST_INPUTS]
-# TODO: MIN_FREQ, MIN_WEIGHT, MAX_INSTRS, MAX_UNIQUE_INSTRS
+global_df["allowed_enc_sizes"] = [ALLOWED_ENC_SIZES]
+global_df["max_enc_footprint"] = [MAX_ENC_FOOTPRINT]
+global_df["max_enc_weight"] = [MAX_ENC_WEIGHT]
+global_df["min_enc_bits_left"] = [MIN_ENC_BITS_LEFT]
+global_df["min_iso_weight"] = [MIN_ISO_WEIGHT]
+global_df["max_loads"] = [MAX_LOADS]
+global_df["max_stores"] = [MAX_STORES]
+global_df["max_mems"] = [MAX_MEMS]
+global_df["max_branches"] = [MAX_BRANCHES]
+# TODO: MIN_FREQ, MAX_INSTRS, MAX_UNIQUE_INSTRS
 
 subs_df = pd.DataFrame({"result": list(range(len(subs)))})
 subs_df["Parent"] = np.nan  # used to find the original sub for a variation
