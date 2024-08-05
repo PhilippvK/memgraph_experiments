@@ -18,7 +18,8 @@ def graph_to_file(graph, dest, fmt="auto"):
         write_dot(graph, dest)
     elif fmt in ["PDF", "PNG"]:
         graph = nx.nx_agraph.to_agraph(graph)
-        graph.draw(dest, prog=prog)
+        graph.draw(str(dest), prog=prog)
+        graph.close()
     else:
         raise ValueError(f"Unsupported fmt: {fmt}")
 
