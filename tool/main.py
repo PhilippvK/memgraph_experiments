@@ -903,8 +903,31 @@ with MeasureTime("Variation generation", verbose=TIMES):
                     # print("new_sub", new_sub)
                     new_sub_data = sub_data.copy()
                     # print("new_sub_data", new_sub_data)
-                    new_io_sub = io_sub.copy()
-                    # print("new_io_sub", new_io_sub)
+                    new_io_sub_ = io_sub.copy()
+                    print("new_io_sub_", new_io_sub_)
+                    print("new_io_sub_.nodes", new_io_sub_.nodes)
+                    print("new_io_sub_.edges", new_io_sub_.edges)
+                    new_io_sub_nodes = [x for x in io_sub.nodes if x != j]
+                    new_input_node_data = input_node_data.copy()
+                    new_input_node_data["alias"] = j
+                    print("new_input_node_data", new_input_node_data)
+                    new_input_node_id = max(GF.nodes) + 1
+                    print("new_input_node_id", new_input_node_id)
+                    GF.add_node(new_input_node_id, **new_input_node_data)
+                    new_io_sub_nodes.append(new_input_node_id)
+                    for src, dst, dat in io_sub.out_edges(j, data=True):
+                        assert dst in io_sub.nodes
+                        print("src", src)
+                        print("dst", dst)
+                        print("dat", dat)
+                        GF.add_edge(new_input_node_id, dst, **dat)
+                        print(f"{new_input_node_id} -> {dst}")
+                    print("new_io_sub_nodes", new_io_sub_nodes)
+                    new_io_sub = GF.subgraph(new_io_sub_nodes)
+                    print("new_io_sub", new_io_sub)
+                    print("new_io_sub.nodes", new_io_sub.nodes)
+                    print("new_io_sub.edges", new_io_sub.edges)
+                    # input("123")
                     input_op_name = input_op_names[input_idx]
                     output_op_name = output_op_names[output_idx]
                     new_constraint = f"{input_op_name} == {output_op_name}"

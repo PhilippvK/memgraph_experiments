@@ -277,7 +277,7 @@ def gen_tree(GF, sub, inputs, outputs, xlen=None):
         asm_syntax = ", ".join(asm_all)
         operands_code += "}"
         codes = (
-            [operands_code, "encoding: auto;", f'assembly: {{"{mnemonic}", {asm_syntax}}};', "behavior: {"]
+            [operands_code, "encoding: auto;", f'assembly: {{"{mnemonic}", "{asm_syntax}"}};', "behavior: {"]
             + codes
             + ["}"]
         )
