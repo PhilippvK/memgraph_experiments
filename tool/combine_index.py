@@ -5,7 +5,9 @@ from collections import defaultdict
 
 import yaml
 from tqdm import tqdm
-import networkx as nx
+
+
+from .iso import calc_sub_io_isos
 
 logger = logging.getLogger("combine_index")
 
@@ -65,26 +67,10 @@ if DROP_DUPLICATES:
     duplicates = defaultdict(set)
     duplicate_count = 0
     logger.info("Detecting duplicates...")
-    io_isos = set()
-    for i, io_sub in enumerate(tqdm(candidate_io_subs, disable=not args.progress)):
-        if i in io_isos:
-            continue
-
-        def node_match(x, y):
-            # TODO: check xlabel? (Const replaced with val!)
-            return x["label"] == y["label"] and (
-                x["label"] != "Const" or x["properties"]["inst"] == y["properties"]["inst"]
-            )
-
-        io_isos_ = set(
-            j
-            for j, io_sub_ in enumerate(candidate_io_subs)
-            if j > i and j not in io_isos and nx.is_isomorphic(io_sub, io_sub_, node_match=node_match)
-        )
-        # TODO: do not check in same index?
+    _, sub_io_isos = calc_sub_io_isos(candidate_io_subs, progress=args.progress)
+    for sub, io_isos_ in sub_io_isos.items():
         if len(io_isos_) > 0:
-            io_isos |= io_isos_
-            duplicates[i] = io_isos_
+            duplicates[sub] = io_isos_
             duplicate_count += len(io_isos_)
             for k in range(len(venn_data)):
                 venn_data[k] = set(i if k2 in io_isos_ else k2 for k2 in venn_data[k])

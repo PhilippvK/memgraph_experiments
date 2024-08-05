@@ -1,0 +1,113 @@
+from collections import defaultdict
+
+import networkx as nx
+from tqdm import tqdm
+
+
+def calc_sub_io_isos(io_subs, progress: bool = False):
+    io_isos = set()
+    sub_io_isos = defaultdict(list)
+    for i, io_sub in enumerate(tqdm(io_subs, disable=not progress)):
+        # break  # TODO
+        # print("io_sub", i, io_sub, io_sub.nodes)
+        # print("io_sub nodes", [GF.nodes[n] for n in io_sub.nodes])
+        if i in io_isos:
+            continue
+
+        def node_match(x, y):
+            # print("node_match")
+            # # print("x", x)
+            # print("x.label", x["label"])
+            # # print("y", y)
+            # print("y.label", y["label"])
+            return (
+                x["label"] == y["label"]
+                and (x["label"] != "Const" or x["properties"]["inst"] == y["properties"]["inst"])
+                and (x.get("alias", None) == y.get("alias", None))
+                # and (x["properties"].get("alias", None) == y["properties"].get("alias", None))
+            )
+
+        def edge_match(x, y):
+            # print("edge_match")
+            assert len(x.keys()) == 1
+            assert len(y.keys()) == 1
+            xkey = list(x.keys())[0]
+            ykey = list(y.keys())[0]
+            # print("x", x)
+            # print("x.op_idx", x[xkey]["properties"]["op_idx"])
+            # print("x.op_reg_single_use", x[xkey]["properties"]["op_reg_single_use"])
+            # print("y", y)
+            # print("y.op_idx", y[ykey]["properties"]["op_idx"])
+            # print("y.op_reg_single_use", y[ykey]["properties"]["op_reg_single_use"])
+            # input("o")
+            return x[xkey]["properties"]["op_idx"] == y[ykey]["properties"]["op_idx"]
+
+        def helper(i, j, io_sub, io_sub_):
+            # print("helper", i, j)
+            ret = nx.is_isomorphic(io_sub, io_sub_, node_match=node_match, edge_match=edge_match)
+            # if i == 805 and j == 807:
+            # print("ret", ret)
+            # input("?")
+            return ret
+
+        # def helper2(args):
+        #     i, j, io_sub, io_sub_ = args
+        #     # print("helper", i, j)
+        #     ret = nx.is_isomorphic(io_sub, io_sub_, node_match=node_match)
+        #     # if i == 805 and j == 807:
+        #     #     print("ret", ret)
+        #     #     input("?")
+        #     return ret
+
+        # def helper3(args):
+        #     ret = []
+        #     for i, j, io_sub, io_sub_ in args:
+        #         # print("helper", i, j)
+        #         ret_ = nx.is_isomorphic(io_sub, io_sub_, node_match=node_match)
+        #         ret.append(ret_)
+        #         # if i == 805 and j == 807:
+        #         #     print("ret", ret)
+        #         #     input("?")
+        #     return ret
+
+        # A:
+        # io_isos_ = set(
+        #     j for j, io_sub_ in enumerate(io_subs) if j > i and j not in io_isos and helper(i, j, io_sub, io_sub_)
+        # )
+        # B:
+        to_check = [(j, io_sub_) for j, io_sub_ in enumerate(io_subs) if j > i and j not in io_isos]
+        io_isos_ = set(j for j, io_sub_ in to_check if helper(i, j, io_sub, io_sub_))
+        # C:
+        # to_check = [(i, j, io_sub, io_sub_) for j, io_sub_ in enumerate(io_subs) if j > i and j not in io_isos]
+        # with concurrent.futures.ProcessPoolExecutor() as executor:
+        #     res = executor.map(helper2, to_check)
+        #     io_isos_ = set(to_check[k][1] for k, is_iso in enumerate(res) if is_iso)
+        # D:
+        # to_check = [(i, j, io_sub, io_sub_) for j, io_sub_ in enumerate(io_subs) if j > i and j not in io_isos]
+        # with concurrent.futures.ThreadPoolExecutor() as executor:
+        #     res = executor.map(helper2, to_check)
+        #     io_isos_ = set(to_check[k][1] for k, is_iso in enumerate(res) if is_iso)
+        # E:
+        # to_check = [(i, j, io_sub, io_sub_) for j, io_sub_ in enumerate(io_subs) if j > i and j not in io_isos]
+
+        # def batch(iterable, n=1):
+        #     l = len(iterable)
+        #     for ndx in range(0, l, n):
+        #         yield iterable[ndx : min(ndx + n, l)]
+
+        # batch_size = len(to_check) // 36
+        # to_check_batches = list(batch(to_check, n=batch_size))
+        # # with concurrent.futures.ProcessPoolExecutor() as executor:
+        # with concurrent.futures.ThreadPoolExecutor() as executor:
+        #     res_batched = executor.map(helper3, to_check_batches)
+        #     # print("res_batched", res_batched)
+        #     res = sum(res_batched, [])
+        #     # print("res", res)
+        #     io_isos_ = set(to_check[k][1] for k, is_iso in enumerate(res) if is_iso)
+
+        sub_io_isos[i] += list(io_isos_)
+        # print("io_isos_", io_isos_)
+        # io_iso_count = len(io_isos_)
+        # print("io_iso_count", io_iso_count)
+        io_isos |= io_isos_
+    return io_isos, sub_io_isos
