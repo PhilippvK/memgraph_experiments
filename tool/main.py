@@ -1,6 +1,7 @@
 import pickle
 import logging
 import argparse
+from math import ceil, log2
 from pathlib import Path
 from datetime import datetime
 from collections import defaultdict
@@ -204,8 +205,7 @@ with MeasureTime("Settings Validation", verbose=TIMES):
     logger.info("Validating settings...")
     assert OUT.is_dir(), f"OUT ({OUT}) is not a directory"
     assert FUNC is not None
-    if not IGNORE_CONST_INPUTS:
-        raise NotImplementedError("!IGNORE_CONST_INPUTS")
+    assert not IGNORE_CONST_INPUTS, "DEPRECTAED!"
 
 
 logger.info("Running queries...")
@@ -418,10 +418,22 @@ subs_df["Nodes"] = [np.array([])] * len(subs_df)
 # subs_df["#Nodes"] = np.nan
 subs_df["InputNodes"] = [np.array([])] * len(subs_df)
 subs_df["#InputNodes"] = np.nan
-# subs_df["InputNames"] = [np.array([])] * len(subs_df)
-subs_df["InputNodesNC"] = [np.array([])] * len(subs_df)
-subs_df["#InputNodesNC"] = np.nan
-subs_df["InputNamesNC"] = [np.array([])] * len(subs_df)
+subs_df["InputNames"] = [np.array([])] * len(subs_df)
+subs_df["ConstantNodes"] = [np.array([])] * len(subs_df)
+subs_df["ConstantValues"] = [np.array([])] * len(subs_df)
+subs_df["ConstantSigns"] = [np.array([])] * len(subs_df)
+subs_df["ConstantMinBits"] = [np.array([])] * len(subs_df)
+subs_df["#ConstantNodes"] = np.nan  # TODO: analyze constants
+subs_df["OutputNodes"] = [np.array([])] * len(subs_df)
+subs_df["OutputNames"] = [np.array([])] * len(subs_df)
+subs_df["#OutputNodes"] = np.nan
+subs_df["#Operands"] = np.nan
+subs_df["OperandNames"] = [np.array([])] * len(subs_df)
+subs_df["OperandNodes"] = [np.array([])] * len(subs_df)
+subs_df["OperandDirs"] = [np.array([])] * len(subs_df)
+subs_df["OperandTypes"] = [np.array([])] * len(subs_df)
+subs_df["OperandEncBits"] = [np.array([])] * len(subs_df)
+subs_df["OperandEncBitsSum"] = np.nan
 subs_df["Constraints"] = [np.array([])] * len(subs_df)
 subs_df["Instrs"] = [np.array([])] * len(subs_df)
 subs_df["#Instrs"] = np.nan
@@ -431,13 +443,6 @@ subs_df["#Mems"] = np.nan
 subs_df["#Branches"] = np.nan
 subs_df["UniqueInstrs"] = [np.array([])] * len(subs_df)
 subs_df["#UniqueInstrs"] = np.nan
-subs_df["OutputNodes"] = [np.array([])] * len(subs_df)
-subs_df["OutputNames"] = [np.array([])] * len(subs_df)
-subs_df["#OutputNodes"] = np.nan
-subs_df["OperandNames"] = [np.array([])] * len(subs_df)
-subs_df["OperandTypes"] = [np.array([])] * len(subs_df)
-subs_df["OperandEncBits"] = [np.array([])] * len(subs_df)
-subs_df["OperandEncBitsSum"] = np.nan
 for enc_size in ALLOWED_ENC_SIZES:
     subs_df[f"EncodingBitsLeft ({enc_size} bits)"] = np.nan
     subs_df[f"EncodingWeight ({enc_size} bits)"] = np.nan
@@ -462,17 +467,21 @@ with MeasureTime("I/O Analysis", verbose=TIMES):
         # print("===========================")
         # print("i, sub", i, sub)
         nodes = sub.nodes
-        num_inputs, inputs = calc_inputs(GF, sub)
-        num_inputs_noconst, inputs_noconst = calc_inputs(GF, sub, ignore_const=True)
+        num_inputs, inputs, num_constants, constants = calc_inputs(GF, sub)
         num_outputs, outputs = calc_outputs(GF, sub)
+        # if num_constants > 0:
+        #     print("num_inputs", num_inputs)
+        #     print("num_constants", num_constants)
+        #     print("num_outputs", num_outputs)
+        #     input(">")
         instrs = get_instructions(sub)
         unique_instrs = set(instrs)
         total_weight, freq = calc_weights(sub)
         subs_df.at[i, "Nodes"] = set(nodes)
         subs_df.at[i, "InputNodes"] = set(inputs)
         subs_df.loc[i, "#InputNodes"] = num_inputs
-        subs_df.at[i, "InputNodesNC"] = set(inputs_noconst)
-        subs_df.loc[i, "#InputNodesNC"] = num_inputs_noconst
+        subs_df.at[i, "ConstantNodes"] = set(constants)
+        subs_df.loc[i, "#ConstantNodes"] = num_constants
         subs_df.at[i, "OutputNodes"] = set(outputs)
         subs_df.loc[i, "#OutputNodes"] = num_outputs
         subs_df.at[i, "Instrs"] = instrs
@@ -484,12 +493,11 @@ with MeasureTime("I/O Analysis", verbose=TIMES):
         # TODO: also sum up weight and freq for isos? (be careful with overlaps!)
 
         # print("num_inputs", num_inputs)
-        # print("num_inputs_noconst", num_inputs_noconst)
         # print("num_outputs", num_outputs)
         # print("inputs", [GF.nodes[inp] for inp in inputs])
         # print("outputs", [GF.nodes[outp] for outp in outputs])
         # TODO: copy fine?
-        io_sub = GF.subgraph(list(sub.nodes) + inputs).copy()
+        io_sub = GF.subgraph(list(sub.nodes) + inputs + constants).copy()
         for inp in inputs:
             edges = list(io_sub.in_edges(inp))
             io_sub.remove_edges_from(edges)
@@ -747,13 +755,12 @@ with MeasureTime("Filtering subgraphs", verbose=TIMES):
         sub_data = subs_df.iloc[i]
         inputs = sub_data["InputNodes"]
         num_inputs = int(sub_data["#InputNodes"])
-        inputs_noconst = sub_data["InputNodesNC"]
-        num_inputs_noconst = int(sub_data["#InputNodesNC"])
         outputs = sub_data["OutputNodes"]
         num_outputs = int(sub_data["#OutputNodes"])
-        if num_inputs_noconst == 0 or num_outputs == 0:
+        if num_inputs == 0:  # or num_outputs == 0:
+            # TODO heck if branches and stores have outputs?
             invalid.add(i)
-        elif MIN_INPUTS <= num_inputs_noconst <= MAX_INPUTS and MIN_OUTPUTS <= num_outputs <= MAX_OUTPUTS:
+        elif MIN_INPUTS <= num_inputs <= MAX_INPUTS and MIN_OUTPUTS <= num_outputs <= MAX_OUTPUTS:
             pred = subs_df.loc[i, "Predicates"]
             if num_nodes > MAX_NODES:
                 filtered_complex.add(i)
@@ -808,13 +815,12 @@ with MeasureTime("Determining IO names", verbose=TIMES):
     for i, io_sub in tqdm(io_subs_iter, disable=not PROGRESS):
         sub = subs[i]
         sub_data = subs_df.iloc[i]
-        if IGNORE_CONST_INPUTS:
-            inputs = sub_data["InputNodesNC"]
-        else:
-            raise NotImplementedError
+        inputs = sub_data["InputNodes"]
         outputs = sub_data["OutputNodes"]
         operand_names = []
+        operand_nodes = []
         operand_types = []
+        operand_dirs = []
         operand_enc_bits = []
         output_names = []
         for output_idx, j in enumerate(outputs):
@@ -825,11 +831,14 @@ with MeasureTime("Determining IO names", verbose=TIMES):
             output_names.append(output_name)
             # TODO: do not hardcode
             op_type_ = "REG"
+            op_dir = "OUT"
             enc_bits = 5
             # reg_class = "GPR"
             op_name = "rd" if output_idx == 0 else f"rd{output_idx+1}"
             operand_names.append(op_name)
+            operand_nodes.append(j)
             operand_types.append(op_type_)
+            operand_types.append(op_dir)
             operand_enc_bits.append(enc_bits)
         input_names = []
         for input_idx, j in enumerate(inputs):
@@ -840,16 +849,21 @@ with MeasureTime("Determining IO names", verbose=TIMES):
             input_names.append(input_name)
             # TODO: do not hardcode
             op_type_ = "REG"
+            op_dir = "IN"
             enc_bits = 5
             # reg_class = "GPR"
             op_name = f"rs{input_idx+1}"
             operand_names.append(op_name)
+            operand_nodes.append(j)
             operand_types.append(op_type_)
+            operand_dirs.append(op_dir)
             operand_enc_bits.append(enc_bits)
         subs_df.at[i, "OutputNames"] = output_names
-        subs_df.at[i, "InputNamesNC"] = input_names
+        subs_df.at[i, "InputNames"] = input_names
         subs_df.at[i, "OperandNames"] = operand_names
         subs_df.at[i, "OperandTypes"] = operand_types
+        subs_df.at[i, "OperandNodes"] = operand_nodes
+        subs_df.at[i, "OperandDirs"] = operand_dirs
         subs_df.at[i, "OperandEncBits"] = operand_enc_bits
         enc_bits_sum = sum(operand_enc_bits)
         subs_df.loc[i, "OperandEncBitsSum"] = enc_bits_sum
@@ -860,6 +874,53 @@ with MeasureTime("Determining IO names", verbose=TIMES):
             subs_df.loc[i, f"EncodingFootprint ({enc_size} bits)"] = enc_footprint
 
 
+with MeasureTime("Analyze Constants", verbose=TIMES):
+    logger.info("Analyzing constants...")
+    filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_GEN_FLT) > 0].copy()
+    io_subs_iter = [(i, io_sub) for i, io_sub in enumerate(io_subs) if i in filtered_subs_df.index]
+    # for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
+    for i, io_sub in tqdm(io_subs_iter, disable=not PROGRESS):
+        sub = subs[i]
+        sub_data = subs_df.iloc[i]
+        constants = sub_data["ConstantNodes"]
+        # print("constants")
+        # constant_names = []
+        constant_values = []
+        constant_signs = []
+        constant_min_bits = []
+        for constant_idx, j in enumerate(constants):
+            # print("j", j)
+            constant_node = io_sub.nodes[j]
+            # print("constant_node", constant_node)
+            constant_properties = constant_node["properties"]
+            # print("constant_properties", constant_properties)
+            op_type = constant_properties["op_type"]
+            assert op_type == "constant"
+            # name = f"const{constant_idx}"
+            val_str = constant_properties["inst"]
+            assert val_str[-1] == "_"
+            val = float(val_str[:-1])
+            assert int(val) == val
+            val = int(val)
+            # print("val", val)
+            sign = True  # For now handle all constants as signed
+            # print("sign", sign)
+
+            min_bits = 1 if val == 0 else (ceil(log2(abs(val))) + 1)
+            # print("min_bits", min_bits)
+            # TODO: handle float!!!
+            # constant_names.append(name)
+            constant_values.append(val)
+            constant_signs.append(sign)
+            constant_min_bits.append(min_bits)
+            # input("##")
+            # TODO: do not hardcode
+        # subs_df.at[i, "ConstantNames"] = constant_names
+        subs_df.at[i, "ConstantValues"] = constant_values
+        subs_df.at[i, "ConstantSigns"] = constant_signs
+        subs_df.at[i, "ConstantMinBits"] = constant_min_bits
+
+
 with MeasureTime("Variation generation", verbose=TIMES):
     logger.info("Generating variations...")
     # 1. look for singleUse edges to reuse as output reg
@@ -867,81 +928,78 @@ with MeasureTime("Variation generation", verbose=TIMES):
     io_subs_iter = [(i, io_sub) for i, io_sub in enumerate(io_subs) if i in filtered_subs_df.index]
     # for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
     for i, io_sub in tqdm(io_subs_iter, disable=not PROGRESS):
-        print("i", i)
-        print("io_sub", io_sub)
+        # print("i", i)
+        # print("io_sub", io_sub)
         sub = subs[i]
-        print("sub", sub)
+        # print("sub", sub)
         sub_data = subs_df.iloc[i]
-        print("sub_data", sub_data)
-        if IGNORE_CONST_INPUTS:
-            inputs = sub_data["InputNodesNC"]
-            input_names = sub_data["InputNamesNC"]
-            num_inputs = int(sub_data["#InputNodesNC"])
-        else:
-            raise NotImplementedError
-        print("inputs", inputs)
-        print("input_names", input_names)
-        print("num_inputs", num_inputs)
+        # print("sub_data", sub_data)
+        inputs = sub_data["InputNodes"]
+        input_names = sub_data["InputNames"]
+        num_inputs = int(sub_data["#InputNodes"])
+        # print("inputs", inputs)
+        # print("input_names", input_names)
+        # print("num_inputs", num_inputs)
         operand_names = sub_data["OperandNames"]
         operand_types = sub_data["OperandTypes"]
         operand_enc_bits = sub_data["OperandEncBits"]
         outputs = sub_data["OutputNodes"]
-        print("outputs", outputs)
+        # print("outputs", outputs)
         output_names = sub_data["OutputNames"]
-        print("output_names", output_names)
+        # print("output_names", output_names)
         output_op_names = operand_names[: len(outputs)]
-        print("output_op_names", output_op_names)
+        # print("output_op_names", output_op_names)
         input_op_names = operand_names[len(outputs) :]
-        print("input_op_names", input_op_names)
+        # print("input_op_names", input_op_names)
         num_outputs = int(sub_data["#OutputNodes"])
-        print("num_outputs", num_outputs)
+        # print("num_outputs", num_outputs)
         if num_inputs < 1 or num_outputs < 1:
             continue
         # new = []
         for input_idx, j in enumerate(inputs):
-            print("input_idx", input_idx)
-            print("j", j)
+            # print("input_idx", input_idx)
+            # print("j", j)
             # TODO: reuse input node id for output or vice-versa?
             # Would create loop? Add constraint inp0 == outp0 to df?
             # TODO: check if input and output reg types match
             input_node_data = GF.nodes[j]
-            print("input_node_data", input_node_data)
+            # print("input_node_data", input_node_data)
             input_properties = input_node_data["properties"]
-            print("input_properties", input_properties)
+            # print("input_properties", input_properties)
             edge_count = 0
             single_use = None
             for src, dst, edge_data in GF.out_edges(j, data=True):
-                print("src", src)
-                print("dst", dst)
-                print("edge_data", edge_data)
+                # print("src", src)
+                # print("dst", dst)
+                # print("edge_data", edge_data)
                 edge_properties = edge_data["properties"]
-                print("edge_properties", edge_properties)
+                # print("edge_properties", edge_properties)
                 single_use_ = edge_properties.get("op_reg_single_use", None)
-                print("single_use_", single_use_)
+                # print("single_use_", single_use_)
                 if single_use_ is not None:
                     single_use = single_use_
                 edge_count += 1
-            print("edge_count", edge_count)
-            print("single_use", single_use)
+            # print("edge_count", edge_count)
+            # print("single_use", single_use)
             if single_use:
                 assert edge_count == 1
                 for output_idx, k in enumerate(outputs):
-                    print("output_idx", output_idx)
-                    print("k", k)
+                    # print("output_idx", output_idx)
+                    # print("k", k)
                     output_node_data = GF.nodes[j]
-                    print("output_node_data", output_node_data)
+                    # print("output_node_data", output_node_data)
                     output_properties = output_node_data["properties"]
-                    print("output_properties", output_properties)
+                    # print("output_properties", output_properties)
                     new_sub = sub.copy()
-                    print("new_sub", new_sub)
+                    # print("new_sub", new_sub)
                     new_sub_data = sub_data.copy()
-                    print("new_sub_data", new_sub_data)
+                    # print("new_sub_data", new_sub_data)
                     new_io_sub = io_sub.copy()
-                    print("new_io_sub", new_io_sub)
+                    # print("new_io_sub", new_io_sub)
                     input_op_name = input_op_names[input_idx]
                     output_op_name = output_op_names[output_idx]
                     new_constraint = f"{input_op_name} == {output_op_name}"
-                    print("new_constraint", new_constraint)
+                    # print("new_constraint", new_constraint)
                     new_sub_data["Constraints"] = [new_constraint]
                     new_operand_names = [x for x in operand_names if x != input_op_name]
                     new_operand_types = [
@@ -965,9 +1023,9 @@ with MeasureTime("Variation generation", verbose=TIMES):
                         new_sub_data[f"EncodingFootprint ({enc_size} bits)"] = enc_footprint
                     # TODO: re-calculate encoding footprint
                     new_sub_id = len(io_subs)
-                    print("new_sub_id", new_sub_id)
+                    # print("new_sub_id", new_sub_id)
                     new_sub_data["result"] = new_sub_id
-                    print("new_sub_data_", new_sub_data)
+                    # print("new_sub_data_", new_sub_data)
                     subs_df.loc[new_sub_id] = new_sub_data
                     subs.append(new_sub)
                     io_subs.append(new_io_sub)
@@ -1000,12 +1058,12 @@ with MeasureTime("Filtering subgraphs (Encoding)", verbose=TIMES):
             elif enc_footprint > MAX_ENC_FOOTPRINT:
                 valid = False
             valids.append(valid)
-        print("valids", valids)
+        # print("valids", valids)
         valid = any(valids)
-        print("valid", valid)
+        # print("valid", valid)
         if not valid:
             filtered_enc.add(i)
-    print("filtered_enc", filtered_enc)
+    # print("filtered_enc", filtered_enc)
     subs_df.loc[list(filtered_enc), "Status"] = ExportFilter.FILTERED_ENC
 
 
@@ -1020,7 +1078,7 @@ with MeasureTime("Filtering subgraphs (Weights)", verbose=TIMES):
         iso_weight = sub_data["IsoWeight"]
         if iso_weight < MIN_ISO_WEIGHT:
             filtered_weights.add(i)
-    print("filtered_weights", filtered_weights)
+    # print("filtered_weights", filtered_weights)
     subs_df.loc[list(filtered_weights), "Status"] = ExportFilter.FILTERED_WEIGHTS
 
 
@@ -1040,16 +1098,12 @@ if WRITE_GEN:
                 sub_data = subs_df.iloc[i]
                 inputs = sub_data["InputNodes"]
                 num_inputs = int(sub_data["#InputNodes"])
-                inputs_noconst = sub_data["InputNodesNC"]
-                num_inputs_noconst = int(sub_data["#InputNodesNC"])
                 outputs = sub_data["OutputNodes"]
                 num_outputs = int(sub_data["#OutputNodes"])
-                desc = f"Inputs (with imm): {num_inputs}, Inputs (without imm): {num_inputs_noconst}, Outputs: {num_outputs}"
+                desc = f"Inputs (with imm): {num_inputs}, Outputs: {num_outputs}"
                 # print("num_inputs", num_inputs)
-                # print("num_inputs_noconst", num_inputs_noconst)
                 # print("num_outputs", num_outputs)
                 # print("inputs", [GF.nodes[inp] for inp in inputs])
-                # print("inputs_noconst", [GF.nodes[inp] for inp in inputs_noconst])
                 # print("outputs", [GF.nodes[outp] for outp in outputs])
                 j = 0  # reg's
                 # j_ = 0  # imm's
@@ -1071,7 +1125,7 @@ if WRITE_GEN:
                 for inp in inputs:
                     node = GF.nodes[inp]
                     inst = node["properties"]["inst"]
-                    print("inst")
+                    # print("inst")
                     op_type = node["properties"]["op_type"]
                     # print("inst", inst)
                     if "=" in inst:
@@ -1080,7 +1134,7 @@ if WRITE_GEN:
                         # print("if")
                         lhs, _ = inst.split("=", 1)
                         lhs = lhs.strip()
-                        print("lhs", lhs)
+                        # print("lhs", lhs)
                         assert "gpr" in lhs
                         code = code.replace(lhs, name)
                     else:
@@ -1187,8 +1241,6 @@ body: |
                 sub_data = subs_df.iloc[i]
                 inputs = sub_data["InputNodes"]
                 num_inputs = int(sub_data["#InputNodes"])
-                inputs_noconst = sub_data["InputNodesNC"]
-                num_inputs_noconst = int(sub_data["#InputNodesNC"])
                 outputs = sub_data["OutputNodes"]
                 num_outputs = int(sub_data["#OutputNodes"])
                 # TODO: tree to disk? (ExportFormat.TREE)
@@ -1229,11 +1281,9 @@ body: |
                 sub_data = subs_df.iloc[i]
                 inputs = sub_data["InputNodes"]
                 num_inputs = int(sub_data["#InputNodes"])
-                inputs_noconst = sub_data["InputNodesNC"]
-                num_inputs_noconst = int(sub_data["#InputNodesNC"])
                 outputs = sub_data["OutputNodes"]
                 num_outputs = int(sub_data["#OutputNodes"])
-                header = f"Sub: {i}, Inputs (with imm): {num_inputs}, Inputs (without imm): {num_inputs_noconst}, Outputs: {num_outputs}"
+                header = f"Sub: {i}, Inputs (with imm): {num_inputs}, Outputs: {num_outputs}"
                 flat_code = gen_flat_code(xtrees, desc=header)
                 with open(OUT / f"result{i}.flat", "w") as f:
                     f.write(flat_code)

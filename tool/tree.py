@@ -62,17 +62,17 @@ class TreeGenContext:
         children = [self.visit(src) for src in srcs]
         # print("children", children)
         op_type = self.graph.nodes[node]["properties"]["op_type"]
-        print("op_type", op_type)
+        # print("op_type", op_type)
         name = self.graph.nodes[node]["properties"]["name"]
-        print("name", name)
-        out_reg_class = self.graph.nodes[node]["properties"].get("out_reg_class", None)
-        print("out_reg_class", out_reg_class)
+        # print("name", name)
+        # out_reg_class = self.graph.nodes[node]["properties"].get("out_reg_class", None)
+        # print("out_reg_class", out_reg_class)
         out_reg_type = self.graph.nodes[node]["properties"].get("out_reg_type", None)
-        print("out_reg_type", out_reg_type)
+        # print("out_reg_type", out_reg_type)
         out_reg_size = self.graph.nodes[node]["properties"].get("out_reg_size", None)
-        print("out_reg_size", out_reg_size)
+        # print("out_reg_size", out_reg_size)
         out_reg_name = self.graph.nodes[node]["properties"].get("out_reg_name", None)
-        print("out_reg_name", out_reg_name)
+        # print("out_reg_name", out_reg_name)
         # print("!1", [self.graph[src, node]["properties"].get("op_reg_class", None) for src in srcs])
         # print("!2", [self.graph[src, node]["properties"].get("op_reg_type", None) for src in srcs])
         # print("!3", [self.graph[src, node]["properties"].get("op_reg_size", None) for src in srcs])
@@ -106,14 +106,14 @@ def gen_tree(GF, sub, inputs, outputs, xlen=None):
     # i = 0  # reg
     j = 0  # imm
     for i, inp in enumerate(inputs):
-        print("i", i)
-        print("inp", inp)
+        # print("i", i)
+        # print("inp", inp)
         node_data = GF.nodes[inp]
-        print("node_data", node_data)
+        # print("node_data", node_data)
         node_properties = node_data["properties"]
-        print("node_properties", node_properties)
+        # print("node_properties", node_properties)
         op_type = node_properties["op_type"]
-        print("op_type", op_type)
+        # print("op_type", op_type)
         reg_class = node_properties.get("out_reg_class", None)
         reg_size = node_properties.get("out_reg_size", None)
         if op_type == "constant":
@@ -126,9 +126,9 @@ def gen_tree(GF, sub, inputs, outputs, xlen=None):
             if xlen is not None:
                 assert reg_size == xlen, f"reg_size ({reg_size}) does not match xlen ({xlen})"
         res = treegen.visit(inp)
-        print("res", res)
+        # print("res", res)
         name = f"inp{j}"
-        print("name", name)
+        # print("name", name)
         # input("<>")
         treegen.defs[inp] = name
         ret[name] = res
@@ -168,14 +168,14 @@ def gen_tree(GF, sub, inputs, outputs, xlen=None):
         # print(RenderTree(res))
     j = 0
     for i, outp in enumerate(outputs):
-        print("i", i)
-        print("outp", outp)
+        # print("i", i)
+        # print("outp", outp)
         node_data = GF.nodes[outp]
-        print("node_data", node_data)
+        # print("node_data", node_data)
         node_properties = node_data["properties"]
-        print("node_properties", node_properties)
+        # print("node_properties", node_properties)
         op_type = node_properties["op_type"]
-        print("op_type", op_type)
+        # print("op_type", op_type)
         reg_class = node_properties.get("out_reg_class", None)
         assert reg_class in ["gpr"], f"Unexpected reg_class: {reg_class}"
         reg_size = node_properties.get("out_reg_size", None)
@@ -185,10 +185,10 @@ def gen_tree(GF, sub, inputs, outputs, xlen=None):
         if xlen is not None:
             assert reg_size == xlen, f"reg_size ({reg_size}) does not match xlen ({xlen})"
         res = treegen.visit(outp)
-        print("res", res)
+        # print("res", res)
         # TODO: check for may_store, may_branch
         name = f"outp{j}"
-        print("name", name)
+        # print("name", name)
         # input("<>")
         treegen.defs[outp] = name
         # ret[name] = root

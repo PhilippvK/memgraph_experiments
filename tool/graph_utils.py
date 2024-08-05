@@ -55,10 +55,11 @@ def memgraph_to_nx(results):
     return graph
 
 
-def calc_inputs(G, sub, ignore_const: bool = False):
+# def calc_inputs(G, sub, ignore_const: bool = False):
+def calc_inputs(G, sub):
     # print("calc_inputs", sub)
     inputs = []
-    ret = 0
+    constants = []
     sub_nodes = sub.nodes
     # print("sub_nodes", sub_nodes)
     for node in sub_nodes:
@@ -68,17 +69,18 @@ def calc_inputs(G, sub, ignore_const: bool = False):
         for in_ in ins:
             # print("in_", in_, G.nodes[in_[0]].get("label"))
             src = in_[0]
-            if G.nodes[src]["properties"]["op_type"] == "constant" and ignore_const:
-                continue
             # print("src", src, G.nodes[src].get("label"))
             # print("src in sub_nodes", src in sub_nodes)
             # print("src not in inputs", src not in inputs)
+            op_type = G.nodes[src]["properties"]["op_type"]
             if not (src in sub_nodes) and (src not in inputs):
                 # print("IN")
-                ret += 1
-                inputs.append(src)
+                if G.nodes[src]["properties"]["op_type"] == "constant":
+                    constants.append(src)
+                else:
+                    inputs.append(src)
     # print("ret", ret)
-    return ret, inputs
+    return len(inputs), inputs, len(constants), constants
 
 
 def calc_outputs(G, sub):
