@@ -17,10 +17,11 @@ def tree_from_pkl(path: Union[str, Path]):
 
 class TreeGenContext:
 
-    def __init__(self, graph, sub, inputs=None, explicit_types: bool = True) -> None:
+    def __init__(self, graph, sub, inputs=None, outputs=None, explicit_types: bool = True) -> None:
         self.graph = graph
         self.sub = sub
         self.inputs = inputs if inputs is not None else []
+        self.outputs = outputs if outputs is not None else []
         self.explicit_types = explicit_types
         self.node_map = {}
         self.defs = {}
@@ -30,9 +31,11 @@ class TreeGenContext:
         return set(self.node_map.keys())
 
     def visit(self, node):
-        # print("visit", node)
+        print("visit", node)
         if node in self.visited:
+            print("not visited")
             op_type = self.graph.nodes[node]["properties"]["op_type"]
+            print("op_type", op_type)
             if op_type == "constant":
                 val = self.graph.nodes[node]["properties"]["inst"]
                 val = int(val[:-1])
@@ -46,7 +49,7 @@ class TreeGenContext:
         # if node in inputs:
         #     children = []
         # else:
-        print("node", node)
+        # print("node", node)
         srcs = [
             (src, edge_data["properties"].get("op_idx", None))
             for src, _, edge_data in self.graph.in_edges(node, data=True)
@@ -66,7 +69,7 @@ class TreeGenContext:
         children = [self.visit(src) for src in srcs]
         # print("children", children)
         op_type = self.graph.nodes[node]["properties"]["op_type"]
-        # print("op_type", op_type)
+        print("op_type", op_type)
         name = self.graph.nodes[node]["properties"]["name"]
         # print("name", name)
         # out_reg_class = self.graph.nodes[node]["properties"].get("out_reg_class", None)
@@ -87,7 +90,7 @@ class TreeGenContext:
             val = int(val[:-1])
             ret = AnyNode(id=-1, value=val, op_type=op_type, children=children)
         else:
-            if node in self.inputs:
+            if node in self.inputs and node not in self.outputs:
                 op_type = "input"
             ret = AnyNode(id=node, name=name, op_type=op_type, children=children)
         if self.explicit_types:

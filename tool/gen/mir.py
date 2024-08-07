@@ -75,4 +75,4 @@ def generate_mir(sub, sub_data, topo, GF, name="result", desc=None):
         if is_branch:
             desc += ", IsBranch"
     mir_code = gen_mir_func(name, code, desc=desc)
-    return mir_code
+    return mir_code.strip()

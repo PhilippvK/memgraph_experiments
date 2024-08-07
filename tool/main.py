@@ -428,6 +428,7 @@ global_df["max_branches"] = [MAX_BRANCHES]
 # TODO: MIN_FREQ, MAX_INSTRS, MAX_UNIQUE_INSTRS
 
 subs_df = pd.DataFrame({"result": list(range(len(subs)))})
+subs_df["DateTime"] = ts
 subs_df["Parent"] = np.nan  # used to find the original sub for a variation
 subs_df["Variations"] = np.nan  # used to specify applied variations for Children
 subs_df["Isos"] = [np.array([])] * len(subs_df)
@@ -867,6 +868,8 @@ with MeasureTime("Variation generation", verbose=TIMES):
         # print("num_inputs", num_inputs)
         operand_names = sub_data["OperandNames"]
         print("operand_names", operand_names)
+        operand_nodes = sub_data["OperandNodes"]
+        print("operand_nodes", operand_nodes)
         operand_dirs = sub_data["OperandDirs"]
         print("operand_dirs", operand_dirs)
         operand_types = sub_data["OperandTypes"]
@@ -932,7 +935,7 @@ with MeasureTime("Variation generation", verbose=TIMES):
                     print("new_io_sub_.edges", new_io_sub_.edges)
                     new_io_sub_nodes = [x for x in io_sub.nodes if x != j]
                     new_input_node_data = input_node_data.copy()
-                    new_input_node_data["alias"] = j
+                    new_input_node_data["alias"] = k
                     print("new_input_node_data", new_input_node_data)
                     new_input_node_id = max(GF.nodes) + 1
                     print("new_input_node_id", new_input_node_id)
@@ -962,6 +965,12 @@ with MeasureTime("Variation generation", verbose=TIMES):
                         for iii, x in enumerate(operand_names)
                         if x != input_op_name
                     ]
+                    new_operand_nodes = [
+                        # operand_nodes[iii] if x != input_op_name else new_input_node_id
+                        operand_nodes[iii]
+                        for iii, x in enumerate(operand_names)
+                        if x != input_op_name
+                    ]
                     new_operand_types = [
                         operand_types[iii] for iii, x in enumerate(operand_names) if x != input_op_name
                     ]
@@ -976,6 +985,11 @@ with MeasureTime("Variation generation", verbose=TIMES):
                     new_sub_data["Parent"] = parent
                     new_sub_data["Variations"] = ["ReuseIO"]
                     new_sub_data["OperandNames"] = new_operand_names
+                    new_sub_data["OperandNodes"] = new_operand_nodes
+                    new_input_nodes = [
+                        inp if input_idx_ != input_idx else new_input_node_id for input_idx_, inp in enumerate(inputs)
+                    ]
+                    new_sub_data["InputNodes"] = new_input_nodes
                     new_sub_data["OperandDirs"] = new_operand_dirs
                     new_sub_data["OperandTypes"] = new_operand_types
                     new_sub_data["OperandRegClasses"] = new_operand_reg_classes
@@ -988,7 +1002,7 @@ with MeasureTime("Variation generation", verbose=TIMES):
                         new_sub_data[f"EncodingFootprint ({enc_size} bits)"] = enc_footprint
                     # TODO: re-calculate encoding footprint
                     new_sub_id = len(io_subs)
-                    # print("new_sub_id", new_sub_id)
+                    print("new_sub_id", new_sub_id)
                     new_sub_data["result"] = new_sub_id
                     # print("new_sub_data_", new_sub_data)
                     subs_df.loc[new_sub_id] = new_sub_data

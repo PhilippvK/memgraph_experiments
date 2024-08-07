@@ -102,8 +102,8 @@ def generate_cdsl(stmts_root, sub_data, xlen: int, name="result", desc=None):
 """
     )
     if desc:
-        code = "// {desc}\n\n" + code
-    return code
+        code = f"// {desc}\n\n" + code
+    return code.strip()
 
 
 def get_global_df(global_properties: List[dict]):
