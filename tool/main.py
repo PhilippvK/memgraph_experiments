@@ -4,6 +4,7 @@ import argparse
 from math import ceil, log2
 from pathlib import Path
 from datetime import datetime
+from typing import Dict
 from collections import defaultdict
 
 # import concurrent.futures
@@ -12,7 +13,7 @@ import numpy as np
 import pandas as pd
 import networkx as nx
 from tqdm import tqdm
-from anytree import RenderTree
+from anytree import RenderTree, AnyNode
 
 # import matplotlib.pyplot as plt
 
@@ -20,7 +21,6 @@ from anytree import RenderTree
 
 from .enums import ExportFormat, ExportFilter, InstrPredicate, CDFGStage, parse_enum_intflag
 from .memgraph import connect_memgraph, run_query
-from .mir_utils import gen_mir_func
 from .iso import calc_sub_io_isos
 from .graph_utils import (
     graph_to_file,
@@ -31,12 +31,16 @@ from .graph_utils import (
     calc_weights,
     calc_weights_iso,
 )
-from .tree import gen_tree, gen_flat_code
 from .queries import generate_func_query, generate_candidates_query
 from .pred import check_predicates, detect_predicates
 from .timing import MeasureTime
 from .pie import generate_pie_chart, generate_pie2_chart
 from .index import write_index_file
+from .gen.tree import generate_tree
+from .gen.cdsl import generate_cdsl
+from .gen.mir import generate_mir
+from .gen.flat import generate_flat_code
+from .gen.desc import generate_desc
 
 logger = logging.getLogger("main")
 
@@ -53,8 +57,11 @@ SUB_FLT_DEFAULT = ExportFilter.SELECTED
 # IO_SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PKL  # | ExportFormat.PNG | ExportFormat.PDF
 IO_SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PKL | ExportFormat.PDF
 IO_SUB_FLT_DEFAULT = ExportFilter.SELECTED
+# TODO: move Tree tro pre-gen
+TREE_FMT_DEFAULT = ExportFormat.TXT | ExportFormat.PKL
+TREE_FLT_DEFAULT = ExportFilter.SELECTED
 # GEN_FMT_DEFAULT = ExportFormat.CDSL | ExportFormat.MIR | ExportFormat.FLAT
-GEN_FMT_DEFAULT = ExportFormat.FLAT | ExportFormat.CDSL | ExportFormat.TREE
+GEN_FMT_DEFAULT = ExportFormat.FLAT | ExportFormat.CDSL
 GEN_FLT_DEFAULT = ExportFilter.SELECTED
 PIE_FMT_DEFAULT = ExportFormat.PDF | ExportFormat.CSV
 PIE_FLT_DEFAULT = ExportFilter.ALL
@@ -69,7 +76,7 @@ ALLOWED_ENC_SIZES_DEFAULT = [32]
 STAGE_DEFAULT = CDFGStage.STAGE_3
 MAX_ENC_FOOTPRINT_DEFAULT = 1.0
 MAX_ENC_WEIGHT_DEFAULT = 1.0
-MIN_ENC_BITS_LEFT_DEFAULT = 3
+MIN_ENC_BITS_LEFT_DEFAULT = 5
 MIN_ISO_WEIGHT_DEFAULT = 0.05
 MAX_LOADS_DEFAULT = 1
 MAX_STORES_DEFAULT = 1
@@ -118,6 +125,9 @@ def handle_cmdline():
     parser.add_argument("--write-io-sub", action="store_true", help="TODO")
     parser.add_argument("--write-io-sub-fmt", type=int, default=IO_SUB_FMT_DEFAULT, help="TODO")
     parser.add_argument("--write-io-sub-flt", type=int, default=IO_SUB_FLT_DEFAULT, help="TODO")
+    parser.add_argument("--write-tree", action="store_true", help="TODO")
+    parser.add_argument("--write-tree-fmt", type=int, default=TREE_FMT_DEFAULT, help="TODO")
+    parser.add_argument("--write-tree-flt", type=int, default=TREE_FLT_DEFAULT, help="TODO")
     parser.add_argument("--write-gen", action="store_true", help="TODO")
     parser.add_argument("--write-gen-fmt", type=int, default=GEN_FMT_DEFAULT, help="TODO")
     parser.add_argument("--write-gen-flt", type=int, default=GEN_FLT_DEFAULT, help="TODO")
@@ -132,7 +142,7 @@ def handle_cmdline():
     parser.add_argument("--write-index-flt", type=int, default=INDEX_FLT_DEFAULT, help="TODO")
     parser.add_argument("--write-queries", action="store_true", help="TODO")
     parser.add_argument("--allowed-enc-sizes", type=int, nargs="+", default=ALLOWED_ENC_SIZES_DEFAULT, help="TODO")
-    parser.add_argument("--min-iso-weight", type=int, default=MIN_ISO_WEIGHT_DEFAULT, help="TODO")
+    parser.add_argument("--min-iso-weight", type=float, default=MIN_ISO_WEIGHT_DEFAULT, help="TODO")
     parser.add_argument("--max-loads", type=int, default=MAX_LOADS_DEFAULT, help="TODO")
     parser.add_argument("--max-stores", type=int, default=MAX_STORES_DEFAULT, help="TODO")
     parser.add_argument("--max-mems", type=int, default=MAX_MEMS_DEFAULT, help="TODO")
@@ -179,6 +189,9 @@ WRITE_SUB_FLT = parse_enum_intflag(args.write_sub_flt, ExportFilter)
 WRITE_IO_SUB = args.write_io_sub
 WRITE_IO_SUB_FMT = args.write_io_sub_fmt
 WRITE_IO_SUB_FLT = args.write_io_sub_flt
+WRITE_TREE = args.write_tree
+WRITE_TREE_FMT = args.write_tree_fmt
+WRITE_TREE_FLT = args.write_tree_flt
 WRITE_GEN = args.write_gen
 WRITE_GEN_FMT = args.write_gen_fmt
 WRITE_GEN_FLT = args.write_gen_flt
@@ -378,8 +391,6 @@ if WRITE_FUNC:
 
 
 io_subs = []
-all_codes = {}
-duplicate_counts = defaultdict(int)
 
 
 global_df = pd.DataFrame()
@@ -441,6 +452,7 @@ subs_df["OperandNames"] = [np.array([])] * len(subs_df)
 subs_df["OperandNodes"] = [np.array([])] * len(subs_df)
 subs_df["OperandDirs"] = [np.array([])] * len(subs_df)
 subs_df["OperandTypes"] = [np.array([])] * len(subs_df)
+subs_df["OperandRegClasses"] = [np.array([])] * len(subs_df)  # TODO
 subs_df["OperandEncBits"] = [np.array([])] * len(subs_df)
 subs_df["OperandEncBitsSum"] = np.nan
 subs_df["Constraints"] = [np.array([])] * len(subs_df)
@@ -729,6 +741,7 @@ with MeasureTime("Determining IO names", verbose=TIMES):
         operand_names = []
         operand_nodes = []
         operand_types = []
+        operand_reg_classes = []
         operand_dirs = []
         operand_enc_bits = []
         output_names = []
@@ -742,12 +755,13 @@ with MeasureTime("Determining IO names", verbose=TIMES):
             op_type_ = "REG"
             op_dir = "OUT"
             enc_bits = 5
-            # reg_class = "GPR"
+            reg_class = "GPR"  # TODO: get from nodes!
             op_name = "rd" if output_idx == 0 else f"rd{output_idx+1}"
             operand_names.append(op_name)
             operand_nodes.append(j)
             operand_types.append(op_type_)
-            operand_types.append(op_dir)
+            operand_reg_classes.append(reg_class)
+            operand_dirs.append(op_dir)
             operand_enc_bits.append(enc_bits)
         input_names = []
         for input_idx, j in enumerate(inputs):
@@ -760,17 +774,19 @@ with MeasureTime("Determining IO names", verbose=TIMES):
             op_type_ = "REG"
             op_dir = "IN"
             enc_bits = 5
-            # reg_class = "GPR"
+            reg_class = "GPR"
             op_name = f"rs{input_idx+1}"
             operand_names.append(op_name)
             operand_nodes.append(j)
             operand_types.append(op_type_)
+            operand_reg_classes.append(reg_class)
             operand_dirs.append(op_dir)
             operand_enc_bits.append(enc_bits)
         subs_df.at[i, "OutputNames"] = output_names
         subs_df.at[i, "InputNames"] = input_names
         subs_df.at[i, "OperandNames"] = operand_names
         subs_df.at[i, "OperandTypes"] = operand_types
+        subs_df.at[i, "OperandRegClasses"] = operand_reg_classes
         subs_df.at[i, "OperandNodes"] = operand_nodes
         subs_df.at[i, "OperandDirs"] = operand_dirs
         subs_df.at[i, "OperandEncBits"] = operand_enc_bits
@@ -850,8 +866,15 @@ with MeasureTime("Variation generation", verbose=TIMES):
         # print("input_names", input_names)
         # print("num_inputs", num_inputs)
         operand_names = sub_data["OperandNames"]
+        print("operand_names", operand_names)
+        operand_dirs = sub_data["OperandDirs"]
+        print("operand_dirs", operand_dirs)
         operand_types = sub_data["OperandTypes"]
+        print("operand_types", operand_types)
         operand_enc_bits = sub_data["OperandEncBits"]
+        print("operand_enc_bits", operand_enc_bits)
+        operand_reg_classes = sub_data["OperandRegClasses"]
+        print("operand_reg_classes", operand_reg_classes)
         outputs = sub_data["OutputNodes"]
         # print("outputs", outputs)
         output_names = sub_data["OutputNames"]
@@ -934,8 +957,16 @@ with MeasureTime("Variation generation", verbose=TIMES):
                     # print("new_constraint", new_constraint)
                     new_sub_data["Constraints"] = [new_constraint]
                     new_operand_names = [x for x in operand_names if x != input_op_name]
+                    new_operand_dirs = [
+                        operand_dirs[iii] if x != output_op_name else "INOUT"
+                        for iii, x in enumerate(operand_names)
+                        if x != input_op_name
+                    ]
                     new_operand_types = [
                         operand_types[iii] for iii, x in enumerate(operand_names) if x != input_op_name
+                    ]
+                    new_operand_reg_classes = [
+                        operand_reg_classes[iii] for iii, x in enumerate(operand_names) if x != input_op_name
                     ]
                     new_operand_enc_bits = [
                         operand_enc_bits[iii] for iii, x in enumerate(operand_names) if x != input_op_name
@@ -945,7 +976,9 @@ with MeasureTime("Variation generation", verbose=TIMES):
                     new_sub_data["Parent"] = parent
                     new_sub_data["Variations"] = ["ReuseIO"]
                     new_sub_data["OperandNames"] = new_operand_names
+                    new_sub_data["OperandDirs"] = new_operand_dirs
                     new_sub_data["OperandTypes"] = new_operand_types
+                    new_sub_data["OperandRegClasses"] = new_operand_reg_classes
                     new_sub_data["OperandEncBits"] = new_operand_enc_bits
                     new_sub_data["OperandEncBitsSum"] = new_operand_enc_bits_sum
                     for enc_size in ALLOWED_ENC_SIZES:
@@ -1014,6 +1047,42 @@ with MeasureTime("Filtering subgraphs (Weights)", verbose=TIMES):
     subs_df.loc[list(filtered_weights), "Status"] = ExportFilter.FILTERED_WEIGHTS
 
 
+sub_stmts: Dict[int, AnyNode] = None
+if WRITE_TREE_FMT:
+    errs = set()
+    filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_GEN_FLT) > 0].copy()
+    with MeasureTime("Tree Generation", verbose=TIMES):
+        logger.info("Generation of Tree...")
+        subs_iter = [(i, sub) for i, sub in enumerate(subs) if i in filtered_subs_df.index]
+        # for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
+        for i, sub in tqdm(subs_iter, disable=not PROGRESS):
+            sub_data = subs_df.iloc[i]
+            try:
+                stmts = generate_tree(
+                    sub,
+                    sub_data,
+                    GF,
+                    xlen=XLEN,
+                )
+                sub_stmts[i] = stmts
+            except AssertionError as e:
+                logger.exception(e)
+                errs.add(i)
+                continue
+            if WRITE_TREE_FMT & ExportFormat.PKL:
+                with open(OUT / f"tree{i}.pkl", "wb") as f:
+                    pickle.dump(G_.copy(), f)
+                index_artifacts[i]["tree"] = OUT / f"tree{i}.pkl"
+            if WRITE_TREE_FMT & ExportFormat.TXT:
+                tree_txt = str(RenderTree(stmts))
+                desc = generate_desc(i, sub_data, name=f"result{i}")
+                tree_txt = f"// {desc}\n\n" + tree_txt
+                with open(OUT / f"tree{i}.txt", "w") as f:
+                    f.write(tree_txt)
+                index_artifacts[i]["tree"] = OUT / f"tree{i}.txt"
+    subs_df.loc[list(errs), "Status"] = ExportFilter.ERROR
+
+
 if WRITE_GEN:
     errs = set()
     filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_GEN_FLT) > 0].copy()
@@ -1023,184 +1092,37 @@ if WRITE_GEN:
             subs_iter = [(i, sub) for i, sub in enumerate(subs) if i in filtered_subs_df.index]
             # for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
             for i, sub in tqdm(subs_iter, disable=not PROGRESS):
-                # if i not in filtered_subs_df.index:
-                #     continue
-                # print("===========================")
-                # print("i, sub", i, sub)
                 sub_data = subs_df.iloc[i]
-                inputs = sub_data["InputNodes"]
-                num_inputs = int(sub_data["#InputNodes"])
-                outputs = sub_data["OutputNodes"]
-                num_outputs = int(sub_data["#OutputNodes"])
-                desc = f"Inputs (with imm): {num_inputs}, Outputs: {num_outputs}"
-                # print("num_inputs", num_inputs)
-                # print("num_outputs", num_outputs)
-                # print("inputs", [GF.nodes[inp] for inp in inputs])
-                # print("outputs", [GF.nodes[outp] for outp in outputs])
-                j = 0  # reg's
-                # j_ = 0  # imm's
-                codes = []
-                # for node in sorted(sub.nodes):
-                # print("sub.nodes", sub.nodes)
-                for node in sorted(sub.nodes, key=lambda x: topo.index(x)):
-                    node_ = G.nodes[node]
-                    code_ = node_["properties"]["inst"]
-                    # assert code_[-1] == "_"
-                    # code_ = code_[:-1]
-                    code_ = code_.split(", debug-location", 1)[0]
-                    if code_[-1] != "_":
-                        code_ += "_"
-                    codes.append(code_)
-                    # print("CODE", node_["properties"]["inst"])
-                code = "\n".join(codes)
-                # print(f"Code:\n{code}")
-                for inp in inputs:
-                    node = GF.nodes[inp]
-                    inst = node["properties"]["inst"]
-                    # print("inst")
-                    op_type = node["properties"]["op_type"]
-                    # print("inst", inst)
-                    if "=" in inst:
-                        name = f"%inp{j}:gpr"
-                        j += 1
-                        # print("if")
-                        lhs, _ = inst.split("=", 1)
-                        lhs = lhs.strip()
-                        # print("lhs", lhs)
-                        assert "gpr" in lhs
-                        code = code.replace(lhs, name)
-                    else:
-                        # print("else")
-                        if inst.startswith("$x"):  # phys reg
-                            pass
-                            # physreg = inst[:-1]
-                            # tmp = physreg[2:]
-                            # new = f"X[{tmp}]"
-                            # code = code.replace(physreg, new)
-                        else:
-                            assert op_type == "constant"
-                            assert inst[-1] == "_"
-                            const = inst[:-1]
-                            val = int(const)
-
-                            def get_ty_for_val(val):
-                                def get_min_pow(x):
-                                    assert x >= 0
-                                    max_pow = 6
-                                    for i in range(max_pow + 1):
-                                        # print("i", i)
-                                        pow_val = 2**i
-                                        # print("pow_val", pow_val)
-                                        if x < 2**pow_val:
-                                            return pow_val
-                                    assert False
-
-                                if val < 0:
-                                    val *= -1
-                                min_pow = get_min_pow(val)
-                                return f"i{min_pow}"
-
-                            ty = get_ty_for_val(val)
-                            # print("code", code)
-                            # print("ty", ty)
-                            # print("const", const)
-                            # print("inst", inst)
-                            # print("const", const)
-                            # if inst[-1] == "_":
-                            #     inst = inst[:-1]
-                            code = code.replace(" " + inst, f" {ty} " + const)  # TODO: buggy?
-                            # print("code")
-                for j, outp in enumerate(outputs):
-                    # print("name", name)
-                    node = GF.nodes[outp]
-                    inst = node["properties"]["inst"]
-                    if "=" in inst:
-                        name = f"%outp{j}:gpr"
-                        # print("if")
-                        lhs, _ = inst.split("=", 1)
-                        lhs = lhs.strip()
-                        assert "gpr" in lhs
-                        # print("lhs", lhs)
-                        code = code.replace(lhs, name)
-                    else:
-                        # print("else")
-                        pass  # TODO: assert?
-                # TODO: handle bbs:
-                is_branch = False
-                if "bb." in code:
-                    is_branch = True
-                """ ---
-name: result273
-body: |
-  bb.0:
-    successors: %bb.77
-    %outp0:gpr = nuw nsw ADDI %inp0:gpr, i1 1
-    BEQ %outp0:gpr, %inp1:gpr, %bb.77
-
-  bb.77:
-    PseudoRET
-"""
-                # TODO: may_load, may_store,...
-                # print(f"Code2:\n{code}")
-                code = "\n".join([line[:-1] if line.endswith("_") else line for line in code.splitlines()])
-                if code in all_codes.values():
-                    # print("Duplicate!")
-                    orig = list(all_codes.keys())[list(all_codes.values()).index(code)]
-                    duplicate_counts[orig] += 1
-                    # continue
-                else:
-                    all_codes[i] = code
-                if is_branch:
-                    desc += ", IsBranch"
-                mir_code = gen_mir_func(f"result{i}", code, desc=desc)
-                # print(f"Code3:\n{mir_code}")
-                # print(mir_code)
+                mir_code = generate_mir(sub, sub_data, topo, GF, name=f"result{i}")
                 with open(OUT / f"result{i}.mir", "w") as f:
                     f.write(mir_code)
                 index_artifacts[i]["mir"] = OUT / f"result{i}.mir"
-    # TODO: split cdsl from gen_tree!
     if WRITE_GEN_FMT & ExportFormat.CDSL:
-        sub_xtrees = {}
         with MeasureTime("CDSL Generation", verbose=TIMES):
             logger.info("Generation of CDSL...")
             subs_iter = [(i, sub) for i, sub in enumerate(subs) if i in filtered_subs_df.index]
             # for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
             for i, sub in tqdm(subs_iter, disable=not PROGRESS):
-                # if i not in filtered_subs_df.index:
-                #     continue
-                # print("===========================")
-                # print("i, sub", i, sub)
                 sub_data = subs_df.iloc[i]
-                inputs = sub_data["InputNodes"]
-                num_inputs = int(sub_data["#InputNodes"])
-                outputs = sub_data["OutputNodes"]
-                num_outputs = int(sub_data["#OutputNodes"])
-                # TODO: tree to disk? (ExportFormat.TREE)
+                stmts = sub_stmts.get(i, None)
+                assert stmts is not None, "CDSL needs TREE"
                 try:
-                    tree, xtrees, cdsl_code = gen_tree(GF, sub, inputs, outputs, xlen=XLEN)
-                    sub_xtrees[i] = xtrees
+                    desc = generate_desc(i, sub_data, name=f"result{i}")
+                    cdsl_code = generate_cdsl(
+                        stmts,
+                        sub_data,
+                        xlen=XLEN,
+                        name=f"result{i}",
+                        desc=desc,
+                    )
                 except AssertionError as e:
                     logger.exception(e)
                     errs.add(i)
-                    input("???")
                     continue
-                if cdsl_code is None:
-                    cdsl_code = "BROKEN"
-                # print("tree", tree)
-                # print("cdsl_code", cdsl_code)
                 with open(OUT / f"result{i}.core_desc", "w") as f:
                     f.write(cdsl_code)
-                index_artifacts[i]["cdsl"] = OUT / f"result{i}.core_desc"
-                if WRITE_GEN_FMT & ExportFormat.TREE:
-                    pass
-                    # tree_txt = str(RenderTree(tree))
-                    # tree2_txt = str(RenderTree(xtrees))
-                    # with open(OUT / f"result{i}.tree", "w") as f:
-                    #     f.write(tree_txt)
-                    # with open(OUT / f"result{i}.tree2", "w") as f:
-                    #     f.write(tree2_txt)
-                    # index_artifacts[i]["tree"] = OUT / f"result{i}.tree"
-                    # index_artifacts[i]["tree2"] = OUT / f"result{i}.tree2"
+                if index_artifacts is not None:
+                    index_artifacts[i]["cdsl"] = OUT / f"result{i}.core_desc"
     if WRITE_GEN_FMT & ExportFormat.FLAT:
         with MeasureTime("FLAT Generation", verbose=TIMES):
             logger.info("Generation of FLAT...")
@@ -1208,15 +1130,16 @@ body: |
             for i, sub in tqdm(subs_iter, disable=not PROGRESS):
                 # if i not in filtered_subs_df.index:
                 #     continue
-                xtrees = sub_xtrees.get(i, None)
-                assert xtrees is not None, "FLAT needs xtrees"
+                stmts = sub_stmts.get(i, None)
+                assert stmts is not None, "FLAT needs TREE"
                 sub_data = subs_df.iloc[i]
-                inputs = sub_data["InputNodes"]
-                num_inputs = int(sub_data["#InputNodes"])
-                outputs = sub_data["OutputNodes"]
-                num_outputs = int(sub_data["#OutputNodes"])
-                header = f"Sub: {i}, Inputs (with imm): {num_inputs}, Outputs: {num_outputs}"
-                flat_code = gen_flat_code(xtrees, desc=header)
+                try:
+                    desc = generate_desc(i, sub_data, name=f"result{i}")
+                    flat_code = generate_flat_code(stmts, desc=desc)
+                except AssertionError as e:
+                    logger.exception(e)
+                    errs.add(i)
+                    continue
                 with open(OUT / f"result{i}.flat", "w") as f:
                     f.write(flat_code)
                 index_artifacts[i]["flat"] = OUT / f"result{i}.flat"

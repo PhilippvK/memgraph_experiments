@@ -1,7 +1,7 @@
 def gen_mir_func(func_name, code, desc=None):
-    ret = "# MIR"
+    ret = ""
     if desc:
-        ret += f" [{desc}]"
+        ret += f"# {desc}\n\n"
     ret += f"""
 ---
 name: {func_name}

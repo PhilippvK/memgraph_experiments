@@ -16,6 +16,7 @@ def parse_enum_intflag(arg, cls):
         if x[0] == "~":
             return ~helper(x[1:])
         return cls[x]
+
     res = list(map(helper, splitted))
     reduced = reduce(lambda x, y: x | y, res)
     print("reduced", reduced)
@@ -34,7 +35,8 @@ class ExportFormat(IntFlag):
     FLAT = auto()  # 256
     YAML = auto()  # 512
     HTML = auto()  # 1024
-    TREE = auto()  # 2048
+    # TREE = auto()  # 2048
+    # TREE_PKL = auto()  # 4096
 
 
 class ExportFilter(IntFlag):
