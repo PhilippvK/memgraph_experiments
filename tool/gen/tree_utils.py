@@ -1,8 +1,18 @@
 import logging
+import pickle
+from pathlib import Path
+from typing import Union
 from anytree import AnyNode
 
 
 logger = logging.getLogger("tree_utils")
+
+
+def tree_from_pkl(path: Union[str, Path]):
+    with open(path, "rb") as f:
+        tree = pickle.load(f)
+    assert isinstance(tree, AnyNode)
+    return tree
 
 
 class TreeGenContext:

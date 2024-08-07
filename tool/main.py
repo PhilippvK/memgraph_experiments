@@ -1047,7 +1047,7 @@ with MeasureTime("Filtering subgraphs (Weights)", verbose=TIMES):
     subs_df.loc[list(filtered_weights), "Status"] = ExportFilter.FILTERED_WEIGHTS
 
 
-sub_stmts: Dict[int, AnyNode] = None
+sub_stmts: Dict[int, AnyNode] = {}
 if WRITE_TREE_FMT:
     errs = set()
     filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_GEN_FLT) > 0].copy()
@@ -1071,7 +1071,7 @@ if WRITE_TREE_FMT:
                 continue
             if WRITE_TREE_FMT & ExportFormat.PKL:
                 with open(OUT / f"tree{i}.pkl", "wb") as f:
-                    pickle.dump(G_.copy(), f)
+                    pickle.dump(stmts, f)
                 index_artifacts[i]["tree"] = OUT / f"tree{i}.pkl"
             if WRITE_TREE_FMT & ExportFormat.TXT:
                 tree_txt = str(RenderTree(stmts))
@@ -1079,7 +1079,7 @@ if WRITE_TREE_FMT:
                 tree_txt = f"// {desc}\n\n" + tree_txt
                 with open(OUT / f"tree{i}.txt", "w") as f:
                     f.write(tree_txt)
-                index_artifacts[i]["tree"] = OUT / f"tree{i}.txt"
+                index_artifacts[i]["tree"] = OUT / f"tree{i}.pkl"
     subs_df.loc[list(errs), "Status"] = ExportFilter.ERROR
 
 

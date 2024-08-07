@@ -30,6 +30,12 @@ class FlatCodeEmitter:
         self.visit(idx)
         self.write("]")
 
+    def visit_statements(self, node):
+        # print("visit_statements", node, node.children)
+        for children in node.children:
+            self.visit(children)
+            self.write("\n")
+
     def visit_assignment(self, node):
         # print("visit_assignment", node, node.children)
         assert len(node.children) == 2
@@ -75,7 +81,9 @@ class FlatCodeEmitter:
         # print("visit", node)
         op_type = node.op_type
         # print("op_type", op_type)
-        if op_type == "assignment":
+        if op_type == "statements":
+            self.visit_statements(node)
+        elif op_type == "assignment":
             self.visit_assignment(node)
         elif op_type == "declaration":
             self.visit_declaration(node)

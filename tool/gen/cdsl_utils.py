@@ -1,5 +1,3 @@
-
-
 def wrap_cdsl(name, code):
     ret = f"{name} {{\n"
     ret += "\n".join(["    " + line for line in code.splitlines()]) + "\n"
@@ -44,6 +42,12 @@ class CDSLEmitter:
         self.write("[")
         self.visit(idx)
         self.write("]")
+
+    def visit_statements(self, node):
+        # print("visit_statements", node, node.children)
+        for children in node.children:
+            self.visit(children)
+            self.write("\n")
 
     def visit_assignment(self, node):
         # print("visit_assignment", node, node.children)
@@ -219,7 +223,9 @@ class CDSLEmitter:
         # print("visit", node)
         op_type = node.op_type
         # print("op_type", op_type)
-        if op_type == "assignment":
+        if op_type == "statements":
+            self.visit_statements(node)
+        elif op_type == "assignment":
             self.visit_assignment(node)
         elif op_type == "declaration":
             self.visit_declaration(node)
@@ -267,5 +273,3 @@ class CDSLEmitter:
                 self.visit_lui(node)
             else:
                 raise NotImplementedError(f"Unhandled: {name}")
-
-

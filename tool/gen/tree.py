@@ -131,5 +131,5 @@ def generate_tree(sub, sub_data, GF, xlen=None):
     codes = []
     header = "// TODO"
     codes.append(header)
-    stmts_root = AnyNode(id=-1, children=stmts, op_type="statements")
+    stmts_root = AnyNode(id=-1, name="statements", children=stmts, op_type="statements")
     return stmts_root
