@@ -22,6 +22,7 @@ from anytree import RenderTree, AnyNode
 from .enums import ExportFormat, ExportFilter, InstrPredicate, CDFGStage, parse_enum_intflag
 from .memgraph import connect_memgraph, run_query
 from .iso import calc_io_isos
+from .llvm_utils import parse_llvm_const_str
 from .graph_utils import (
     graph_to_file,
     calc_inputs,
