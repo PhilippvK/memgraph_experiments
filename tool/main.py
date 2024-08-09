@@ -21,7 +21,7 @@ from anytree import RenderTree, AnyNode
 
 from .enums import ExportFormat, ExportFilter, InstrPredicate, CDFGStage, parse_enum_intflag
 from .memgraph import connect_memgraph, run_query
-from .iso import calc_sub_io_isos
+from .iso import calc_io_isos
 from .graph_utils import (
     graph_to_file,
     calc_inputs,
@@ -546,7 +546,7 @@ with MeasureTime("I/O Analysis", verbose=TIMES):
 with MeasureTime("Isomorphism Check", verbose=TIMES):
     logger.info("Checking isomorphism...")
     # print("io_subs", [str(x) for x in io_subs], len(io_subs))
-    io_isos, sub_io_isos = calc_sub_io_isos(io_subs, progress=PROGRESS)
+    io_isos, sub_io_isos = calc_io_isos(io_subs, progress=PROGRESS)
 
     # print("subs_df")
     # print(subs_df)

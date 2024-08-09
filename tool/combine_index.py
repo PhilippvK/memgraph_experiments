@@ -7,7 +7,7 @@ import yaml
 from tqdm import tqdm
 
 
-from .iso import calc_sub_io_isos
+from .iso import calc_io_isos
 
 logger = logging.getLogger("combine_index")
 
@@ -67,7 +67,7 @@ if DROP_DUPLICATES:
     duplicates = defaultdict(set)
     duplicate_count = 0
     logger.info("Detecting duplicates...")
-    _, sub_io_isos = calc_sub_io_isos(candidate_io_subs, progress=args.progress)
+    _, sub_io_isos = calc_io_isos(candidate_io_subs, progress=args.progress)
     for sub, io_isos_ in sub_io_isos.items():
         if len(io_isos_) > 0:
             duplicates[sub] = io_isos_
