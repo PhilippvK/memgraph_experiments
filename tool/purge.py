@@ -14,5 +14,3 @@ with GraphDatabase.driver(URI, auth=AUTH) as client:
         database_="memgraph",
     )
     print(summary.query)
-    print("records", records)
-    print("keys", keys)
