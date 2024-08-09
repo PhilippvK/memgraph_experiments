@@ -23,9 +23,10 @@ from .enums import InstrPredicate
 
 def detect_predicates(sub):
     sub_predicates = InstrPredicate.NONE
-    num_loads = 0
-    num_stores = 0
-    num_branches = 0
+    loads = set()
+    stores = set()
+    terminators = set()
+    branches = set()
     # print("check_predicates", sub)
     for node in sub.nodes:
         node_data = sub.nodes[node]
@@ -34,10 +35,10 @@ def detect_predicates(sub):
         # print("name", name)
         if properties.get("mayLoad", False):
             sub_predicates |= InstrPredicate.MAY_LOAD
-            num_loads += 1
+            loads.add(node)
         if properties.get("mayStore", False):
             sub_predicates |= InstrPredicate.MAY_STORE
-            num_stores += 1
+            stores.add(node)
         if properties.get("isPseudo", False):
             sub_predicates |= InstrPredicate.IS_PSEUDO
         if properties.get("isReturn", False):
@@ -46,14 +47,25 @@ def detect_predicates(sub):
             sub_predicates |= InstrPredicate.IS_CALL
         if properties.get("isTerminator", False):
             sub_predicates |= InstrPredicate.IS_TERMINATOR
+            terminators.add(node)
         if properties.get("isBranch", False):
             sub_predicates |= InstrPredicate.IS_BRANCH
-            num_branches += 1
+            branches.add(node)
         if properties.get("hasUnmodeledSideEffects", False):
             sub_predicates |= InstrPredicate.HAS_UNMODELED_SIDE_EFFECTS
         if properties.get("isCommutable", False):  # TODO: This only makes sense per node?
             sub_predicates |= InstrPredicate.IS_COMMUTABLE
-    return sub_predicates, num_loads, num_stores, num_branches
+    return (
+        sub_predicates,
+        len(loads),
+        loads,
+        len(stores),
+        stores,
+        len(terminators),
+        terminators,
+        len(branches),
+        branches,
+    )
 
 
 def check_predicates(pred, allowed_predicates):

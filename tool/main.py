@@ -465,7 +465,12 @@ subs_df["#Instrs"] = np.nan
 subs_df["#Loads"] = np.nan
 subs_df["#Stores"] = np.nan
 subs_df["#Mems"] = np.nan
+subs_df["#Terminators"] = np.nan
 subs_df["#Branches"] = np.nan
+subs_df["LoadNodes"] = [np.array([])] * len(subs_df)
+subs_df["StoreNodes"] = [np.array([])] * len(subs_df)
+subs_df["TerminatorNodes"] = [np.array([])] * len(subs_df)
+subs_df["BranchNodes"] = [np.array([])] * len(subs_df)
 subs_df["UniqueInstrs"] = [np.array([])] * len(subs_df)
 subs_df["#UniqueInstrs"] = np.nan
 for enc_size in ALLOWED_ENC_SIZES:
@@ -657,20 +662,23 @@ with MeasureTime("Schedule Subs", verbose=TIMES):
     for i, io_sub in tqdm(io_subs_iter, disable=not PROGRESS):
         # if i in io_isos:
         #     continue
-        # print("i", i)
-        # print("io_sub", io_sub)
+        print("i", i)
+        print("io_sub", io_sub)
+        sub_data = subs_df.iloc[i]
+        print("sub_data", sub_data)
         inputs = subs_df.loc[i, "InputNodes"]
         # print("inputs", inputs)
         outputs = subs_df.loc[i, "OutputNodes"]
+        terminators = subs_df.loc[i, "TerminatorNodes"]
         # print("outputs", outputs)
 
-        def estimate_schedule_length(io_sub, ins, outs):
+        def estimate_schedule_length(io_sub, ins, ends):
             # TODO: allow resource constraints (regfile ports, alus, ...)
             lengths = []
             for inp in ins:
                 lengths_ = [
                     nx.shortest_path_length(io_sub, source=inp, target=outp)
-                    for outp in outs
+                    for outp in ends
                     if nx.has_path(io_sub, inp, outp)
                 ]
                 # print("lengths_", lengths_)
@@ -679,7 +687,8 @@ with MeasureTime("Schedule Subs", verbose=TIMES):
             # TODO: handle None?
             return max(lengths)
 
-        length = estimate_schedule_length(io_sub, inputs, outputs)
+        ends = outputs | terminators
+        length = estimate_schedule_length(io_sub, inputs, ends)
         # print("length", length)
         #  TODO
         subs_df.loc[i, "ScheduleLength"] = length
