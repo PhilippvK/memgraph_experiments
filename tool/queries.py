@@ -13,7 +13,7 @@ AND n00.stage = {stage}
         # PHI nodes sometimes create cycles which are not allowed,
         # hence we drop all ingoing edges to PHIs as their src MI
         # is automatically marked as OUTPUT anyways.
-        ret += """AND n01.name != "PHI"
+        ret += """AND n01.name != "PHI" AND n01.name != "G_PHI"
 """
     ret += "RETURN p0;"
     return ret
