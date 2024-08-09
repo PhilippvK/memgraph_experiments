@@ -1,3 +1,6 @@
+from enum import IntEnum, auto
+
+
 def wrap_cdsl(name, code):
     ret = f"{name} {{\n"
     ret += "\n".join(["    " + line for line in code.splitlines()]) + "\n"
@@ -10,6 +13,12 @@ mem_lookup = {
     "fpr": "F",
     "csr": "CSR",
 }
+
+
+class ExtendMode(IntEnum):
+    UNDEFINED = auto()
+    SIGN_EXTEND = auto()
+    ZERO_EXTEND = auto()
 
 
 class CDSLEmitter:
@@ -31,6 +40,18 @@ class CDSLEmitter:
         self.write("(")
         self.write(node.value)  # TODO: dtype
         self.write(")")
+
+    def visit_constant_generic(self, node):
+        print("visit_constant_generic")
+        print("node", node)
+        print("node.children", node.children)
+        raise NotImplementedError("G_CONSTANT (missing children)")
+
+    def visit_trunc_generic(self, node):
+        print("visit_trunc_generic")
+        print("node", node)
+        print("node.children", node.children)
+        raise NotImplementedError("G_CONSTANT (missing children)")
 
     def visit_register(self, node):
         assert len(node.children) == 1
@@ -77,7 +98,7 @@ class CDSLEmitter:
         self.visit(lhs)
         self.write(")")
 
-    def visit_branch(self, node):
+    def visit_branch_riscv(self, node):
         lookup = {
             "BNE": ("!=", False),
             "BEQ": ("==", False),
@@ -105,7 +126,38 @@ class CDSLEmitter:
         self.write("TODO")
         self.write("}")
 
-    def visit_load(self, node):
+    def visit_load_generic(self, node):
+
+        lookup = {
+            "G_LOAD": (ExtendMode.UNDEFINED,),
+            "G_SEXTLOAD": (ExtendMode.SIGN_EXTEND,),
+            "G_ZEXTLOAD": (ExtendMode.ZERO_EXTEND,),
+        }
+        res = lookup.get(node.name)
+        assert res is not None
+        (mode,) = res
+        # TODO: dtypes?
+        sz = 0
+        print("node.children", node.children)
+        assert len(node.children) == 1
+        (base,) = node.children
+        self.write("(unsigned<XLEN>)")
+        self.write("(")
+        if mode == ExtendMode.SIGN_EXTEND:
+            self.write(f"(signed<{sz}>)")
+        elif mode == "ExtendMode.ZERO_EXTEND":
+            self.write(f"(unsigned<{sz}>)")
+        else:
+            pass  # TODO: ok?
+        self.write("MEM[")
+        self.visit(base)
+        self.write("+")
+        # self.visit(offset)
+        self.write("?")
+        self.write("]")
+        self.write(")")
+
+    def visit_load_riscv(self, node):
         lookup = {
             "LH": (True, 16, True),
             "LW": (True, 32, True),
@@ -119,9 +171,9 @@ class CDSLEmitter:
         self.write("(unsigned<XLEN>)")
         self.write("(")
         if signed:
-            self.write(f"(unsigned<{sz}>)")
-        else:
             self.write(f"(signed<{sz}>)")
+        else:
+            self.write(f"(unsigned<{sz}>)")
         self.write("MEM[")
         self.visit(base)
         self.write("+")
@@ -129,7 +181,7 @@ class CDSLEmitter:
         self.write("]")
         self.write(")")
 
-    def visit_store(self, node):
+    def visit_store_riscv(self, node):
         lookup = {
             "SW": (32, True),
             "SH": (16, True),
@@ -152,10 +204,42 @@ class CDSLEmitter:
         self.write(")")
         self.write(";")
 
-    def visit_lui(self, node):
+    def visit_lui_riscv(self, node):
         self.write("lui(TODO)")
 
-    def visit_binop(self, node):
+    def visit_binop_generic(self, node):
+        # TODO: imm needed?
+        print("visit_binop_generic", node)
+        lookup = {
+            "G_ADD": ("+", True),  # %dst:_(s32) = G_ADD %src0:_(s32), %src1:_(s32)
+            "G_MUL": ("*", True),
+            "G_PTR_ADD": ("+", True),  # %1:_(p0) = G_PTR_ADD %0:_(p0), %1:_(s32)
+        }
+        res = lookup.get(node.name)
+        assert res is not None
+        op, signed = res
+        # TODO: dtypes
+        self.write("(")
+        assert len(node.children) == 2
+        lhs, rhs = node.children
+        print("lhs", lhs)
+        print("rhs", rhs)
+        # TODO: add size only of != xlen?
+        sz = 0
+        if signed:
+            self.write(f"(signed<{sz}>)")
+        else:
+            self.write(f"(unsigned<{sz}>)")
+        self.visit(lhs)
+        self.write(op)
+        if signed:
+            self.write(f"(signed<{sz}>)")
+        else:
+            self.write(f"(unsigned<{sz}>)")
+        self.visit(rhs)
+        self.write(")")
+
+    def visit_binop_riscv(self, node):
         # TODO: imm needed?
         lookup = {
             "ADD": ("+", True, self.xlen, False),
@@ -198,7 +282,7 @@ class CDSLEmitter:
         self.visit(rhs)
         self.write(")")
 
-    def visit_cond_set(self, node):
+    def visit_cond_set_riscv(self, node):
         lookup = {"SLT": ("<", True), "SLTU": ("<", False)}
         res = lookup.get(node.name)
         assert res is not None
@@ -220,7 +304,7 @@ class CDSLEmitter:
         self.write(")")
 
     def visit(self, node):
-        # print("visit", node)
+        print("visit", node)
         op_type = node.op_type
         # print("op_type", op_type)
         if op_type == "statements":
@@ -260,16 +344,28 @@ class CDSLEmitter:
                 "SLL",
                 "SUBW",
             ]:
-                self.visit_binop(node)
+                self.visit_binop_riscv(node)
             elif name in ["SLT", "SLTU"]:
-                self.visit_cond_set(node)
+                self.visit_cond_set_riscv(node)
             elif name in ["BNE", "BEQ"]:
-                self.visit_branch(node)
+                self.visit_branch_riscv(node)
             elif name in ["LH", "LW"]:
-                self.visit_load(node)
+                self.visit_load_riscv(node)
             elif name in ["SW", "SH"]:
-                self.visit_store(node)
+                self.visit_store_riscv(node)
             elif name in ["LUI"]:
-                self.visit_lui(node)
+                self.visit_lui_riscv(node)
+            elif name in ["G_CONSTANT"]:
+                self.visit_constant_generic(node)
+            elif name in ["G_TRUNC"]:
+                self.visit_trunc_generic(node)
+            elif name in [
+                "G_ADD",
+                "G_PTR_ADD",
+                "G_MUL",
+            ]:
+                self.visit_binop_generic(node)
+            elif name in ["G_LOAD", "G_SEXTLOAD", "G_ZEXTLOAD"]:
+                self.visit_load_generic(node)
             else:
                 raise NotImplementedError(f"Unhandled: {name}")
