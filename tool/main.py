@@ -653,6 +653,12 @@ with MeasureTime("Predicate Detection", verbose=TIMES):
         subs_df.loc[i, "#Mems"] = num_mems
         subs_df.loc[i, "#Terminators"] = num_terminators
         subs_df.loc[i, "#Branches"] = num_branches
+        # TODO: maybe move to predicates detection?
+        subs_df.at[i, "LoadNodes"] = set(loads)
+        subs_df.at[i, "StoreNodes"] = set(stores)
+        subs_df.at[i, "TerminatorNodes"] = set(terminators)
+        subs_df.at[i, "BranchNodes"] = set(branches)
+
 
 
 # TODO: toggle on/off via cmdline?
