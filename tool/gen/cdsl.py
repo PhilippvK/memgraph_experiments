@@ -38,8 +38,15 @@ def generate_operands(sub_data: dict, xlen: int, with_attrs: bool = True):
                         "reg_type": f"s{xlen}",
                         operand_dir.lower(): None,
                     }
+
+                    def convert_val(x):
+                        if isinstance(x, str):
+                            return f'"{x}"'
+                        return x
+
                     attr_strs = [
-                        f"[[{key}={value}]]" if value is not None else f"[[{key}]]" for key, value in attrs.items()
+                        f"[[{key}={convert_val(value)}]]" if value is not None else f"[[{key}]]"
+                        for key, value in attrs.items()
                     ]
                     attrs_str = " ".join(attr_strs)
                     operand_code += " " + attrs_str
