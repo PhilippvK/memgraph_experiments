@@ -19,7 +19,6 @@ def parse_enum_intflag(arg, cls):
 
     res = list(map(helper, splitted))
     reduced = reduce(lambda x, y: x | y, res)
-    print("reduced", reduced)
     return reduced
 
 
