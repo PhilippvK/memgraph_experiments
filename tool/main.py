@@ -900,17 +900,17 @@ with MeasureTime("Variation generation", verbose=TIMES):
         # print("input_names", input_names)
         # print("num_inputs", num_inputs)
         operand_names = sub_data["OperandNames"]
-        print("operand_names", operand_names)
+        # print("operand_names", operand_names)
         operand_nodes = sub_data["OperandNodes"]
-        print("operand_nodes", operand_nodes)
+        # print("operand_nodes", operand_nodes)
         operand_dirs = sub_data["OperandDirs"]
-        print("operand_dirs", operand_dirs)
+        # print("operand_dirs", operand_dirs)
         operand_types = sub_data["OperandTypes"]
-        print("operand_types", operand_types)
+        # print("operand_types", operand_types)
         operand_enc_bits = sub_data["OperandEncBits"]
-        print("operand_enc_bits", operand_enc_bits)
+        # print("operand_enc_bits", operand_enc_bits)
         operand_reg_classes = sub_data["OperandRegClasses"]
-        print("operand_reg_classes", operand_reg_classes)
+        # print("operand_reg_classes", operand_reg_classes)
         outputs = sub_data["OutputNodes"]
         # print("outputs", outputs)
         output_names = sub_data["OutputNames"]
@@ -963,29 +963,29 @@ with MeasureTime("Variation generation", verbose=TIMES):
                     new_sub_data = sub_data.copy()
                     # print("new_sub_data", new_sub_data)
                     new_io_sub_ = io_sub.copy()
-                    print("new_io_sub_", new_io_sub_)
-                    print("new_io_sub_.nodes", new_io_sub_.nodes)
-                    print("new_io_sub_.edges", new_io_sub_.edges)
+                    # print("new_io_sub_", new_io_sub_)
+                    # print("new_io_sub_.nodes", new_io_sub_.nodes)
+                    # print("new_io_sub_.edges", new_io_sub_.edges)
                     new_io_sub_nodes = [x for x in io_sub.nodes if x != j]
                     new_input_node_data = input_node_data.copy()
                     new_input_node_data["alias"] = k
-                    print("new_input_node_data", new_input_node_data)
+                    # print("new_input_node_data", new_input_node_data)
                     new_input_node_id = max(GF.nodes) + 1
-                    print("new_input_node_id", new_input_node_id)
+                    # print("new_input_node_id", new_input_node_id)
                     GF.add_node(new_input_node_id, **new_input_node_data)
                     new_io_sub_nodes.append(new_input_node_id)
                     for src, dst, dat in io_sub.out_edges(j, data=True):
                         assert dst in io_sub.nodes
-                        print("src", src)
-                        print("dst", dst)
-                        print("dat", dat)
+                        # print("src", src)
+                        # print("dst", dst)
+                        # print("dat", dat)
                         GF.add_edge(new_input_node_id, dst, **dat)
-                        print(f"{new_input_node_id} -> {dst}")
-                    print("new_io_sub_nodes", new_io_sub_nodes)
+                        # print(f"{new_input_node_id} -> {dst}")
+                    # print("new_io_sub_nodes", new_io_sub_nodes)
                     new_io_sub = GF.subgraph(new_io_sub_nodes)
-                    print("new_io_sub", new_io_sub)
-                    print("new_io_sub.nodes", new_io_sub.nodes)
-                    print("new_io_sub.edges", new_io_sub.edges)
+                    # print("new_io_sub", new_io_sub)
+                    # print("new_io_sub.nodes", new_io_sub.nodes)
+                    # print("new_io_sub.edges", new_io_sub.edges)
                     # input("123")
                     input_op_name = input_op_names[input_idx]
                     output_op_name = output_op_names[output_idx]
@@ -1035,7 +1035,7 @@ with MeasureTime("Variation generation", verbose=TIMES):
                         new_sub_data[f"EncodingFootprint ({enc_size} bits)"] = enc_footprint
                     # TODO: re-calculate encoding footprint
                     new_sub_id = len(io_subs)
-                    print("new_sub_id", new_sub_id)
+                    # print("new_sub_id", new_sub_id)
                     new_sub_data["result"] = new_sub_id
                     # print("new_sub_data_", new_sub_data)
                     subs_df.loc[new_sub_id] = new_sub_data
