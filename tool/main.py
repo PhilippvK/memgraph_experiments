@@ -432,6 +432,8 @@ subs_df = pd.DataFrame({"result": list(range(len(subs)))})
 subs_df["DateTime"] = ts
 subs_df["Parent"] = np.nan  # used to find the original sub for a variation
 subs_df["Variations"] = np.nan  # used to specify applied variations for Children
+subs_df["SubHash"] = np.nan
+subs_df["IOSubHash"] = np.nan
 subs_df["Isos"] = [np.array([])] * len(subs_df)
 subs_df["#Isos"] = np.nan
 subs_df["IsosNO"] = [np.array([])] * len(subs_df)
@@ -543,6 +545,32 @@ with MeasureTime("I/O Analysis", verbose=TIMES):
         # TODO: add out nodes to io_sub?
         # print("io_sub", io_sub)
         io_subs.append(io_sub)
+
+
+with MeasureTime("SubHash Creation", verbose=TIMES):
+    logger.info("Creating SubHashes...")
+    # Does not woek for MultiDiGraphs?
+    # for i, io_sub in enumerate(tqdm(io_subs, disable=not PROGRESS)):
+    #     sub = subs[i]
+    #     def add_hash_attr(sub):
+    #         for node in sub.nodes:
+    #             temp = sub.nodes[node]["label"]
+    #             if temp == "Const":
+    #                 temp += "-" + sub.nodes[node]["properties"]["inst"]
+    #             temp += "-" + str(sub.nodes[node]["properties"].get("alias", None))
+    #             print("temp", temp)
+    #             sub.nodes[node]["hash_attr"] = temp
+    #         for edge in sub.edges:
+    #             sub.edges[edge]["hash_attr"] = sub.edges[edge]["properties"]["op_idx"]
+    #     add_hash_attr(sub)
+    #     add_hash_attr(io_sub)
+    #     edge_attr = "hash_attr"
+    #     node_attr = "hash_attr"
+    #     sub_hash = nx.weisfeiler_lehman_graph_hash(sub, edge_attr=edge_attr, node_attr=node_attr, iterations=3, digest_size=16)
+    #     io_sub_hash = nx.weisfeiler_lehman_graph_hash(io_sub, edge_attr=edge_attr, node_attr=node_attr, iterations=3, digest_size=16)
+    #     print("sub_hash", sub_hash)
+    #     print("io_sub_hash", io_sub_hash)
+    #     input("o")
 
 with MeasureTime("Isomorphism Check", verbose=TIMES):
     logger.info("Checking isomorphism...")
