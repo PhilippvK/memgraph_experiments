@@ -19,11 +19,12 @@ def tree_from_pkl(path: Union[str, Path]):
 
 class TreeGenContext:
 
-    def __init__(self, graph, sub, inputs=None, outputs=None, explicit_types: bool = True) -> None:
+    def __init__(self, graph, sub, inputs=None, outputs=None, constants=None, explicit_types: bool = True) -> None:
         self.graph = graph
         self.sub = sub
         self.inputs = inputs if inputs is not None else []
         self.outputs = outputs if outputs is not None else []
+        self.constants = constants if constants is not None else []
         self.explicit_types = explicit_types
         self.node_map = {}
         self.defs = {}
@@ -60,7 +61,7 @@ class TreeGenContext:
         # print("srcs1", srcs)
         srcs = sorted(srcs, key=lambda x: x[1])
         # print("srcs2", srcs)
-        srcs = [src for src, _ in srcs if src in self.inputs or src in self.sub.nodes]
+        srcs = [src for src, _ in srcs if src in self.inputs or src in self.constants or src in self.sub.nodes]
         # print("srcs3", srcs)
         # for src, _, edge_data in self.graph.in_edges(node, data=True):
         #     print("src", src)
@@ -72,7 +73,7 @@ class TreeGenContext:
         children = [self.visit(src) for src in srcs]
         # print("children", children)
         op_type = self.graph.nodes[node]["properties"]["op_type"]
-        print("op_type", op_type)
+        # print("op_type", op_type)
         name = self.graph.nodes[node]["properties"]["name"]
         # print("name", name)
         # out_reg_class = self.graph.nodes[node]["properties"].get("out_reg_class", None)
