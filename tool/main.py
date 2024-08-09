@@ -1225,14 +1225,14 @@ if WRITE_SUB:
             # if i not in filtered_subs_df.index:
             #     continue
             if WRITE_SUB_FMT & ExportFormat.DOT:
-                graph_to_file(G_, OUT / f"sub{i}.dot")
+                graph_to_file(sub, OUT / f"sub{i}.dot")
             if WRITE_SUB_FMT & ExportFormat.PDF:
-                graph_to_file(G_, OUT / f"sub{i}.pdf")
+                graph_to_file(sub, OUT / f"sub{i}.pdf")
             if WRITE_SUB_FMT & ExportFormat.PNG:
-                graph_to_file(G_, OUT / f"sub{i}.png")
+                graph_to_file(sub, OUT / f"sub{i}.png")
             if WRITE_SUB_FMT & ExportFormat.PKL:
                 with open(OUT / f"sub{i}.pkl", "wb") as f:
-                    pickle.dump(G_.copy(), f)
+                    pickle.dump(sub.copy(), f)
                 index_artifacts[i]["sub"] = OUT / f"sub{i}.pkl"
 
 
