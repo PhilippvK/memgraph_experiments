@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import Union
 from anytree import AnyNode
 
+from ..llvm_utils import parse_llvm_const_str
+
 
 logger = logging.getLogger("tree_utils")
 
@@ -31,13 +33,14 @@ class TreeGenContext:
         return set(self.node_map.keys())
 
     def visit(self, node):
-        print("visit", node)
+        # print("visit", node)
         if node in self.visited:
-            print("not visited")
+            # print("not visited")
             op_type = self.graph.nodes[node]["properties"]["op_type"]
-            print("op_type", op_type)
+            # print("op_type", op_type)
             if op_type == "constant":
-                val = self.graph.nodes[node]["properties"]["inst"]
+                val_str = self.graph.nodes[node]["properties"]["inst"]
+                val, _ = parse_llvm_const_str(val_str)
                 val = int(val[:-1])
                 ret = AnyNode(id=-1, value=val, op_type=op_type, children=[])
             else:
