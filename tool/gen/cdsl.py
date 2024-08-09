@@ -131,32 +131,35 @@ def process(
         yaml_data = yaml.safe_load(f)
     global_data = yaml_data["global"]
     global_properties = global_data["properties"]
-    print("global_properties", global_properties)
+    # print("global_properties", global_properties)
     global_df = get_global_df(global_properties)
     global_artifacts = global_data["artifacts"]
-    print("global_artifacts", global_artifacts)
+    # print("global_artifacts", global_artifacts)
     xlens = global_df["xlen"].unique()
     assert len(xlens) == 1
     xlen = int(xlens[0])
     candidates_data = yaml_data["candidates"]
     for i, candidate_data in tqdm(enumerate(candidates_data), disable=not progress):
         candidate_properties = candidate_data["properties"]
-        print("candidate_properties", candidate_properties)
+        # print("candidate_properties", candidate_properties)
         candidate_artifacts = candidate_data["artifacts"]
-        print("candidate_artifacts", candidate_artifacts)
+        # print("candidate_artifacts", candidate_artifacts)
         name = f"name{i}"
+        print("name", name)
         sub_data = candidate_properties
         desc = generate_desc(i, sub_data, name=name)
         tree_pkl = candidate_artifacts.get("tree", None)
         assert tree_pkl is not None
-        print("tree_pkl", tree_pkl)
+        # print("tree_pkl", tree_pkl)
         stmts = tree_from_pkl(tree_pkl)
-        print("stmts", stmts)
+        # print("stmts", stmts)
         # TODO: make sure that result/sub col in combined index is unique
         cdsl_code = generate_cdsl(stmts, sub_data, xlen=xlen, name=name, desc=desc)
+        print("cdsl_code")
+        print(cdsl_code)
         with open(out_dir / f"{name}.core_desc", "w") as f:
             f.write(cdsl_code)
-        candidate_artifacts["cdsl"] = out_dir / f"{name}.core_desc"
+        candidate_artifacts["cdsl"] = str(out_dir / f"{name}.core_desc")
         yaml_data["candidates"][i]["artifacts"] = candidate_artifacts
         # TODO: Status = GENERATED?
     if inplace:

@@ -45,30 +45,30 @@ def process(
     logger.info("Loading input %s", index_path)
     with open(index_path, "r") as f:
         yaml_data = yaml.safe_load(f)
-    global_data = yaml_data["global"]
-    global_properties = global_data["properties"]
-    print("global_properties", global_properties)
-    global_artifacts = global_data["artifacts"]
-    print("global_artifacts", global_artifacts)
+    # global_data = yaml_data["global"]
+    # global_properties = global_data["properties"]
+    # print("global_properties", global_properties)
+    # global_artifacts = global_data["artifacts"]
+    # print("global_artifacts", global_artifacts)
     candidates_data = yaml_data["candidates"]
     for i, candidate_data in tqdm(enumerate(candidates_data), disable=not progress):
         candidate_properties = candidate_data["properties"]
-        print("candidate_properties", candidate_properties)
+        # print("candidate_properties", candidate_properties)
         candidate_artifacts = candidate_data["artifacts"]
-        print("candidate_artifacts", candidate_artifacts)
+        # print("candidate_artifacts", candidate_artifacts)
         name = f"name{i}"
         sub_data = candidate_properties
         desc = generate_desc(i, sub_data, name=name)
         tree_pkl = candidate_artifacts.get("tree", None)
         assert tree_pkl is not None
-        print("tree_pkl", tree_pkl)
+        # print("tree_pkl", tree_pkl)
         stmts = tree_from_pkl(tree_pkl)
-        print("stmts", stmts)
+        # print("stmts", stmts)
         # TODO: make sure that result/sub col in combined index is unique
         flat_code = generate_flat_code(stmts, desc=desc)
         with open(out_dir / f"{name}.flat", "w") as f:
             f.write(flat_code)
-        candidate_artifacts["flat"] = out_dir / f"{name}.flat"
+        candidate_artifacts["flat"] = str(out_dir / f"{name}.flat")
         yaml_data["candidates"][i]["artifacts"] = candidate_artifacts
         # TODO: Status = GENERATED?
     if inplace:
