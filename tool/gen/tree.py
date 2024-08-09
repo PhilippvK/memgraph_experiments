@@ -3,6 +3,7 @@ from anytree import AnyNode
 
 from .tree_utils import TreeGenContext
 from .cdsl_utils import mem_lookup
+from ..llvm_utils import llvm_type_to_cdsl_type
 
 
 def generate_tree(sub, sub_data, GF, xlen=None):
@@ -114,18 +115,46 @@ def generate_tree(sub, sub_data, GF, xlen=None):
         if res.name[:2] == "$x":
             idx = int(res.name[2:])
             # TODO: make more generic to also work for assignments
-            ref_ = AnyNode(id=-1, name=res.name, op_type="constant", value=idx)
-            res = AnyNode(id=-1, name="X[?]", children=[ref_], op_type="register", reg_class=reg_class)
+            ref_ = AnyNode(id=-1, name=res.name, op_type="constant", value=idx, in_types=[], out_types=[None])
+            signed = False
+            cdsl_type = llvm_type_to_cdsl_type(None, signed, reg_size=reg_size)
+            res = AnyNode(
+                id=-1,
+                name="X[?]",
+                children=[ref_],
+                op_type="register",
+                reg_class=reg_class,
+                in_types=ref_.out_types,
+                out_types=[cdsl_type],
+            )
         else:
             # name_ = f"rs{j+1}"
             name_ = operand_name
-            ref_ = AnyNode(id=-1, name=name_, op_type="ref")
+            ref_ = AnyNode(id=-1, name=name_, op_type="ref", in_types=[], out_types=[None])
             mem_name = mem_lookup.get(reg_class, None)
             assert mem_name is not None, f"Unable to find mem_name for reg_class: {reg_class}"
-            res = AnyNode(id=-1, name=f"{mem_name}[?]", children=[ref_], op_type="register", reg_class=reg_class)
-        ref = AnyNode(id=-1, name=name, op_type="ref")
+            signed = False
+            cdsl_type = llvm_type_to_cdsl_type(None, signed, reg_size=reg_size)
+            res = AnyNode(
+                id=-1,
+                name=f"{mem_name}[?]",
+                children=[ref_],
+                op_type="register",
+                reg_class=reg_class,
+                in_types=ref_.out_types,
+                out_types=[cdsl_type],
+            )
+        ref = AnyNode(id=-1, name=name, op_type="ref", in_types=[], out_types=[None])
         decl_type = f"unsigned<{reg_size}>"
-        root = AnyNode(id=-1, name="ASSIGN1", children=[ref, res], op_type="declaration", decl_type=decl_type)
+        root = AnyNode(
+            id=-1,
+            name="ASSIGN1",
+            children=[ref, res],
+            op_type="declaration",
+            decl_type=decl_type,
+            in_types=[ref.out_types[0], res.out_types[0]],
+            out_types=[decl_type],
+        )
         stmts.append(root)
         j += 1
         # print(f"{name}:")
@@ -186,23 +215,46 @@ def generate_tree(sub, sub_data, GF, xlen=None):
             root = res
             stmts.append(root)
         else:
-            ref = AnyNode(id=-1, name=name, op_type="ref")
-            ref_ = AnyNode(id=-1, name=name, op_type="ref")
+            ref = AnyNode(id=-1, name=name, op_type="ref", in_types=[], out_types=[None])
+            ref_ = AnyNode(id=-1, name=name, op_type="ref", in_types=[], out_types=[None])
             # import pdb; pdb.set_trace()
             # print("ref", ref, ref.children)
             # print("res", res, res.children)
             decl_type = f"unsigned<{reg_size}>"
-            root = AnyNode(id=-1, name="ASSIGN2", children=[ref, res], op_type="declaration", decl_type=decl_type)
+            root = AnyNode(
+                id=-1,
+                name="ASSIGN2",
+                children=[ref, res],
+                op_type="declaration",
+                decl_type=decl_type,
+                in_types=[ref.out_types[0], res.out_types[0]],
+                out_types=[decl_type],
+            )
             # print("root", root, root.children)
             stmts.append(root)
             idx = j + 1
             # name_ = "rd" if idx == 1 else f"rd{idx}"
             name_ = operand_name
-            ref2 = AnyNode(id=-1, name=name_, op_type="ref")
-            reg = AnyNode(id=-1, name=f"{mem_name}[?]", children=[ref2], op_type="register", reg_class=reg_class)
+            ref2 = AnyNode(id=-1, name=name_, op_type="ref", in_types=[], out_types=[None])
+            reg = AnyNode(
+                id=-1,
+                name=f"{mem_name}[?]",
+                children=[ref2],
+                op_type="register",
+                reg_class=reg_class,
+                in_types=[ref2.out_types[0]],
+                out_types=[None],
+            )
             # cast_ = AnyNode(id=-1, name="CAST3", children=[ref_], op_type="cast", to=f"unsigned<{reg_size}>")
             # root2 = AnyNode(id=-1, name="ASSIGN3", children=[reg, cast_], op_type="assignment")
-            root2 = AnyNode(id=-1, name="ASSIGN3", children=[reg, ref_], op_type="assignment")
+            root2 = AnyNode(
+                id=-1,
+                name="ASSIGN3",
+                children=[reg, ref_],
+                op_type="assignment",
+                in_types=[reg.out_types[0], ref_.out_types[0]],
+                out_types=[None],
+            )
             stmts.append(root2)
         j += 1
 
@@ -212,5 +264,12 @@ def generate_tree(sub, sub_data, GF, xlen=None):
     codes = []
     header = "// TODO"
     codes.append(header)
-    stmts_root = AnyNode(id=-1, name="statements", children=stmts, op_type="statements")
+    stmts_root = AnyNode(
+        id=-1,
+        name="statements",
+        children=stmts,
+        op_type="statements",
+        in_types=[None] * len(stmts),
+        out_types=[None],
+    )
     return stmts_root

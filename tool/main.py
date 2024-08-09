@@ -871,7 +871,7 @@ with MeasureTime("Analyze Constants", verbose=TIMES):
             assert op_type == "constant"
             # name = f"const{constant_idx}"
             val_str = constant_properties["inst"]
-            val, sign = parse_llvm_const_str(val_str)
+            val, llvm_type, sign = parse_llvm_const_str(val_str)
             # print("sign", sign)
 
             min_bits = 1 if val == 0 else (ceil(log2(abs(val))) + 1)

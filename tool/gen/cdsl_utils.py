@@ -42,16 +42,63 @@ class CDSLEmitter:
         self.write(")")
 
     def visit_constant_generic(self, node):
-        print("visit_constant_generic")
+        assert len(node.children) == 1
         print("node", node)
-        print("node.children", node.children)
-        raise NotImplementedError("G_CONSTANT (missing children)")
+        print("node.name", node.name)
+        print("node.in_types", node.in_types)
+        print("node.out_types", node.out_types)
+        input("!!")
+        self.visit(node.children[0])
 
     def visit_trunc_generic(self, node):
-        print("visit_trunc_generic")
+        # print("visit_trunc_generic")
+        # print("node", node)
+        # print("node.children", node.children)
+        out_types = node.out_types
+        assert len(out_types) == 1
+        out_type = out_types[0]
+        assert out_type is not None
+        self.write("(")
+        self.write(out_type)  # TODO: do explicit trunc here with slice?
+        self.write(")")
+        assert len(node.children) == 1
+        self.visit(node.children[0])
+
+    def visit_ext_generic(self, node):
+        print("visit_ext_generic")
         print("node", node)
         print("node.children", node.children)
-        raise NotImplementedError("G_CONSTANT (missing children)")
+        lookup = {
+            "G_ANYEXT": (ExtendMode.UNDEFINED,),
+            "G_SEXT": (ExtendMode.SIGN_EXTEND,),
+            "G_ZEXT": (ExtendMode.ZERO_EXTEND,),
+        }
+        res = lookup.get(node.name)
+        assert res is not None
+        (mode,) = res
+        in_types = node.in_types
+        assert len(in_types) == 1
+        in_type = in_types[0]  # TODO: need to get the bit size here...
+        if mode == ExtendMode.SIGN_EXTEND:
+            if in_type.startswith("unsigned"):
+                in_type = in_type.replace("unsigned", "signed")
+        elif mode == ExtendMode.ZERO_EXTEND:
+            if in_type.startswith("signed"):
+                in_type = in_type.replace("signed", "unsigned")
+        out_types = node.out_types
+        assert len(out_types) == 1
+        out_type = out_types[0]
+        assert out_type is not None
+        self.write("(")
+        self.write(out_type)  # TODO: do explicit trunc here with slice?
+        self.write(")")
+        self.write("(")
+        self.write("(")
+        self.write(in_type)
+        self.write(")")
+        assert len(node.children) == 1
+        self.visit(node.children[0])
+        self.write(")")
 
     def visit_register(self, node):
         assert len(node.children) == 1
@@ -137,18 +184,30 @@ class CDSLEmitter:
         assert res is not None
         (mode,) = res
         # TODO: dtypes?
-        sz = 0
-        print("node.children", node.children)
+        # in_types = node.in_types
+        # assert len(in_types) == 1
+        # in_type = in_types[0]  # TODO: need to get the bit size here...
+        mem_type = "unsigned<?>"
+        out_types = node.out_types
+        assert len(out_types) == 1
+        out_type = out_types[0]
+        assert out_type is not None
+        # print("node.children", node.children)
         assert len(node.children) == 1
         (base,) = node.children
-        self.write("(unsigned<XLEN>)")
+        self.write(f"({out_type})")
         self.write("(")
         if mode == ExtendMode.SIGN_EXTEND:
-            self.write(f"(signed<{sz}>)")
+            if mem_type.startswith("unsigned"):
+                mem_type_ = mem_type.replace("unsigned", "signed")
+                self.write(f"({mem_type_})")
         elif mode == "ExtendMode.ZERO_EXTEND":
-            self.write(f"(unsigned<{sz}>)")
+            if mem_type.startswith("signed"):
+                mem_type_ = mem_type.replace("signed", "unsigned")
+                self.write(f"({mem_type_})")
         else:
             pass  # TODO: ok?
+        self.write(f"({mem_type})")
         self.write("MEM[")
         self.visit(base)
         self.write("+")
@@ -209,7 +268,7 @@ class CDSLEmitter:
 
     def visit_binop_generic(self, node):
         # TODO: imm needed?
-        print("visit_binop_generic", node)
+        # print("visit_binop_generic", node)
         lookup = {
             "G_ADD": ("+", True),  # %dst:_(s32) = G_ADD %src0:_(s32), %src1:_(s32)
             "G_MUL": ("*", True),
@@ -222,9 +281,14 @@ class CDSLEmitter:
         self.write("(")
         assert len(node.children) == 2
         lhs, rhs = node.children
-        print("lhs", lhs)
-        print("rhs", rhs)
+        # print("lhs", lhs)
+        # print("rhs", rhs)
         # TODO: add size only of != xlen?
+        assert len(node.in_types) == 2
+        assert len(node.out_types) == 1
+        assert node.in_types[0] == node.in_types[1]
+        print("node", node)
+        assert node.in_types[0] == node.out_types[0]
         sz = 0
         if signed:
             self.write(f"(signed<{sz}>)")
@@ -304,7 +368,7 @@ class CDSLEmitter:
         self.write(")")
 
     def visit(self, node):
-        print("visit", node)
+        # print("visit", node)
         op_type = node.op_type
         # print("op_type", op_type)
         if op_type == "statements":
@@ -359,6 +423,8 @@ class CDSLEmitter:
                 self.visit_constant_generic(node)
             elif name in ["G_TRUNC"]:
                 self.visit_trunc_generic(node)
+            elif name in ["G_ANYEXT", "G_SEXT", "G_ZEXT"]:
+                self.visit_ext_generic(node)
             elif name in [
                 "G_ADD",
                 "G_PTR_ADD",
