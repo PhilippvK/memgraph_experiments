@@ -643,12 +643,15 @@ with MeasureTime("Predicate Detection", verbose=TIMES):
     for i, sub in tqdm(subs_iter, disable=not PROGRESS):
         # if i in io_isos:
         #     continue
-        pred, num_loads, num_stores, num_branches = detect_predicates(sub)
+        pred, num_loads, loads, num_stores, stores, num_terminators, terminators, num_branches, branches = (
+            detect_predicates(sub)
+        )
         num_mems = num_loads + num_stores
         subs_df.loc[i, "Predicates"] = pred
         subs_df.loc[i, "#Loads"] = num_loads
         subs_df.loc[i, "#Stores"] = num_stores
         subs_df.loc[i, "#Mems"] = num_mems
+        subs_df.loc[i, "#Terminators"] = num_terminators
         subs_df.loc[i, "#Branches"] = num_branches
 
 
