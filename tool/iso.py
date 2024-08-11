@@ -1,6 +1,7 @@
 from collections import defaultdict
 
 import networkx as nx
+import networkx.algorithms.isomorphism as iso
 from tqdm import tqdm
 
 
@@ -33,9 +34,37 @@ def calc_sub_io_isos(io_sub, io_subs):
         # input("o")
         return x[xkey]["properties"]["op_idx"] == y[ykey]["properties"]["op_idx"]
 
+    # def node_match_(*args):
+    #     print("node_match_")
+    #     print("args", args)
+    #     ret1 = node_match(*args)
+    #     ret2 = iso.categorical_node_match("hash_attr", None)(*args)
+    #     print("ret1", ret1)
+    #     print("ret2", ret2)
+    #     input(">")
+    #     return ret1
+
+    # def edge_match_(*args):
+    #     print("edge_match_")
+    #     print("args", args)
+    #     ret1 = edge_match(*args)
+    #     ret2 = iso.categorical_edge_match("hash_attr", None)(*args)
+    #     print("ret1", ret1)
+    #     print("ret2", ret2)
+    #     input(">")
+    #     return ret1
+
     def helper(io_sub, io_sub_):
         # print("helper", i, j)
-        ret = nx.is_isomorphic(io_sub, io_sub_, node_match=node_match, edge_match=edge_match)
+        # ret = nx.is_isomorphic(io_sub, io_sub_, node_match=node_match, edge_match=edge_match)
+        ret = nx.is_isomorphic(
+            io_sub,
+            io_sub_,
+            node_match=iso.categorical_node_match("hash_attr", None),
+            edge_match=iso.categorical_edge_match("hash_attr", None),
+            # node_match=node_match_,
+            # edge_match=edge_match_,
+        )
         # if i == 805 and j == 807:
         # print("ret", ret)
         # input("?")
