@@ -1,5 +1,7 @@
 from enum import IntEnum, auto
 
+from .tree_utils import Ref, Cast, Constant, Register, Operation, Statements, Declaration, Assignment
+
 
 def wrap_cdsl(name, code):
     ret = f"{name} {{\n"
@@ -34,14 +36,17 @@ class CDSLEmitter:
         self.output += text
 
     def visit_ref(self, node):
+        assert isinstance(node, Ref)
         self.write(node.name)
 
     def visit_constant(self, node):
+        assert isinstance(node, Constant)
         self.write("(")
         self.write(node.value)  # TODO: dtype
         self.write(")")
 
     def visit_constant_generic(self, node):
+        assert isinstance(node, Constant)
         assert len(node.children) == 1
         print("node", node)
         print("node.name", node.name)
@@ -51,6 +56,7 @@ class CDSLEmitter:
         self.visit(node.children[0])
 
     def visit_trunc_generic(self, node):
+        assert isinstance(node, Operation)
         # print("visit_trunc_generic")
         # print("node", node)
         # print("node.children", node.children)
@@ -65,6 +71,7 @@ class CDSLEmitter:
         self.visit(node.children[0])
 
     def visit_ext_generic(self, node):
+        assert isinstance(node, Operation)
         print("visit_ext_generic")
         print("node", node)
         print("node.children", node.children)
@@ -101,6 +108,7 @@ class CDSLEmitter:
         self.write(")")
 
     def visit_register(self, node):
+        assert isinstance(node, Register)
         assert len(node.children) == 1
         idx = node.children[0]
         reg_class = node.reg_class
@@ -112,12 +120,14 @@ class CDSLEmitter:
         self.write("]")
 
     def visit_statements(self, node):
+        assert isinstance(node, Statements)
         # print("visit_statements", node, node.children)
         for children in node.children:
             self.visit(children)
             self.write("\n")
 
     def visit_assignment(self, node):
+        assert isinstance(node, (Assignment, Declaration))
         # print("visit_assignment", node, node.children)
         assert len(node.children) == 2
         lhs, rhs = node.children
@@ -127,6 +137,7 @@ class CDSLEmitter:
         self.write(";")
 
     def visit_declaration(self, node):
+        assert isinstance(node, Declaration)
         # print("visit_declaration", node, node.children)
         assert len(node.children) == 2
         lhs, rhs = node.children
@@ -135,6 +146,7 @@ class CDSLEmitter:
         self.visit_assignment(node)
 
     def visit_cast(self, node):
+        assert isinstance(node, Cast)
         # print("visit_assignment", node, node.children)
         # print("node", node, dir(node))
         assert len(node.children) == 1
@@ -146,6 +158,7 @@ class CDSLEmitter:
         self.write(")")
 
     def visit_branch_riscv(self, node):
+        assert isinstance(node, Operation)
         lookup = {
             "BNE": ("!=", False),
             "BEQ": ("==", False),
@@ -174,6 +187,7 @@ class CDSLEmitter:
         self.write("}")
 
     def visit_load_generic(self, node):
+        assert isinstance(node, Operation)
 
         lookup = {
             "G_LOAD": (ExtendMode.UNDEFINED,),
@@ -217,6 +231,7 @@ class CDSLEmitter:
         self.write(")")
 
     def visit_load_riscv(self, node):
+        assert isinstance(node, Operation)
         lookup = {
             "LH": (True, 16, True),
             "LW": (True, 32, True),
@@ -241,6 +256,7 @@ class CDSLEmitter:
         self.write(")")
 
     def visit_store_riscv(self, node):
+        assert isinstance(node, Operation)
         lookup = {
             "SW": (32, True),
             "SH": (16, True),
@@ -264,9 +280,11 @@ class CDSLEmitter:
         self.write(";")
 
     def visit_lui_riscv(self, node):
+        assert isinstance(node, Operation)
         self.write("lui(TODO)")
 
     def visit_binop_generic(self, node):
+        assert isinstance(node, Operation)
         # TODO: imm needed?
         # print("visit_binop_generic", node)
         lookup = {
@@ -304,6 +322,7 @@ class CDSLEmitter:
         self.write(")")
 
     def visit_binop_riscv(self, node):
+        assert isinstance(node, Operation)
         # TODO: imm needed?
         lookup = {
             "ADD": ("+", True, self.xlen, False),
@@ -347,6 +366,7 @@ class CDSLEmitter:
         self.write(")")
 
     def visit_cond_set_riscv(self, node):
+        assert isinstance(node, Operation)
         lookup = {"SLT": ("<", True), "SLTU": ("<", False)}
         res = lookup.get(node.name)
         assert res is not None
@@ -367,71 +387,76 @@ class CDSLEmitter:
         self.write(0)
         self.write(")")
 
+    def visit_operation(self, node):
+        assert isinstance(node, Operation)
+        name = node.name
+        # print("name", name)
+        if name in [
+            "ADDIW",
+            "SRLI",
+            "SLLI",
+            "AND",
+            "ANDI",
+            "ORI",
+            "OR",
+            "XOR",
+            "ADD",
+            "ADDI",
+            "ADDW",
+            "MULW",
+            "MUL",
+            "SRA",
+            "SRAI",
+            "SLL",
+            "SUBW",
+        ]:
+            self.visit_binop_riscv(node)
+        elif name in ["SLT", "SLTU"]:
+            self.visit_cond_set_riscv(node)
+        elif name in ["BNE", "BEQ"]:
+            self.visit_branch_riscv(node)
+        elif name in ["LH", "LW"]:
+            self.visit_load_riscv(node)
+        elif name in ["SW", "SH"]:
+            self.visit_store_riscv(node)
+        elif name in ["LUI"]:
+            self.visit_lui_riscv(node)
+        elif name in ["G_CONSTANT"]:
+            self.visit_constant_generic(node)
+        elif name in ["G_TRUNC"]:
+            self.visit_trunc_generic(node)
+        elif name in ["G_ANYEXT", "G_SEXT", "G_ZEXT"]:
+            self.visit_ext_generic(node)
+        elif name in [
+            "G_ADD",
+            "G_PTR_ADD",
+            "G_MUL",
+        ]:
+            self.visit_binop_generic(node)
+        elif name in ["G_LOAD", "G_SEXTLOAD", "G_ZEXTLOAD"]:
+            self.visit_load_generic(node)
+        else:
+            raise NotImplementedError(f"Unhandled: {name}")
+
     def visit(self, node):
         # print("visit", node)
-        op_type = node.op_type
+        # op_type = node.op_type
         # print("op_type", op_type)
-        if op_type == "statements":
+        if isinstance(node, Statements):
             self.visit_statements(node)
-        elif op_type == "assignment":
+        elif isinstance(node, Assignment):
             self.visit_assignment(node)
-        elif op_type == "declaration":
+        elif isinstance(node, Declaration):
             self.visit_declaration(node)
-        elif op_type == "cast":
+        elif isinstance(node, Cast):
             self.visit_cast(node)
-        elif op_type == "ref":
+        elif isinstance(node, Ref):
             self.visit_ref(node)
-        elif op_type == "constant":
+        elif isinstance(node, Constant):
             self.visit_constant(node)
-        # TODO: implement this
-        elif op_type == "register":
+        elif isinstance(node, Register):
             self.visit_register(node)
+        elif isinstance(node, Operation):
+            self.visit_operation(node)
         else:
-            name = node.name
-            # print("name", name)
-            if name in [
-                "ADDIW",
-                "SRLI",
-                "SLLI",
-                "AND",
-                "ANDI",
-                "ORI",
-                "OR",
-                "XOR",
-                "ADD",
-                "ADDI",
-                "ADDW",
-                "MULW",
-                "MUL",
-                "SRA",
-                "SRAI",
-                "SLL",
-                "SUBW",
-            ]:
-                self.visit_binop_riscv(node)
-            elif name in ["SLT", "SLTU"]:
-                self.visit_cond_set_riscv(node)
-            elif name in ["BNE", "BEQ"]:
-                self.visit_branch_riscv(node)
-            elif name in ["LH", "LW"]:
-                self.visit_load_riscv(node)
-            elif name in ["SW", "SH"]:
-                self.visit_store_riscv(node)
-            elif name in ["LUI"]:
-                self.visit_lui_riscv(node)
-            elif name in ["G_CONSTANT"]:
-                self.visit_constant_generic(node)
-            elif name in ["G_TRUNC"]:
-                self.visit_trunc_generic(node)
-            elif name in ["G_ANYEXT", "G_SEXT", "G_ZEXT"]:
-                self.visit_ext_generic(node)
-            elif name in [
-                "G_ADD",
-                "G_PTR_ADD",
-                "G_MUL",
-            ]:
-                self.visit_binop_generic(node)
-            elif name in ["G_LOAD", "G_SEXTLOAD", "G_ZEXTLOAD"]:
-                self.visit_load_generic(node)
-            else:
-                raise NotImplementedError(f"Unhandled: {name}")
+            raise RuntimeError(f"Unhandled tree node type: {node}")

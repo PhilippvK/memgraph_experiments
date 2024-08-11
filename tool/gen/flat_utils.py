@@ -1,6 +1,9 @@
 from .cdsl_utils import mem_lookup
 
 
+from .tree_utils import Ref, Cast, Constant, Register, Operation, Statements, Declaration, Assignment
+
+
 class FlatCodeEmitter:
 
     def __init__(self):
@@ -12,14 +15,17 @@ class FlatCodeEmitter:
         self.output += text
 
     def visit_ref(self, node):
+        assert isinstance(node, Ref)
         self.write(node.name)
 
     def visit_constant(self, node):
+        assert isinstance(node, Constant)
         self.write("(")
         self.write(node.value)  # TODO: dtype
         self.write(")")
 
     def visit_register(self, node):
+        assert isinstance(node, Register)
         assert len(node.children) == 1
         idx = node.children[0]
         reg_class = node.reg_class
@@ -31,13 +37,13 @@ class FlatCodeEmitter:
         self.write("]")
 
     def visit_statements(self, node):
-        # print("visit_statements", node, node.children)
+        assert isinstance(node, Statements)
         for children in node.children:
             self.visit(children)
             self.write("\n")
 
     def visit_assignment(self, node):
-        # print("visit_assignment", node, node.children)
+        assert isinstance(node, (Assignment, Declaration))
         assert len(node.children) == 2
         lhs, rhs = node.children
         self.visit(lhs)
@@ -46,7 +52,7 @@ class FlatCodeEmitter:
         self.write(";")
 
     def visit_declaration(self, node):
-        # print("visit_declaration", node, node.children)
+        assert isinstance(node, Declaration)
         assert len(node.children) == 2
         lhs, rhs = node.children
         decl_type = node.decl_type
@@ -54,7 +60,7 @@ class FlatCodeEmitter:
         self.visit_assignment(node)
 
     def visit_cast(self, node):
-        # print("visit_assignment", node, node.children)
+        assert isinstance(node, Cast)
         # print("node", node, dir(node))
         assert len(node.children) == 1
         lhs = node.children[0]
@@ -65,7 +71,7 @@ class FlatCodeEmitter:
         self.write(")")
 
     def visit_call(self, node):
-        # print("visit_assignment", node, node.children)
+        assert isinstance(node, Operation)
         name = node.name
         args = node.children
         assert len(args) > 0
@@ -79,24 +85,23 @@ class FlatCodeEmitter:
 
     def visit(self, node):
         # print("visit", node)
-        op_type = node.op_type
+        # op_type = node.op_type
         # print("op_type", op_type)
-        if op_type == "statements":
+        if isinstance(node, Statements):
             self.visit_statements(node)
-        elif op_type == "assignment":
+        elif isinstance(node, Assignment):
             self.visit_assignment(node)
-        elif op_type == "declaration":
+        elif isinstance(node, Declaration):
             self.visit_declaration(node)
-        elif op_type == "cast":
+        elif isinstance(node, Cast):
             self.visit_cast(node)
-        elif op_type == "ref":
+        elif isinstance(node, Ref):
             self.visit_ref(node)
-        elif op_type == "constant":
+        elif isinstance(node, Constant):
             self.visit_constant(node)
-        # TODO: implement this
-        elif op_type == "register":
+        elif isinstance(node, Register):
             self.visit_register(node)
-        else:
-            # print("op_type", op_type)
-            assert op_type in ["operator", "output"]
+        elif isinstance(node, Operation):
             self.visit_call(node)
+        else:
+            raise RuntimeError(f"Unhandled tree node type: {node}")

@@ -10,6 +10,75 @@ from ..llvm_utils import parse_llvm_const_str, llvm_type_to_cdsl_type
 logger = logging.getLogger("tree_utils")
 
 
+class BaseNode(AnyNode):
+
+    id_ = 0
+
+    def __init__(self, children=None, node_id: int = -1, **kwargs):
+        super().__init__(parent=None, children=children, id=BaseNode.id_, **kwargs)
+        self.node_id = node_id
+        BaseNode.id_ += 1 
+
+    @property
+    def summary(self):
+        return str(self)
+
+
+class Operation(BaseNode):
+
+    def __init__(self, name: str, children=None, node_id: int = -1, **kwargs):
+        super().__init__(children=children, node_id=node_id, **kwargs)
+        self.name = name
+
+
+class Assignment(BaseNode):
+
+    def __init__(self, children=None, node_id: int = -1, **kwargs):
+        super().__init__(children=children, node_id=node_id, **kwargs)
+
+
+class Declaration(BaseNode):
+
+    def __init__(self, decl_type: str, children=None, node_id: int = -1, **kwargs):
+        super().__init__(children=children, node_id=node_id, **kwargs)
+        self.decl_type = decl_type
+
+
+class Cast(BaseNode):
+
+    def __init__(self, to: str, children=None, node_id: int = -1, **kwargs):
+        super().__init__(children=children, node_id=node_id, **kwargs)
+        self.to = to
+
+
+class Ref(BaseNode):
+
+    def __init__(self, name: str, node_id: int = -1, **kwargs):
+        super().__init__(children=None, node_id=node_id, **kwargs)
+        self.name = name
+
+
+class Constant(BaseNode):
+
+    def __init__(self, value: Union[int, float], node_id: int = -1, **kwargs):
+        super().__init__(children=None, node_id=node_id, **kwargs)
+        self.value = value
+
+
+class Register(BaseNode):
+
+    def __init__(self, name: str, reg_class: str, children=None, node_id: int = -1, **kwargs):
+        super().__init__(children=children, node_id=node_id, **kwargs)
+        self.name = name
+        self.reg_class = reg_class
+
+
+class Statements(BaseNode):
+
+    def __init__(self, children=None, node_id: int = -1, **kwargs):
+        super().__init__(children=children, node_id=node_id, **kwargs)
+
+
 def tree_from_pkl(path: Union[str, Path]):
     with open(path, "rb") as f:
         tree = pickle.load(f)
@@ -44,12 +113,12 @@ class TreeGenContext:
                 val, llvm_type, signed = parse_llvm_const_str(val_str)
                 out_reg_size = self.graph.nodes[node]["properties"].get("out_reg_size", None)
                 cdsl_type = llvm_type_to_cdsl_type(llvm_type, signed, reg_size=out_reg_size)
-                ret = AnyNode(id=-1, value=val, op_type=op_type, children=[], in_types=[], out_types=cdsl_type)
+                ret = Constant(value=val, in_types=[], out_types=cdsl_type)
             else:
                 assert node in self.defs, f"node {node} not in defs {self.defs}"
                 ref = self.defs[node]
                 tree_node = self.node_map[node]
-                ret = AnyNode(id=-1, name=ref, op_type="ref", in_types=[], out_types=tree_node.out_types)
+                ret = Ref(name=ref, in_types=[], out_types=tree_node.out_types)
             return ret
             # return self.node_map[node]
         # if node in inputs:
@@ -95,22 +164,21 @@ class TreeGenContext:
             val_str = self.graph.nodes[node]["properties"]["inst"]
             val, llvm_type, signed = parse_llvm_const_str(val_str)
             cdsl_type = llvm_type_to_cdsl_type(llvm_type, signed, reg_size=out_reg_size)
-            ret = AnyNode(id=-1, value=val, op_type=op_type, children=children, in_types=[], out_types=[cdsl_type])
+            assert len(children) == 0
+            ret = Constant(value=val, in_types=[], out_types=[cdsl_type])
         else:
             if node in self.inputs and node not in self.outputs:
                 op_type = "input"
             signed = False  # ?
             cdsl_type = llvm_type_to_cdsl_type(out_reg_type, signed, reg_size=out_reg_size)
             in_types = sum([x.out_types for x in children], [])
-            ret = AnyNode(
-                id=node, name=name, op_type=op_type, children=children, in_types=in_types, out_types=[cdsl_type]
+            ret = Operation(
+                node_id=node, name=name, children=children, in_types=in_types, out_types=[cdsl_type]
             )
         if self.explicit_types:
             type_str = f"unsigned<{out_reg_size}>"  # TODO
-            ret = AnyNode(
-                id=-1,
-                name="?",
-                op_type="cast",
+            ret = Cast(
+                # name="?",
                 children=[ret],
                 to=type_str,
                 in_types=ret.out_types,
