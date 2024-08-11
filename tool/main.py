@@ -84,6 +84,10 @@ MAX_LOADS_DEFAULT = 1
 MAX_STORES_DEFAULT = 1
 MAX_MEMS_DEFAULT = 1
 MAX_BRANCHES_DEFAULT = 1
+ALLOWED_IMM_WIDTHS = [5, 12]
+MAX_OPERANDS_DEFAULT = 5
+MAX_REG_OPERANDS_DEFAULT = 5
+MAX_IMM_OPERANDS_DEFAULT = 2
 
 
 def handle_cmdline():
@@ -144,11 +148,15 @@ def handle_cmdline():
     parser.add_argument("--write-index-flt", type=int, default=INDEX_FLT_DEFAULT, help="TODO")
     parser.add_argument("--write-queries", action="store_true", help="TODO")
     parser.add_argument("--allowed-enc-sizes", type=int, nargs="+", default=ALLOWED_ENC_SIZES_DEFAULT, help="TODO")
+    parser.add_argument("--allowed-imm_widths", type=int, nargs="+", default=ALLOWED_IMM_WIDTHS, help="TODO")  # TODO: use
     parser.add_argument("--min-iso-weight", type=float, default=MIN_ISO_WEIGHT_DEFAULT, help="TODO")
     parser.add_argument("--max-loads", type=int, default=MAX_LOADS_DEFAULT, help="TODO")
     parser.add_argument("--max-stores", type=int, default=MAX_STORES_DEFAULT, help="TODO")
     parser.add_argument("--max-mems", type=int, default=MAX_MEMS_DEFAULT, help="TODO")
     parser.add_argument("--max-branches", type=int, default=MAX_BRANCHES_DEFAULT, help="TODO")
+    parser.add_argument("--max-operands", type=int, default=MAX_OPERANDS_DEFAULT, help="TODO")
+    parser.add_argument("--max-reg-operands", type=int, default=MAX_REG_OPERANDS_DEFAULT, help="TODO")
+    parser.add_argument("--max-imm-operands", type=int, default=MAX_IMM_OPERANDS_DEFAULT, help="TODO")  # TODO: use
     args = parser.parse_args()
     logging.basicConfig(level=getattr(logging, args.log.upper()))
     logging.getLogger("neo4j.io").setLevel(logging.INFO)
@@ -428,6 +436,7 @@ global_df["max_stores"] = [MAX_STORES]
 global_df["max_mems"] = [MAX_MEMS]
 global_df["max_branches"] = [MAX_BRANCHES]
 # TODO: MIN_FREQ, MAX_INSTRS, MAX_UNIQUE_INSTRS
+# TODO: add missing
 
 subs_df = pd.DataFrame({"result": list(range(len(subs)))})
 subs_df["DateTime"] = ts
