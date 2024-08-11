@@ -14,6 +14,7 @@ import pandas as pd
 import networkx as nx
 from tqdm import tqdm
 from anytree import RenderTree, AnyNode
+from anytree.dotexport import RenderTreeGraph
 
 # import matplotlib.pyplot as plt
 
@@ -59,7 +60,7 @@ SUB_FLT_DEFAULT = ExportFilter.SELECTED
 IO_SUB_FMT_DEFAULT = ExportFormat.DOT | ExportFormat.PKL | ExportFormat.PDF
 IO_SUB_FLT_DEFAULT = ExportFilter.SELECTED
 # TODO: move Tree tro pre-gen
-TREE_FMT_DEFAULT = ExportFormat.TXT | ExportFormat.PKL
+TREE_FMT_DEFAULT = ExportFormat.TXT | ExportFormat.PKL | ExportFormat.DOT | ExportFormat.PDF
 TREE_FLT_DEFAULT = ExportFilter.SELECTED
 # GEN_FMT_DEFAULT = ExportFormat.CDSL | ExportFormat.MIR | ExportFormat.FLAT
 GEN_FMT_DEFAULT = ExportFormat.FLAT | ExportFormat.CDSL
@@ -554,21 +555,24 @@ with MeasureTime("I/O Analysis", verbose=TIMES):
 
 with MeasureTime("SubHash Creation", verbose=TIMES):
     logger.info("Creating SubHashes...")
-    # Does not woek for MultiDiGraphs?
-    # for i, io_sub in enumerate(tqdm(io_subs, disable=not PROGRESS)):
-    #     sub = subs[i]
-    #     def add_hash_attr(sub):
-    #         for node in sub.nodes:
-    #             temp = sub.nodes[node]["label"]
-    #             if temp == "Const":
-    #                 temp += "-" + sub.nodes[node]["properties"]["inst"]
-    #             temp += "-" + str(sub.nodes[node]["properties"].get("alias", None))
-    #             print("temp", temp)
-    #             sub.nodes[node]["hash_attr"] = temp
-    #         for edge in sub.edges:
-    #             sub.edges[edge]["hash_attr"] = sub.edges[edge]["properties"]["op_idx"]
-    #     add_hash_attr(sub)
-    #     add_hash_attr(io_sub)
+    # Does not work for MultiDiGraphs?
+    for i, io_sub in enumerate(tqdm(io_subs, disable=not PROGRESS)):
+        sub = subs[i]
+
+        def add_hash_attr(sub, attr_name: str = "hash_attr", ignore_const: bool = False):
+            for node in sub.nodes:
+                temp = sub.nodes[node]["label"]
+                if temp == "Const" and not ignore_const:
+                    temp += "-" + sub.nodes[node]["properties"]["inst"]
+                temp += "-" + str(sub.nodes[node]["properties"].get("alias", None))
+                print("temp", temp)
+                sub.nodes[node][attr_name] = temp
+            for edge in sub.edges:
+                sub.edges[edge][attr_name] = str(sub.edges[edge]["properties"]["op_idx"])
+
+        add_hash_attr(sub)
+        add_hash_attr(io_sub)
+        add_hash_attr(io_sub, attr_name="hash_attr_ignore_const", ignore_const=True)
     #     edge_attr = "hash_attr"
     #     node_attr = "hash_attr"
     #     sub_hash = nx.weisfeiler_lehman_graph_hash(sub, edge_attr=edge_attr, node_attr=node_attr, iterations=3, digest_size=16)
