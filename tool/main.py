@@ -1204,6 +1204,12 @@ if WRITE_TREE_FMT:
                 with open(OUT / f"tree{i}.txt", "w") as f:
                     f.write(tree_txt)
                 index_artifacts[i]["tree"] = OUT / f"tree{i}.pkl"
+            if WRITE_TREE_FMT & ExportFormat.DOT:
+                RenderTreeGraph(stmts, nodenamefunc=lambda x: x.summary).to_dotfile(OUT / f"tree{i}.dot")
+            if WRITE_TREE_FMT & ExportFormat.PNG:
+                RenderTreeGraph(stmts, nodenamefunc=lambda x: x.summary).to_picture(OUT / f"tree{i}.png")
+            if WRITE_TREE_FMT & ExportFormat.PDF:
+                RenderTreeGraph(stmts, nodenamefunc=lambda x: x.summary).to_picture(OUT / f"tree{i}.pdf")
     subs_df.loc[list(errs), "Status"] = ExportFilter.ERROR
 
 
