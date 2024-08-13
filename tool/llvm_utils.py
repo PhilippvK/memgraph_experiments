@@ -28,6 +28,11 @@ def llvm_type_to_cdsl_type(llvm_type: str, signed: bool, reg_size=None):
             raise RuntimeError(f"Unknown reg_size for unknown LLT: {llvm_type}")
     elif llvm_type == "LLT_invalid":
         if reg_size is not None:
+            if isinstance(reg_size, str):
+                if reg_size == "unknown":
+                    raise ValueError("Unknown regsize!")
+                else:
+                    reg_size = int(reg_size)
             if signed:
                 return f"signed<{reg_size}>"
             else:
