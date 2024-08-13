@@ -691,10 +691,10 @@ with MeasureTime("Schedule Subs", verbose=TIMES):
     for i, io_sub in tqdm(io_subs_iter, disable=not PROGRESS):
         # if i in io_isos:
         #     continue
-        print("i", i)
-        print("io_sub", io_sub)
+        # print("i", i)
+        # print("io_sub", io_sub)
         sub_data = subs_df.iloc[i]
-        print("sub_data", sub_data)
+        # print("sub_data", sub_data)
         inputs = subs_df.loc[i, "InputNodes"]
         # print("inputs", inputs)
         outputs = subs_df.loc[i, "OutputNodes"]
@@ -917,13 +917,13 @@ with MeasureTime("Creating Constants Histograms", verbose=TIMES):
     covered = set()
     sub_const_value_subs = {}
     for i, io_sub in tqdm(io_subs_iter, disable=not PROGRESS):
-        print("i", i)
-        print("io_sub", io_sub)
+        # print("i", i)
+        # print("io_sub", io_sub)
         sub_data = subs_df.iloc[i]
         constants = sub_data["ConstantNodes"]
         constant_values = sub_data["ConstantValues"]
-        print("constants", constants)
-        print("constant_values", constant_values)
+        # print("constants", constants)
+        # print("constant_values", constant_values)
         const_value_subs = {}
         for c, constant in enumerate(constants):
             const_value_subs[c] = defaultdict(list)
@@ -934,43 +934,44 @@ with MeasureTime("Creating Constants Histograms", verbose=TIMES):
             if j <= i:
                 continue
             if j in covered:
-                print("skip")
+                # print("skip")
                 continue
-            print("j", j)
-            print("io_sub_", io_sub_)
+            # print("j", j)
+            # print("io_sub_", io_sub_)
             sub_data_ = subs_df.iloc[j]  # TODO: use loc instead!
             constants_ = sub_data_["ConstantNodes"]
             constant_values_ = sub_data_["ConstantValues"]
-            print("constants_", constants_)
-            print("constant_values_", constant_values_)
+            # print("constants_", constants_)
+            # print("constant_values_", constant_values_)
             import networkx.algorithms.isomorphism as iso
             nm = iso.categorical_node_match("hash_attr_ignore_const", None)
             # nm = iso.categorical_node_match("hash_attr", None)
             em = iso.categorical_edge_match("hash_attr", None)
             matcher = nx.algorithms.isomorphism.DiGraphMatcher(io_sub, io_sub_, node_match=nm, edge_match=em)
             check = matcher.is_isomorphic()
-            print("check", check)
+            # print("check", check)
             if check:
                 covered.add(j)
                 mapping = matcher.mapping
-                print("mapping", mapping)
+                # print("mapping", mapping)
                 for c, constant in enumerate(constants):
-                    print("c", c)
-                    print("constant", constant)
+                    # print("c", c)
+                    # print("constant", constant)
                     constant_value = constant_values[c]
-                    print("constant_value", constant_value)
+                    # print("constant_value", constant_value)
                     matching_constant = mapping[constant]
                     assert matching_constant in constants_
-                    print("matching_constant", matching_constant)
+                    # print("matching_constant", matching_constant)
                     c_ = constants_.index(matching_constant)
-                    print("c_", c_)
+                    # print("c_", c_)
                     matching_constant_value = constant_values_[c_]
-                    print("matching_constant_value", matching_constant_value)
+                    # print("matching_constant_value", matching_constant_value)
                     const_value_subs[c][matching_constant_value].append(j)
-        print("const_value_subs", const_value_subs)
+        # print("const_value_subs", const_value_subs)
         sub_const_value_subs[i] = const_value_subs
-    print("sub_const_value_subs", sub_const_value_subs)
-    input(">")
+        # TODO: implement generation
+    # print("sub_const_value_subs", sub_const_value_subs)
+    # input(">")
 
 
 with MeasureTime("Variation generation", verbose=TIMES):
