@@ -23,6 +23,7 @@ from anytree.dotexport import RenderTreeGraph
 from .enums import ExportFormat, ExportFilter, InstrPredicate, CDFGStage, parse_enum_intflag
 from .memgraph import connect_memgraph, run_query
 from .iso import calc_io_isos
+from .hash import add_hash_attr
 from .llvm_utils import parse_llvm_const_str
 from .graph_utils import (
     graph_to_file,
@@ -442,8 +443,8 @@ subs_df = pd.DataFrame({"result": list(range(len(subs)))})
 subs_df["DateTime"] = ts
 subs_df["Parent"] = np.nan  # used to find the original sub for a variation
 subs_df["Variations"] = np.nan  # used to specify applied variations for Children
-subs_df["SubHash"] = np.nan
-subs_df["IOSubHash"] = np.nan
+subs_df["SubHash"] = None
+subs_df["IOSubHash"] = None
 subs_df["Isos"] = [np.array([])] * len(subs_df)
 subs_df["#Isos"] = np.nan
 subs_df["IsosNO"] = [np.array([])] * len(subs_df)
@@ -568,27 +569,21 @@ with MeasureTime("SubHash Creation", verbose=TIMES):
     for i, io_sub in enumerate(tqdm(io_subs, disable=not PROGRESS)):
         sub = subs[i]
 
-        def add_hash_attr(sub, attr_name: str = "hash_attr", ignore_const: bool = False):
-            for node in sub.nodes:
-                temp = sub.nodes[node]["label"]
-                if temp == "Const" and not ignore_const:
-                    temp += "-" + sub.nodes[node]["properties"]["inst"]
-                temp += "-" + str(sub.nodes[node]["properties"].get("alias", None))
-                print("temp", temp)
-                sub.nodes[node][attr_name] = temp
-            for edge in sub.edges:
-                sub.edges[edge][attr_name] = str(sub.edges[edge]["properties"]["op_idx"])
 
         add_hash_attr(sub)
         add_hash_attr(io_sub)
         add_hash_attr(io_sub, attr_name="hash_attr_ignore_const", ignore_const=True)
     #     edge_attr = "hash_attr"
-    #     node_attr = "hash_attr"
-    #     sub_hash = nx.weisfeiler_lehman_graph_hash(sub, edge_attr=edge_attr, node_attr=node_attr, iterations=3, digest_size=16)
-    #     io_sub_hash = nx.weisfeiler_lehman_graph_hash(io_sub, edge_attr=edge_attr, node_attr=node_attr, iterations=3, digest_size=16)
-    #     print("sub_hash", sub_hash)
-    #     print("io_sub_hash", io_sub_hash)
-    #     input("o")
+        node_attr = "hash_attr"
+        # sub_hash = nx.weisfeiler_lehman_graph_hash(sub, edge_attr=edge_attr, node_attr=node_attr, iterations=3, digest_size=16)
+        sub_hash = nx.weisfeiler_lehman_graph_hash(sub, node_attr=node_attr, iterations=3, digest_size=16)
+        # io_sub_hash = nx.weisfeiler_lehman_graph_hash(io_sub, edge_attr=edge_attr, node_attr=node_attr, iterations=3, digest_size=16)
+        io_sub_hash = nx.weisfeiler_lehman_graph_hash(io_sub, node_attr=node_attr, iterations=3, digest_size=16)
+        # print("sub_hash", sub_hash)
+        # print("io_sub_hash", io_sub_hash)
+        subs_df.loc[i, "SubHash"] = sub_hash
+        subs_df.loc[i, "IOSubHash"] = io_sub_hash
+        # input("o")
 
 with MeasureTime("Isomorphism Check", verbose=TIMES):
     logger.info("Checking isomorphism...")
@@ -1125,6 +1120,9 @@ with MeasureTime("Variation generation", verbose=TIMES):
                     new_sub_data["result"] = new_sub_id
                     # print("new_sub_data_", new_sub_data)
                     subs_df.loc[new_sub_id] = new_sub_data
+                    add_hash_attr(new_sub)
+                    add_hash_attr(new_io_sub)
+                    add_hash_attr(new_io_sub, attr_name="hash_attr_ignore_const", ignore_const=True)
                     subs.append(new_sub)
                     io_subs.append(new_io_sub)
                     # new.append(None)
