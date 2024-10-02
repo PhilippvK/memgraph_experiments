@@ -68,7 +68,15 @@ def generate_candidates_query(
     filters_str = " AND ".join(filters)
     return_str = ", ".join(paths)
     if max_path_width > 1:
-        order_by_str = "size(collections.union(" + ", ".join([f"nodes({path})" for path in paths]) + "))"
+        # order_by_str = "size(collections.union(" + ", ".join([f"nodes({path})" for path in paths]) + "))"
+        #  + ", ".join([f"nodes({path})" for path in paths]) + "))"
+        order_by_str = "size("
+        for k, path in enumerate(paths):
+            if k < (len(paths) - 1):
+                order_by_str += f"collections.union(nodes({path}), "
+            else:
+                order_by_str += f"nodes({path})"
+        order_by_str += ")" * len(paths)
     else:
         order_by_str = "size(nodes(p0))"
     ret = f"""{match_str}
