@@ -159,6 +159,7 @@ def handle_cmdline():
     parser.add_argument("--max-reg-operands", type=int, default=MAX_REG_OPERANDS_DEFAULT, help="TODO")
     parser.add_argument("--max-imm-operands", type=int, default=MAX_IMM_OPERANDS_DEFAULT, help="TODO")  # TODO: use
     parser.add_argument("--enable-variation-reuse-io", action="store_true", help="TODO")
+    parser.add_argument("--halt-on-error", action="store_true", help="TODO")
     args = parser.parse_args()
     logging.basicConfig(level=getattr(logging, args.log.upper()))
     logging.getLogger("neo4j.io").setLevel(logging.INFO)
@@ -228,6 +229,7 @@ MAX_MEMS = args.max_mems
 MAX_BRANCHES = args.max_branches
 # ENABLE_VARIATIONS = args.enable_variations
 ENABLE_VARIATION_REUSE_IO = args.enable_variation_reuse_io
+HALT_ON_ERROR = args.halt_on_error
 
 with MeasureTime("Settings Validation", verbose=TIMES):
     logger.info("Validating settings...")
@@ -1219,6 +1221,9 @@ if WRITE_TREE_FMT:
                 sub_stmts[i] = stmts
             except AssertionError as e:
                 logger.exception(e)
+                if HALT_ON_ERROR:
+                    print("TREE ERR", str(e))
+                    input()
                 errs.add(i)
                 continue
             if WRITE_TREE_FMT & ExportFormat.PKL:
@@ -1275,6 +1280,9 @@ if WRITE_GEN:
                     )
                 except AssertionError as e:
                     logger.exception(e)
+                    if HALT_ON_ERROR:
+                        print("CDSL ERR", str(e))
+                        input()
                     errs.add(i)
                     continue
                 with open(OUT / f"result{i}.core_desc", "w") as f:
@@ -1296,6 +1304,9 @@ if WRITE_GEN:
                     flat_code = generate_flat_code(stmts, desc=desc)
                 except AssertionError as e:
                     logger.exception(e)
+                    if HALT_ON_ERROR:
+                        print("FLAT ERR", str(e))
+                        input()
                     errs.add(i)
                     continue
                 with open(OUT / f"result{i}.flat", "w") as f:
