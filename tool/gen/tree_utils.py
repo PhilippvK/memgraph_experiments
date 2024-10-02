@@ -119,7 +119,7 @@ class TreeGenContext:
                 val_str = self.graph.nodes[node]["properties"]["inst"]
                 val, llvm_type, signed = parse_llvm_const_str(val_str)
                 out_reg_size = self.graph.nodes[node]["properties"].get("out_reg_size", None)
-                cdsl_type = llvm_type_to_cdsl_type(llvm_type, signed, reg_size=out_reg_size)
+                cdsl_type = llvm_type_to_cdsl_type(llvm_type, signed, reg_size=out_reg_size, allow_unknown=True)
                 ret = Constant(value=val, in_types=[], out_types=cdsl_type)
             else:
                 # assert node in self.defs, f"node {node} not in defs {self.defs}"
@@ -189,7 +189,7 @@ class TreeGenContext:
         if op_type == "constant":
             val_str = self.graph.nodes[node]["properties"]["inst"]
             val, llvm_type, signed = parse_llvm_const_str(val_str)
-            cdsl_type = llvm_type_to_cdsl_type(llvm_type, signed, reg_size=out_reg_size)
+            cdsl_type = llvm_type_to_cdsl_type(llvm_type, signed, reg_size=out_reg_size, allow_unknown=True)
             assert len(children) == 0
             ret = Constant(value=val, in_types=[], out_types=[cdsl_type])
         else:
@@ -202,7 +202,7 @@ class TreeGenContext:
             # TODO: fix this for output lists
             in_types = sum([[x.out_types] if not isinstance(x.out_types, list) else x.out_types for x in children], [])
             ret = Operation(node_id=node, name=name, children=children, in_types=in_types, out_types=[cdsl_type])
-        if self.explicit_types:
+        if self.explicit_types and op_type != "constant":
             type_str = f"unsigned<{out_reg_size}>"  # TODO
             ret = Cast(
                 # name="?",

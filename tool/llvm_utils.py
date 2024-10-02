@@ -16,10 +16,18 @@ def parse_llvm_const_str(val_str):
     return val, ty, sign
 
 
-def llvm_type_to_cdsl_type(llvm_type: str, signed: bool, reg_size=None):
+def llvm_type_to_cdsl_type(llvm_type: str, signed: bool, reg_size=None, allow_unknown: bool = False):
     print("llvm_type_to_cdsl_type", llvm_type, signed, reg_size)
     if llvm_type is None:
         if reg_size is not None:
+            if reg_size == "unknown":
+                if allow_unknown:
+                    if signed:
+                        return "signed"
+                    else:
+                        return "unsigned"
+                else:
+                    raise ValueError("Unknown regsize!")
             if signed:
                 return f"signed<{reg_size}>"
             else:
@@ -30,7 +38,13 @@ def llvm_type_to_cdsl_type(llvm_type: str, signed: bool, reg_size=None):
         if reg_size is not None:
             if isinstance(reg_size, str):
                 if reg_size == "unknown":
-                    raise ValueError("Unknown regsize!")
+                    if allow_unknown:
+                        if signed:
+                            return "signed"
+                        else:
+                            return "unsigned"
+                    else:
+                        raise ValueError("Unknown regsize!")
                 else:
                     reg_size = int(reg_size)
             if signed:
@@ -48,6 +62,14 @@ def llvm_type_to_cdsl_type(llvm_type: str, signed: bool, reg_size=None):
         found = llt_lookup.get(llvm_type, None)
         assert found is not None, f"Lookup of LLT failed: {llvm_type}"
         sz, num_elements, signed_ = found
+        if sz == "unknown":
+            if allow_unknown:
+                if signed:
+                    return "signed"
+                else:
+                    return "unsigned"
+            else:
+                raise ValueError("Unknown regsize!")
         if signed_:
             return f"signed<{sz}>"
         else:
