@@ -21,6 +21,9 @@ def handle_cmdline():
     parser.add_argument("--drop-duplicates", action="store_true", help="TODO")
     parser.add_argument("--venn", default=None, help="TODO")
     parser.add_argument("--progress", action="store_true", help="TODO")
+    parser.add_argument("--sort-by", type=str, default=None, help="TODO")
+    parser.add_argument("--sort-asc", action="store_true", help="TODO")
+    parser.add_argument("--topk", type=int, default=None, help="Only keep the k first items")
     args = parser.parse_args()
     logging.basicConfig(level=getattr(logging, args.log.upper()))
     return args
@@ -115,6 +118,16 @@ if VENN_OUT is not None:
 
 # logger.info("Writing Combined Index File...")
 # write_index_file(OUT / "index.yml", filtered_subs_df, index_data)
+
+if args.sort_by:
+    assert isinstance(args.sort_by, str)
+    candidates = sorted(candidates, key=lambda x: x["properties"][args.sort_by], reverse=not args.sort_asc)
+
+if args.topk:
+    assert args.sort_by, "--topk is only meaningful on sorted list"
+    assert isinstance(args.topk, int)
+    candidates = candidates[:args.topk]
+
 temp = {"global": {"artifacts": [], "properties": global_properties}, "candidates": candidates}
 if OUT:
     with open(OUT, "w") as f:
