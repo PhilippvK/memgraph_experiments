@@ -17,7 +17,7 @@ class BaseNode(AnyNode):
     def __init__(self, children=None, node_id: int = -1, **kwargs):
         super().__init__(parent=None, children=children, id=BaseNode.id_, **kwargs)
         self.node_id = node_id
-        BaseNode.id_ += 1 
+        BaseNode.id_ += 1
 
     @property
     def summary(self):
