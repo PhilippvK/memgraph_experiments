@@ -548,6 +548,7 @@ with MeasureTime("I/O Analysis", verbose=TIMES):
             edges = list(io_sub.in_edges(inp))
             io_sub.remove_edges_from(edges)
         j = 0
+        SHOW_NODE_IDS = True
         for inp in inputs:
             # TODO: physreg?
             if io_sub.nodes[inp]["label"] == "Const":
@@ -555,14 +556,32 @@ with MeasureTime("I/O Analysis", verbose=TIMES):
                 io_sub.nodes[inp]["fillcolor"] = "lightgray"
                 io_sub.nodes[inp]["style"] = "filled"
                 io_sub.nodes[inp]["shape"] = "box"
-                io_sub.nodes[inp]["label"] = io_sub.nodes[inp]["properties"]["inst"][:-1]
+                label = io_sub.nodes[inp]["properties"]["inst"][:-1]
+                if SHOW_NODE_IDS:
+                    label = f"<{label}<br/><font point-size=\"10\">{inp}</font>>"
+                io_sub.nodes[inp]["label"] = label
             else:
                 io_sub.nodes[inp]["xlabel"] = "IN"
-                io_sub.nodes[inp]["label"] = f"src{j}"
-                io_sub.nodes[inp]["fillcolor"] = "darkgray"
+                io_sub.nodes[inp]["fillcolor"] = "gray"
                 io_sub.nodes[inp]["style"] = "filled"
                 io_sub.nodes[inp]["shape"] = "box"
+                label = f"src{j}"
+                if SHOW_NODE_IDS:
+                    label = f"<{label}<br/><font point-size=\"10\">{inp}</font>>"
+                io_sub.nodes[inp]["label"] = label
                 j += 1
+        if SHOW_NODE_IDS:
+            for node in io_sub.nodes:
+                if node in inputs:
+                    continue
+                label = io_sub.nodes[node]["label"]
+                label = f"<{label}<br/><font point-size=\"10\">{node}</font>>"
+                io_sub.nodes[node]["label"] = label
+            for node in sub.nodes:
+                label = sub.nodes[node]["label"]
+                label = f"<{label}<br/><font point-size=\"10\">{node}</font>>"
+                sub.nodes[node]["label"] = label
+
         # TODO: add out nodes to io_sub?
         # print("io_sub", io_sub)
         io_subs.append(io_sub)
