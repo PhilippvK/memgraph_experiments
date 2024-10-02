@@ -158,6 +158,7 @@ def handle_cmdline():
     parser.add_argument("--max-operands", type=int, default=MAX_OPERANDS_DEFAULT, help="TODO")
     parser.add_argument("--max-reg-operands", type=int, default=MAX_REG_OPERANDS_DEFAULT, help="TODO")
     parser.add_argument("--max-imm-operands", type=int, default=MAX_IMM_OPERANDS_DEFAULT, help="TODO")  # TODO: use
+    parser.add_argument("--enable-variation-reuse-io", action="store_true", help="TODO")
     args = parser.parse_args()
     logging.basicConfig(level=getattr(logging, args.log.upper()))
     logging.getLogger("neo4j.io").setLevel(logging.INFO)
@@ -225,6 +226,8 @@ MAX_LOADS = args.max_loads
 MAX_STORES = args.max_stores
 MAX_MEMS = args.max_mems
 MAX_BRANCHES = args.max_branches
+# ENABLE_VARIATIONS = args.enable_variations
+ENABLE_VARIATION_REUSE_IO = args.enable_variation_reuse_io
 
 with MeasureTime("Settings Validation", verbose=TIMES):
     logger.info("Validating settings...")
