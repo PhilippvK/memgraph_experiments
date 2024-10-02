@@ -97,6 +97,13 @@ class TreeGenContext:
         self.explicit_types = explicit_types
         self.node_map = {}
         self.defs = {}
+        self.temps = {}
+        self.temp_idx = 0
+
+    def get_temp(self):
+        ret = f"temp{self.temp_idx}"
+        self.temp_idx += 1
+        return ret
 
     @property
     def visited(self):
@@ -115,10 +122,29 @@ class TreeGenContext:
                 cdsl_type = llvm_type_to_cdsl_type(llvm_type, signed, reg_size=out_reg_size)
                 ret = Constant(value=val, in_types=[], out_types=cdsl_type)
             else:
-                assert node in self.defs, f"node {node} not in defs {self.defs}"
-                ref = self.defs[node]
-                tree_node = self.node_map[node]
-                ret = Ref(name=ref, in_types=[], out_types=tree_node.out_types)
+                # assert node in self.defs, f"node {node} not in defs {self.defs}"
+                if node in self.defs:
+                    ref = self.defs[node]
+                    tree_node = self.node_map[node]
+                    ret = Ref(name=ref, in_types=[], out_types=tree_node.out_types)
+                    self.node_map[node] = ret
+                else:
+                    tree_node = self.node_map[node]
+                    ref = self.get_temp()
+                    self.defs[node] = ref
+                    self.temps[ref] = tree_node
+                    ret = Ref(name=ref, in_types=[], out_types=tree_node.out_types)
+                    ret2 = Ref(name=ref, in_types=[], out_types=tree_node.out_types)
+                    parent = self.node_map[node].parent
+                    print("node", node)
+                    print("tree_node", tree_node)
+                    print("parent", parent)
+                    print("parent.children", parent.children)
+                    parent.children = [child if child.id != tree_node.id else ret2 for child in parent.children]
+                    print("parent.children1", parent.children)
+
+                    # input("444")
+                    # = ret2
             return ret
             # return self.node_map[node]
         # if node in inputs:
@@ -187,3 +213,31 @@ class TreeGenContext:
             )
         self.node_map[node] = ret
         return ret
+
+    def visit_output(self, node):
+        rets = []
+        temp_idx_before = self.temp_idx
+        ret = self.visit(node)
+        temp_idx_after = self.temp_idx
+        print("temp_idx_before", temp_idx_before)
+        print("temp_idx_after", temp_idx_after)
+        if temp_idx_after > temp_idx_before:
+            refs = [f"temp{idx}" for idx in range(temp_idx_before, temp_idx_after)]
+            print("temps")
+            for ref in refs:
+                print("ref", ref)
+                print("self.temps[ref]", self.temps[ref])
+                temp = self.temps[ref]
+                ref_node = Ref(name=ref, in_types=[], out_types=[None])
+                assert len(temp.out_types) == 1
+                decl_type = temp.out_types[0]
+                decl = Declaration(
+                    children=[ref_node, temp],
+                    decl_type=decl_type,
+                    in_types=[ref_node.out_types[0], temp.out_types[0]],
+                    out_types=[decl_type],
+                )
+                rets.append(decl)
+        # # input("123")
+        rets.append(ret)
+        return rets

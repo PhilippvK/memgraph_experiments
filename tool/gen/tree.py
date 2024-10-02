@@ -193,7 +193,17 @@ def generate_tree(sub, sub_data, GF, xlen=None):
             if xlen is not None:
                 pass  # Ignore XLEN for now: check if casts are added automatically
                 # assert reg_size == xlen, f"reg_size ({reg_size}) does not match xlen ({xlen})"
-        res = treegen.visit(outp)
+        # res = treegen.visit(outp)
+        res = treegen.visit_output(outp)
+        assert isinstance(res, list)  # TODO: move input/output assignments to tree_utils
+        if len(res) > 1:
+            stmts.extend(res[:-1])
+            res = res[-1]
+        else:
+            res = res[0]
+        print("res1", res)
+        # input("!!!")
+        # TODO: check for multiple statements
         # print("res", res)
         # TODO: check for may_store, may_branch
         name = f"outp{j}"
