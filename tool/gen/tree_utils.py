@@ -171,10 +171,11 @@ class TreeGenContext:
                 op_type = "input"
             signed = False  # ?
             cdsl_type = llvm_type_to_cdsl_type(out_reg_type, signed, reg_size=out_reg_size)
-            in_types = sum([x.out_types for x in children], [])
-            ret = Operation(
-                node_id=node, name=name, children=children, in_types=in_types, out_types=[cdsl_type]
-            )
+            # print("cdsl_type", cdsl_type)
+            # print("children", children)
+            # TODO: fix this for output lists
+            in_types = sum([[x.out_types] if not isinstance(x.out_types, list) else x.out_types for x in children], [])
+            ret = Operation(node_id=node, name=name, children=children, in_types=in_types, out_types=[cdsl_type])
         if self.explicit_types:
             type_str = f"unsigned<{out_reg_size}>"  # TODO
             ret = Cast(
