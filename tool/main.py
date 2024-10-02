@@ -717,10 +717,14 @@ with MeasureTime("Schedule Subs", verbose=TIMES):
                 lengths += lengths_
             # print("lengths", lengths)
             # TODO: handle None?
+            # print("lengths", lengths)
             return max(lengths)
 
         ends = outputs | terminators
-        length = estimate_schedule_length(io_sub, inputs, ends)
+        if len(inputs) == 0:
+            length = 1
+        else:
+            length = estimate_schedule_length(io_sub, inputs, ends)
         # print("length", length)
         #  TODO
         subs_df.loc[i, "ScheduleLength"] = length
