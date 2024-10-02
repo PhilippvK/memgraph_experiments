@@ -367,7 +367,7 @@ class CDSLEmitter:
 
     def visit_cond_set_riscv(self, node):
         assert isinstance(node, Operation)
-        lookup = {"SLT": ("<", True), "SLTU": ("<", False)}
+        lookup = {"SLT": ("<", True), "SLTU": ("<", False), "SLTIU": ("<", False)}
         res = lookup.get(node.name)
         assert res is not None
         pred, signed = res
@@ -411,7 +411,7 @@ class CDSLEmitter:
             "SUBW",
         ]:
             self.visit_binop_riscv(node)
-        elif name in ["SLT", "SLTU"]:
+        elif name in ["SLT", "SLTU", "SLTIU"]:
             self.visit_cond_set_riscv(node)
         elif name in ["BNE", "BEQ"]:
             self.visit_branch_riscv(node)
