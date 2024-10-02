@@ -213,7 +213,14 @@ def generate_tree(sub, sub_data, GF, xlen=None):
         # ret[name] = res
         # print("res", res)
         # print(RenderTree(res))
-        if hasattr(res, "name") and res.name in ["SD", "SW", "SH", "SB", "BEQ", "BNE"]:  # TODO: DETECT via predicates or zero outputs!
+        if hasattr(res, "name") and res.name in [
+            "SD",
+            "SW",
+            "SH",
+            "SB",
+            "BEQ",
+            "BNE",
+        ]:  # TODO: DETECT via predicates or zero outputs!
             root = res
             stmts.append(root)
         else:
