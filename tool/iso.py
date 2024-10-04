@@ -7,6 +7,7 @@ from tqdm import tqdm
 
 # def calc_sub_io_isos(io_sub, io_subs):
 def calc_sub_io_isos(io_sub, io_subs, i, subs_df=None, ignore_hash: bool = False):
+    # TODO: label -> name
     # def node_match(x, y):
     #     # print("node_match")
     #     # # print("x", x)
