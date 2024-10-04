@@ -83,21 +83,28 @@ if DROP_DUPLICATES:
     # TODO: fix ids?
 
 if VENN_OUT is not None:
-    from matplotlib_venn import venn3, venn2
-    from matplotlib_venn.layout.venn3 import DefaultLayoutAlgorithm
+    HAS_VENN = True
+    try:
+        from matplotlib_venn import venn3, venn2
+        from matplotlib_venn.layout.venn3 import DefaultLayoutAlgorithm
+    except ImportError:
+        HAS_VENN = False
     from matplotlib import pyplot as plt
 
-    assert len(venn_data) > 0, "--venn needs --drop"
-    assert len(venn_data) in [2, 3], "--venn only works for 2 or 3 inputs"
-    if len(venn_data) == 3:
-        fig = venn3(
-            venn_data,
-            ("Set1", "Set2", "Set3"),
-            layout_algorithm=DefaultLayoutAlgorithm(fixed_subset_sizes=(1, 1, 1, 1, 1, 1, 1)),
-        )
-    elif len(venn_data) == 2:
-        fig = venn2(venn_data, ("Set1", "Set2"))
-    plt.savefig(VENN_OUT)
+    if not HAS_VENN:
+        pass  # TODO: warning
+    else:
+        assert len(venn_data) > 0, "--venn needs --drop"
+        assert len(venn_data) in [2, 3], "--venn only works for 2 or 3 inputs"
+        if len(venn_data) == 3:
+            fig = venn3(
+                venn_data,
+                ("Set1", "Set2", "Set3"),
+                layout_algorithm=DefaultLayoutAlgorithm(fixed_subset_sizes=(1, 1, 1, 1, 1, 1, 1)),
+            )
+        elif len(venn_data) == 2:
+            fig = venn2(venn_data, ("Set1", "Set2"))
+        plt.savefig(VENN_OUT)
 
 # with MeasureTime("Isomorphism Check", verbose=TIMES):
 #     logger.info("Checking isomorphism...")
