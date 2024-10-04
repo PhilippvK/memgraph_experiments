@@ -548,7 +548,8 @@ with MeasureTime("I/O Analysis", verbose=TIMES):
             edges = list(io_sub.in_edges(inp))
             io_sub.remove_edges_from(edges)
         j = 0
-        SHOW_NODE_IDS = True
+        # SHOW_NODE_IDS = True
+        SHOW_NODE_IDS = False
         for inp in inputs:
             # TODO: physreg?
             if io_sub.nodes[inp]["label"] == "Const":
@@ -557,6 +558,7 @@ with MeasureTime("I/O Analysis", verbose=TIMES):
                 io_sub.nodes[inp]["style"] = "filled"
                 io_sub.nodes[inp]["shape"] = "box"
                 label = io_sub.nodes[inp]["properties"]["inst"][:-1]
+                # io_sub.nodes[inp]["name"] = label
                 if SHOW_NODE_IDS:
                     label = f"<{label}<br/><font point-size=\"10\">{inp}</font>>"
                 io_sub.nodes[inp]["label"] = label
@@ -566,6 +568,7 @@ with MeasureTime("I/O Analysis", verbose=TIMES):
                 io_sub.nodes[inp]["style"] = "filled"
                 io_sub.nodes[inp]["shape"] = "box"
                 label = f"src{j}"
+                # io_sub.nodes[inp]["name"] = label
                 if SHOW_NODE_IDS:
                     label = f"<{label}<br/><font point-size=\"10\">{inp}</font>>"
                 io_sub.nodes[inp]["label"] = label
@@ -575,10 +578,12 @@ with MeasureTime("I/O Analysis", verbose=TIMES):
                 if node in inputs:
                     continue
                 label = io_sub.nodes[node]["label"]
+                # io_sub.nodes[node]["name"] = label
                 label = f"<{label}<br/><font point-size=\"10\">{node}</font>>"
                 io_sub.nodes[node]["label"] = label
             for node in sub.nodes:
                 label = sub.nodes[node]["label"]
+                # sub.nodes[node]["name"] = label
                 label = f"<{label}<br/><font point-size=\"10\">{node}</font>>"
                 sub.nodes[node]["label"] = label
 
@@ -608,6 +613,7 @@ with MeasureTime("SubHash Creation", verbose=TIMES):
         subs_df.loc[i, "SubHash"] = sub_hash
         subs_df.loc[i, "IOSubHash"] = io_sub_hash
         # input("o")
+
 
 with MeasureTime("Isomorphism Check", verbose=TIMES):
     logger.info("Checking isomorphism...")
@@ -1352,6 +1358,66 @@ with MeasureTime("Finish DF", verbose=TIMES):
 
 
 # TODO: add helper to share code here!
+
+with MeasureTime("Apply Styles", verbose=TIMES):
+    logger.info("Applying styles...")
+    filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_SUB_FLT) > 0].copy()
+    io_subs_iter = [(i, io_sub) for i, io_sub in enumerate(io_subs) if i in filtered_subs_df.index]
+    for i, io_sub in tqdm(io_subs_iter, disable=not PROGRESS):
+        sub = subs[i]
+        nodes = sub.nodes
+        sub_data = subs_df.iloc[i]
+        print("sub_data", sub_data)
+        inputs = sub_data["InputNodes"]
+        SHOW_NODE_IDS = True
+        # SHOW_NODE_IDS = False
+        # for inp in inputs:
+        j = 0
+        for node in io_sub.nodes:
+            print("node", node)
+            print("io_sub.nodes[node]", io_sub.nodes[node])
+            _, ip, _, _ = calc_inputs(GF, sub)
+            print("ip", ip)
+            if node in inputs:
+                # TODO: physreg?
+                if io_sub.nodes[node]["label"] == "Const":
+                    io_sub.nodes[node]["xlabel"] = "CONST"
+                    io_sub.nodes[node]["fillcolor"] = "lightgray"
+                    io_sub.nodes[node]["style"] = "filled"
+                    io_sub.nodes[node]["shape"] = "box"
+                    label = io_sub.nodes[node]["properties"]["inst"][:-1]
+                    # io_sub.nodes[node]["name"] = label
+                    if SHOW_NODE_IDS:
+                        assert "font" not in label
+                        label = f"<{label}<br/><font point-size=\"10\">{node}</font>>"
+                    io_sub.nodes[node]["label"] = label
+                else:
+                    io_sub.nodes[node]["xlabel"] = "IN"
+                    io_sub.nodes[node]["fillcolor"] = "gray"
+                    io_sub.nodes[node]["style"] = "filled"
+                    io_sub.nodes[node]["shape"] = "box"
+                    label = f"src{j}"
+                    # io_sub.nodes[node]["name"] = label
+                    if SHOW_NODE_IDS:
+                        assert "font" not in label
+                        label = f"<{label}<br/><font point-size=\"10\">{node}</font>>"
+                    io_sub.nodes[node]["label"] = label
+                    j += 1
+            else:
+                label = io_sub.nodes[node]["label"]
+                # io_sub.nodes[node]["name"] = label
+                if SHOW_NODE_IDS:
+                    # assert "font" not in label
+                    if "font" not in label:  # non-input nodes are shared between subs!
+                        label = f"<{label}<br/><font point-size=\"10\">{node}</font>>"
+                io_sub.nodes[node]["label"] = label
+            # for node in sub.nodes:
+            #     label = sub.nodes[node]["label"]
+            #     # sub.nodes[node]["name"] = label
+            #     label = f"<{label}<br/><font point-size=\"10\">{node}</font>>"
+            #     sub.nodes[node]["label"] = label
+    # print("QWE")
+    # input("^^^")
 
 
 if WRITE_SUB:
