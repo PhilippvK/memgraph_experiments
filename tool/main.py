@@ -23,7 +23,7 @@ from anytree.dotexport import RenderTreeGraph
 from .enums import ExportFormat, ExportFilter, InstrPredicate, CDFGStage, parse_enum_intflag
 from .memgraph import connect_memgraph, run_query
 from .iso import calc_io_isos
-from .hash import add_hash_attr
+from .hash import add_hash_attr, calc_full_hash, calc_global_hash
 from .llvm_utils import parse_llvm_const_str
 from .graph_utils import (
     graph_to_file,
@@ -450,6 +450,8 @@ subs_df["Parent"] = np.nan  # used to find the original sub for a variation
 subs_df["Variations"] = np.nan  # used to specify applied variations for Children
 subs_df["SubHash"] = None
 subs_df["IOSubHash"] = None
+subs_df["FullHash"] = None
+subs_df["GlobalHash"] = None
 subs_df["Isos"] = [np.array([])] * len(subs_df)
 subs_df["#Isos"] = np.nan
 subs_df["IsosNO"] = [np.array([])] * len(subs_df)
@@ -1177,8 +1179,26 @@ with MeasureTime("Variation generation", verbose=TIMES):
                         # input("||")
             # print("new", new)
 
-# TODO: if excoding space left (pre/post filter?) insert imm operands here where possible.
+# TODO: if encoding space left (pre/post filter?) insert imm operands here where possible.
 # (as new variation)
+
+
+with MeasureTime("FullHash Creation", verbose=TIMES):
+    logger.info("Creating FullHashes...")
+    global_hash = calc_global_hash(global_df)
+    # print("global_hash", global_hash)
+    # input(">")
+    # for i, io_sub in enumerate(tqdm(io_subs, disable=not PROGRESS)):
+    filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_GEN_FLT) > 0].copy()
+    io_subs_iter = [(i, io_sub) for i, io_sub in enumerate(io_subs) if i in filtered_subs_df.index]
+    for i, io_sub in tqdm(io_subs_iter, disable=not PROGRESS):
+        sub = subs[i]
+        sub_data = subs_df.iloc[i]
+
+        full_hash = calc_full_hash(sub_data)
+        # print("full_hash", full_hash)
+        subs_df.loc[i, "FullHash"] = full_hash
+        subs_df.loc[i, "GlobalHash"] = global_hash
 
 # TODO: filter before iso check?
 with MeasureTime("Filtering subgraphs (Encoding)", verbose=TIMES):
