@@ -525,14 +525,14 @@ with MeasureTime("I/O Analysis", verbose=TIMES):
         #     print("num_outputs", num_outputs)
         #     input(">")
         instrs = get_instructions(sub)
-        unique_instrs = set(instrs)
+        unique_instrs = list(set(instrs))
         total_weight, freq = calc_weights(sub)
-        subs_df.at[i, "Nodes"] = set(nodes)
-        subs_df.at[i, "InputNodes"] = set(inputs)
+        subs_df.at[i, "Nodes"] = list(nodes)
+        subs_df.at[i, "InputNodes"] = list(inputs)
         subs_df.loc[i, "#InputNodes"] = num_inputs
         subs_df.at[i, "ConstantNodes"] = list(constants)
         subs_df.loc[i, "#ConstantNodes"] = num_constants
-        subs_df.at[i, "OutputNodes"] = set(outputs)
+        subs_df.at[i, "OutputNodes"] = list(outputs)
         subs_df.loc[i, "#OutputNodes"] = num_outputs
         subs_df.at[i, "Instrs"] = instrs
         subs_df.loc[i, "#Instrs"] = len(instrs)
@@ -676,13 +676,13 @@ with MeasureTime("Overlap Check", verbose=TIMES):
         # print("non_overlapping", non_overlapping)
         # print("len(non_overlapping)", len(non_overlapping))
         # input("LLL")
-        subs_df.at[key, "IsoNodes"] = iso_nodes
+        subs_df.at[key, "IsoNodes"] = list(iso_nodes)
         iso_weight, _ = calc_weights_iso(GF, iso_nodes)
         subs_df.loc[key, "IsoWeight"] = iso_weight
         subs_df.loc[key, "#IsosNO"] = len(non_overlapping)
-        subs_df.at[key, "IsosNO"] = set(non_overlapping)
+        subs_df.at[key, "IsosNO"] = list(non_overlapping)
         subs_df.loc[key, "#Isos"] = num_isos
-        subs_df.at[key, "Isos"] = set(val)
+        subs_df.at[key, "Isos"] = list(set(val))
         if num_isos == 0:
             continue
         assert key not in io_isos
@@ -708,11 +708,10 @@ with MeasureTime("Predicate Detection", verbose=TIMES):
         subs_df.loc[i, "#Terminators"] = num_terminators
         subs_df.loc[i, "#Branches"] = num_branches
         # TODO: maybe move to predicates detection?
-        subs_df.at[i, "LoadNodes"] = set(loads)
-        subs_df.at[i, "StoreNodes"] = set(stores)
-        subs_df.at[i, "TerminatorNodes"] = set(terminators)
-        subs_df.at[i, "BranchNodes"] = set(branches)
-
+        subs_df.at[i, "LoadNodes"] = list(loads)
+        subs_df.at[i, "StoreNodes"] = list(stores)
+        subs_df.at[i, "TerminatorNodes"] = list(terminators)
+        subs_df.at[i, "BranchNodes"] = list(branches)
 
 
 # TODO: toggle on/off via cmdline?
@@ -751,7 +750,7 @@ with MeasureTime("Schedule Subs", verbose=TIMES):
             # print("lengths", lengths)
             return max(lengths)
 
-        ends = outputs | terminators
+        ends = list(set(outputs) | set(terminators))
         if len(inputs) == 0:
             length = 1
         else:
@@ -1546,3 +1545,87 @@ if TIMES:
 # TODO: figure out if rd_wb = rs1 can be detected automatically? -> check single_use edge property
 # TODO: Merge equivalent subs with respect to isCommutable
 # TODO: Generate variations (generalize/specialize)
+HDF5_FILE = "/tmp/mytestfile.hdf5"
+
+READ_HDF5 = True
+# WRITE_HDF5_FMT = ?
+READ_HDF5_FLT = ExportFilter.SELECTED
+if READ_HDF5:
+    import h5py
+    # import numpy as np
+
+    with MeasureTime("HDF5 Read", verbose=TIMES):
+        logger.info("Reading HDF5...")
+        with h5py.File(HDF5_FILE, "r") as f:
+            filtered_subs_df = subs_df[(subs_df["Status"] & READ_HDF5_FLT) > 0].copy()
+            subs_iter = [(i, sub) for i, sub in enumerate(subs) if i in filtered_subs_df.index]
+            for i, sub in tqdm(subs_iter, disable=not PROGRESS):
+                sub_data = subs_df.iloc[i]
+                sub_hash = sub_data["SubHash"]
+                io_sub_hash = sub_data["IOSubHash"]
+                full_hash = sub_data["FullHash"]
+                global_hash = sub_data["GlobalHash"]
+                ignore_prefix = False
+                if ignore_prefix:
+                    raise NotImplementedError
+                else:
+                    lookup = f"{SESSION}/{FUNC}/{BB}/{global_hash}/{sub_hash}/{io_sub_hash}/{full_hash}"
+                    print("lookup", lookup)
+                    found = lookup in f
+                    print("found", found)
+                    if found:
+                        print("f?", f[lookup], list(f[lookup]))
+                        already_selected = "selected" in f[lookup]
+                        print("already_selected", already_selected)
+                        # input(">>>")
+                # dset = f.create_dataset(dest, sub_data.to_frame().T.to_records(index=False), dtype=np.float32)
+                # sub_data.to_hdf(HDF5_FILE, key=dest, mode="a")
+                # sub_data.to_frame().T.to_hdf("/tmp/mytestfile.hdf5", key=dest, mode="a")
+
+
+WRITE_HDF5 = True
+# WRITE_HDF5_FMT = ?
+WRITE_HDF5_FLT = ExportFilter.SELECTED | ExportFilter.FILTERED_WEIGHTS | ExportFilter.ERROR | ExportFilter.INVALID
+if WRITE_HDF5:
+    # import h5py
+    # import numpy as np
+
+    with MeasureTime("HDF5 Export", verbose=TIMES):
+        logger.info("Exporting HDF5...")
+        # with h5py.File("/tmp/mytestfile.hdf5", "w") as f:
+        if True:
+            filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_HDF5_FLT) > 0].copy()
+            subs_iter = [(i, sub) for i, sub in enumerate(subs) if i in filtered_subs_df.index]
+            for i, sub in tqdm(subs_iter, disable=not PROGRESS):
+                sub_data = subs_df.iloc[i]
+                print("sub_data", sub_data.to_frame().T)
+                print("sub_data", sub_data.to_frame().T.to_records(index=False))
+                print("sub_data.dtypes", sub_data.to_frame().T.dtypes)
+                sub_hash = sub_data["SubHash"]
+                io_sub_hash = sub_data["IOSubHash"]
+                full_hash = sub_data["FullHash"]
+                global_hash = sub_data["GlobalHash"]
+                status = "???"
+                if sub_data["Status"] & ExportFilter.SELECTED:
+                    status = "selected"
+                elif sub_data["Status"] & (ExportFilter.FILTERED_IO | ExportFilter.FILTERED_COMPLEX | ExportFilter.FILTERED_SIMPLE | ExportFilter.FILTERED_PRED | ExportFilter.FILTERED_MEM | ExportFilter.FILTERED_BRANCH | ExportFilter.FILTERED_WEIGHTS | ExportFilter.FILTERED_ENC):
+                    status = "filtered"
+                elif sub_data["Status"] & ExportFilter.INVALID:
+                    status = "invalid"
+                elif sub_data["Status"] & ExportFilter.ERROR:
+                    status = "error"
+                elif sub_data["Status"] & ExportFilter.ISO:
+                    status = "iso"
+# ExportFilter.FILTERED_ISO
+                if full_hash is None:
+                    # print("i", i)
+                    # print("sub", sub)
+                    # print("sub_data", sub_data)
+                    input("why?")
+                dt = sub_data["DateTime"]
+                # dest = f"{sub_hash}/{io_sub_hash}/{full_hash}/{global_hash}/{dt}"
+                dest = f"{SESSION}/{FUNC}/{BB}/{global_hash}/{sub_hash}/{io_sub_hash}/{full_hash}/{status}/{dt}"
+                print("dest", dest)
+                # dset = f.create_dataset(dest, sub_data.to_frame().T.to_records(index=False), dtype=np.float32)
+                sub_data.to_hdf("/tmp/mytestfile.hdf5", key=dest, mode="a")
+                # sub_data.to_frame().T.to_hdf("/tmp/mytestfile.hdf5", key=dest, mode="a")
