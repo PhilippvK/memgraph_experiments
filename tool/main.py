@@ -149,7 +149,9 @@ def handle_cmdline():
     parser.add_argument("--write-index-flt", type=int, default=INDEX_FLT_DEFAULT, help="TODO")
     parser.add_argument("--write-queries", action="store_true", help="TODO")
     parser.add_argument("--allowed-enc-sizes", type=int, nargs="+", default=ALLOWED_ENC_SIZES_DEFAULT, help="TODO")
-    parser.add_argument("--allowed-imm_widths", type=int, nargs="+", default=ALLOWED_IMM_WIDTHS, help="TODO")  # TODO: use
+    parser.add_argument(
+        "--allowed-imm_widths", type=int, nargs="+", default=ALLOWED_IMM_WIDTHS, help="TODO"
+    )  # TODO: use
     parser.add_argument("--min-iso-weight", type=float, default=MIN_ISO_WEIGHT_DEFAULT, help="TODO")
     parser.add_argument("--max-loads", type=int, default=MAX_LOADS_DEFAULT, help="TODO")
     parser.add_argument("--max-stores", type=int, default=MAX_STORES_DEFAULT, help="TODO")
@@ -444,6 +446,7 @@ global_df["max_stores"] = [MAX_STORES]
 global_df["max_mems"] = [MAX_MEMS]
 global_df["max_branches"] = [MAX_BRANCHES]
 # TODO: MIN_FREQ, MAX_INSTRS, MAX_UNIQUE_INSTRS
+# TODO: variations
 # TODO: add missing
 
 subs_df = pd.DataFrame({"result": list(range(len(subs)))})
@@ -564,7 +567,7 @@ with MeasureTime("I/O Analysis", verbose=TIMES):
                 label = io_sub.nodes[inp]["properties"]["inst"][:-1]
                 # io_sub.nodes[inp]["name"] = label
                 if SHOW_NODE_IDS:
-                    label = f"<{label}<br/><font point-size=\"10\">{inp}</font>>"
+                    label = f'<{label}<br/><font point-size="10">{inp}</font>>'
                 io_sub.nodes[inp]["label"] = label
             else:
                 io_sub.nodes[inp]["xlabel"] = "IN"
@@ -574,7 +577,7 @@ with MeasureTime("I/O Analysis", verbose=TIMES):
                 label = f"src{j}"
                 # io_sub.nodes[inp]["name"] = label
                 if SHOW_NODE_IDS:
-                    label = f"<{label}<br/><font point-size=\"10\">{inp}</font>>"
+                    label = f'<{label}<br/><font point-size="10">{inp}</font>>'
                 io_sub.nodes[inp]["label"] = label
                 j += 1
         if SHOW_NODE_IDS:
@@ -583,12 +586,12 @@ with MeasureTime("I/O Analysis", verbose=TIMES):
                     continue
                 label = io_sub.nodes[node]["label"]
                 # io_sub.nodes[node]["name"] = label
-                label = f"<{label}<br/><font point-size=\"10\">{node}</font>>"
+                label = f'<{label}<br/><font point-size="10">{node}</font>>'
                 io_sub.nodes[node]["label"] = label
             for node in sub.nodes:
                 label = sub.nodes[node]["label"]
                 # sub.nodes[node]["name"] = label
-                label = f"<{label}<br/><font point-size=\"10\">{node}</font>>"
+                label = f'<{label}<br/><font point-size="10">{node}</font>>'
                 sub.nodes[node]["label"] = label
 
         # TODO: add out nodes to io_sub?
@@ -606,7 +609,7 @@ with MeasureTime("SubHash Creation", verbose=TIMES):
         add_hash_attr(sub)
         add_hash_attr(io_sub)
         add_hash_attr(io_sub, attr_name="hash_attr_ignore_const", ignore_const=True)
-    #     edge_attr = "hash_attr"
+        #     edge_attr = "hash_attr"
         node_attr = "hash_attr"
         # sub_hash = nx.weisfeiler_lehman_graph_hash(sub, edge_attr=edge_attr, node_attr=node_attr, iterations=3, digest_size=16)
         sub_hash = nx.weisfeiler_lehman_graph_hash(sub, node_attr=node_attr, iterations=3, digest_size=16)
@@ -616,7 +619,6 @@ with MeasureTime("SubHash Creation", verbose=TIMES):
         # print("io_sub_hash", io_sub_hash)
         subs_df.loc[i, "SubHash"] = sub_hash
         subs_df.loc[i, "IOSubHash"] = io_sub_hash
-        # input("o")
 
 
 with MeasureTime("Isomorphism Check", verbose=TIMES):
@@ -981,6 +983,7 @@ with MeasureTime("Creating Constants Histograms", verbose=TIMES):
             # print("constants_", constants_)
             # print("constant_values_", constant_values_)
             import networkx.algorithms.isomorphism as iso
+
             nm = iso.categorical_node_match("hash_attr_ignore_const", None)
             # nm = iso.categorical_node_match("hash_attr", None)
             em = iso.categorical_edge_match("hash_attr", None)
@@ -1152,7 +1155,8 @@ with MeasureTime("Variation generation", verbose=TIMES):
                         new_sub_data["OperandNames"] = new_operand_names
                         new_sub_data["OperandNodes"] = new_operand_nodes
                         new_input_nodes = [
-                            inp if input_idx_ != input_idx else new_input_node_id for input_idx_, inp in enumerate(inputs)
+                            inp if input_idx_ != input_idx else new_input_node_id
+                            for input_idx_, inp in enumerate(inputs)
                         ]
                         new_sub_data["InputNodes"] = new_input_nodes
                         new_sub_data["OperandDirs"] = new_operand_dirs
@@ -1410,7 +1414,7 @@ with MeasureTime("Apply Styles", verbose=TIMES):
                     # io_sub.nodes[node]["name"] = label
                     if SHOW_NODE_IDS:
                         assert "font" not in label
-                        label = f"<{label}<br/><font point-size=\"10\">{node}</font>>"
+                        label = f'<{label}<br/><font point-size="10">{node}</font>>'
                     io_sub.nodes[node]["label"] = label
                 else:
                     io_sub.nodes[node]["xlabel"] = "IN"
@@ -1421,7 +1425,7 @@ with MeasureTime("Apply Styles", verbose=TIMES):
                     # io_sub.nodes[node]["name"] = label
                     if SHOW_NODE_IDS:
                         assert "font" not in label
-                        label = f"<{label}<br/><font point-size=\"10\">{node}</font>>"
+                        label = f'<{label}<br/><font point-size="10">{node}</font>>'
                     io_sub.nodes[node]["label"] = label
                     j += 1
             else:
@@ -1430,7 +1434,7 @@ with MeasureTime("Apply Styles", verbose=TIMES):
                 if SHOW_NODE_IDS:
                     # assert "font" not in label
                     if "font" not in label:  # non-input nodes are shared between subs!
-                        label = f"<{label}<br/><font point-size=\"10\">{node}</font>>"
+                        label = f'<{label}<br/><font point-size="10">{node}</font>>'
                 io_sub.nodes[node]["label"] = label
             # for node in sub.nodes:
             #     label = sub.nodes[node]["label"]
