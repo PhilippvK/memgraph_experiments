@@ -261,6 +261,8 @@ with MeasureTime("Query candidates from DB", verbose=TIMES):
         MAX_PATH_WIDTH,
         IGNORE_NAMES,
         IGNORE_OP_TYPES,
+        min_nodes=MIN_NODES,
+        max_nodes=MAX_NODES,
         stage=STAGE,
         limit=LIMIT_RESULTS,
     )

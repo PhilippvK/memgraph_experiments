@@ -28,6 +28,8 @@ def generate_candidates_query(
     max_path_width: int,
     ignore_names: List[str],
     ignore_op_types: List[str],
+    min_nodes: Optional[int] = None,
+    max_nodes: Optional[int] = None,
     shared_input: bool = False,
     shared_output: bool = True,
     stage: CDFGStage = CDFGStage.STAGE_3,
@@ -82,6 +84,12 @@ def generate_candidates_query(
     ret = f"""{match_str}
 WHERE {conds_str}
 AND {filters_str}
+"""
+    if min_nodes is not None:
+        ret += f"AND size(collections.union(nodes(p0), nodes(p1))) >= {min_nodes}\n"
+    if max_nodes is not None:
+        ret += f"AND size(collections.union(nodes(p0), nodes(p1))) <= {max_nodes}\n"
+    ret += f"""
 RETURN {return_str}
 ORDER BY {order_by_str} desc
 """
