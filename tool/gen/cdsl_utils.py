@@ -281,6 +281,7 @@ class CDSLEmitter:
 
     def visit_lui_riscv(self, node):
         assert isinstance(node, Operation)
+        raise NotImplementedError("LUI")
         self.write("lui(TODO)")
 
     def visit_binop_generic(self, node):
@@ -325,33 +326,49 @@ class CDSLEmitter:
         assert isinstance(node, Operation)
         # TODO: imm needed?
         lookup = {
-            "ADD": ("+", True, self.xlen, False),
-            "ADDW": ("+", True, 32, False),
-            "ADDI": ("+", True, self.xlen, True),
-            "ADDIW": ("+", True, 32, True),
-            "SUBW": ("-", True, 32, False),
-            "SRA": (">>", True, self.xlen, False),
-            "SRAI": (">>", True, self.xlen, True),
-            "SRLI": (">>", False, self.xlen, True),
-            "SLL": ("<<", False, self.xlen, False),
-            "SLLI": ("<<", False, self.xlen, True),
-            "AND": ("&", False, self.xlen, False),
-            "OR": ("|", False, self.xlen, False),
-            "XOR": ("^", False, self.xlen, False),
-            "ANDI": ("&", False, self.xlen, True),
-            "ORI": ("|", False, self.xlen, True),
-            "MULW": ("*", True, 32, False),
-            "MUL": ("*", True, self.xlen, False),
+            "ADD": ("+", True, self.xlen, False, 0),
+            "ADDW": ("+", True, 32, False, 0),
+            "ADDI": ("+", True, self.xlen, True, 0),
+            "ADDIW": ("+", True, 32, True, 0),
+            "SUB": ("-", True, self.xlen, False, 0),
+            "SUBW": ("-", True, 32, False, 0),
+            "SRA": (">>", True, self.xlen, False, 0),
+            "SRAI": (">>", True, self.xlen, True, 0),
+            "SRLI": (">>", False, self.xlen, True, 0),
+            "SRL": (">>", False, self.xlen, False, 0),
+            "SLL": ("<<", False, self.xlen, False, 0),
+            "SLLI": ("<<", False, self.xlen, True, 0),
+            "AND": ("&", False, self.xlen, False, 0),
+            "OR": ("|", False, self.xlen, False, 0),
+            "XOR": ("^", False, self.xlen, False, 0),
+            "XORI": ("^", False, self.xlen, True, 0),
+            "ANDI": ("&", False, self.xlen, True, 0),
+            "ORI": ("|", False, self.xlen, True, 0),
+            "MULW": ("*", True, 32, False, 0),
+            "MUL": ("*", True, self.xlen, False, 0),
+            "MULH": ("*", True, self.xlen, False, self.xlen),
         }
         res = lookup.get(node.name)
         assert res is not None
-        op, signed, sz, imm = res
+        op, signed, sz, imm, shift = res
         # TODO: check imm (sign/sz?)
         # TODO: dtype
         self.write("(")
         assert len(node.children) == 2
         lhs, rhs = node.children
         # TODO: add size only of != xlen?
+        if shift > 0:
+            assert shift == 32
+            if signed:
+                self.write(f"(signed<{sz}>)")
+            else:
+                self.write(f"(unsigned<{sz}>)")
+            self.write("(")
+            if signed:
+                self.write(f"(signed<{sz * 2}>)")
+            else:
+                self.write(f"(unsigned<{sz * 2}>)")
+            self.write("(")
         if signed:
             self.write(f"(signed<{sz}>)")
         else:
@@ -363,9 +380,15 @@ class CDSLEmitter:
         else:
             self.write(f"(unsigned<{sz}>)")
         self.visit(rhs)
+        if shift > 0:
+            self.write(")")
+            self.write(">>")
+            self.write(shift)
+            self.write(")")
         self.write(")")
 
     def visit_cond_set_riscv(self, node):
+        # raise NotImplementedError("SLTU/SLTIU breaks hls flow")
         assert isinstance(node, Operation)
         lookup = {"SLT": ("<", True), "SLTU": ("<", False), "SLTIU": ("<", False)}
         res = lookup.get(node.name)
@@ -400,14 +423,18 @@ class CDSLEmitter:
             "ORI",
             "OR",
             "XOR",
+            "XORI",
             "ADD",
             "ADDI",
             "ADDW",
             "MULW",
             "MUL",
+            "MULH",
             "SRA",
             "SRAI",
+            "SRL",
             "SLL",
+            "SUB",
             "SUBW",
         ]:
             self.visit_binop_riscv(node)
