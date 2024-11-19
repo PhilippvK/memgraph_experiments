@@ -95,6 +95,8 @@ def handle_cmdline():
     # TODO: add help messages
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--log", default="info", choices=["critical", "error", "warning", "info", "debug"], help="TODO")
+    # TODO: introduce stages (query, filter_isol, variations, filter_?, write, generate,...)
+    parser.add_argument("--until", type=int, default=None, choices=[0, 1, 2, 3], help="TODO")
     parser.add_argument("--times", action="store_true", help="TODO")
     parser.add_argument("--progress", action="store_true", help="TODO")
     parser.add_argument("--host", default="localhost", help="TODO")
@@ -232,6 +234,10 @@ MAX_BRANCHES = args.max_branches
 # ENABLE_VARIATIONS = args.enable_variations
 ENABLE_VARIATION_REUSE_IO = args.enable_variation_reuse_io
 HALT_ON_ERROR = args.halt_on_error
+UNTIL = args.until
+
+if UNTIL is not None:
+    raise NotImplementedError("--until / stages")
 
 with MeasureTime("Settings Validation", verbose=TIMES):
     logger.info("Validating settings...")
