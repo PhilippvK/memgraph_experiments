@@ -97,3 +97,18 @@ ORDER BY {order_by_str} desc
         ret += f"""LIMIT {limit}
 """
     return ret + ";"
+#     return """
+# MATCH p0=(a0:INSTR)-[:DFG*1..5]->(b:INSTR)
+# MATCH p1=(a1:INSTR)-[:DFG*1..5]->(b:INSTR)
+# WHERE b.session = 'isaac-demo-20241105T115303' AND a0.session = 'isaac-demo-20241105T115303' AND a1.session = 'isaac-demo-20241105T115303' AND b.func_name = 'crcu16' AND a0.func_name = 'crcu16' AND a1.func_name = 'crcu16' AND b.basic_block = '%bb.0' AND a0.basic_block = '%bb.0' AND a1.basic_block = '%bb.0' AND b.stage = 32 AND a0.stage = 32 AND a1.stage = 32
+# // AND all(node in nodes(p0) WHERE node.name != 'G_PHI' AND node.name != 'PHI' AND node.name != 'COPY' AND node.name != 'PseudoCALLIndirect' AND node.name != 'PseudoLGA' AND node.name != 'Select_GPR_Using_CC_GPR' AND node.op_type != 'input' AND node.op_type != 'constant')
+# // AND all(node in nodes(p1) WHERE node.name != 'G_PHI' AND node.name != 'PHI' AND node.name != 'COPY' AND node.name != 'PseudoCALLIndirect' AND node.name != 'PseudoLGA' AND node.name != 'Select_GPR_Using_CC_GPR' AND node.op_type != 'input' AND node.op_type != 'constant')
+# WITH collections.union(nodes(p0), nodes(p1)) as all_nodes, p0, p1
+# WHERE true
+# AND all(node in all_nodes WHERE node.name != 'G_PHI' AND node.name != 'PHI' AND node.name != 'COPY' AND node.name != 'PseudoCALLIndirect' AND node.name != 'PseudoLGA' AND node.name != 'Select_GPR_Using_CC_GPR' AND node.op_type != 'input' AND node.op_type != 'constant')
+# AND size(all_nodes) >= 1
+# AND size(all_nodes) <= 1000
+# 
+# RETURN p0, p1 // , size(all_nodes) as num_nodes
+# // ORDER BY size(all_nodes) asc
+# """
