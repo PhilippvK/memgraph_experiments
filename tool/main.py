@@ -760,10 +760,11 @@ with MeasureTime("Schedule Subs", verbose=TIMES):
             # print("lengths", lengths)
             # TODO: handle None?
             # print("lengths", lengths)
+            assert len(lengths) > 0  # TODO: investigate
             return max(lengths)
 
         ends = list(set(outputs) | set(terminators))
-        if len(inputs) == 0:
+        if len(inputs) == 0 or len(ends) == 0:  # TODO: handle properly
             length = 1
         else:
             length = estimate_schedule_length(io_sub, inputs, ends)
