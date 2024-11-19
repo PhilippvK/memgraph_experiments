@@ -1598,7 +1598,7 @@ if TIMES:
 # TODO: Generate variations (generalize/specialize)
 HDF5_FILE = "/tmp/mytestfile.hdf5"
 
-READ_HDF5 = True
+READ_HDF5 = False
 # WRITE_HDF5_FMT = ?
 READ_HDF5_FLT = ExportFilter.SELECTED
 if READ_HDF5:
@@ -1634,7 +1634,7 @@ if READ_HDF5:
                 # sub_data.to_frame().T.to_hdf("/tmp/mytestfile.hdf5", key=dest, mode="a")
 
 
-WRITE_HDF5 = True
+WRITE_HDF5 = False
 # WRITE_HDF5_FMT = ?
 WRITE_HDF5_FLT = ExportFilter.SELECTED | ExportFilter.FILTERED_WEIGHTS | ExportFilter.ERROR | ExportFilter.INVALID
 if WRITE_HDF5:
