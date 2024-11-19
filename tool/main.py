@@ -1568,8 +1568,8 @@ if WRITE_PIE:
             pie_fig.write_html(OUT / "pie.html")
             pie2_fig.write_html(OUT / "pie2.html")
         if WRITE_PIE_FMT & ExportFormat.CSV:
-            pie_df.to_csv(OUT / "pie.csv")
-            pie2_df.to_csv(OUT / "pie2.csv")
+            pie_df.to_csv(OUT / "pie.csv", index=False)
+            pie2_df.to_csv(OUT / "pie2.csv", index=False)
         if WRITE_PIE_FMT & ExportFormat.PKL:
             pie_df.to_pickle(OUT / "pie.pkl")
             pie2_df.to_pickle(OUT / "pie2.pkl")
@@ -1586,7 +1586,7 @@ if WRITE_INDEX:
 
 if TIMES:
     print(MeasureTime.summary())
-    MeasureTime.write_csv(OUT / "times.csv")
+    MeasureTime.write_csv(OUT / "times.csv", index=False)
 
 # TODO: estimate encoding usage (free bits, rel. for enc_size 16/32/48)
 # TODO: for all constants query isomorph subs and count the different values

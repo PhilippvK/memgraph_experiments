@@ -18,11 +18,11 @@ class MeasureTime(ContextDecorator):
         MeasureTime.times = {}
 
     @staticmethod
-    def write_csv(dest: Union[str, Path]):
+    def write_csv(dest: Union[str, Path], index: bool = True):
         df = pd.DataFrame.from_dict(MeasureTime.times, orient="index", columns=["Secs"])
         df.index.name = "Name"
         df["Secs (rel.)"] = df["Secs"] / df["Secs"].sum()
-        df.to_csv(dest)
+        df.to_csv(dest, index=index)
 
     @staticmethod
     def summary(rel: bool = True, sort: bool = False):
