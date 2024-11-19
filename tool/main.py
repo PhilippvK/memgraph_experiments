@@ -290,6 +290,7 @@ with MeasureTime("Conversion to NX (func)", verbose=TIMES):
 
 # TODO: move to helper and share code
 with MeasureTime("Conversion to NX (candidates)", verbose=TIMES):
+    logger.info("Converting candidates to NX...")
     G = memgraph_to_nx(results)
 
 
@@ -302,7 +303,7 @@ with MeasureTime("Subgraph Generation", verbose=TIMES):
         # print("result.value", result.value())
         nodes_ = set()
         # path = result.value()
-        for path in result:
+        for p, path in enumerate(result):
             # print("path", path)
             # print("path", path, dir(path))
             nodes__ = path.nodes
