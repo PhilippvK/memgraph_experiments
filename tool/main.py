@@ -253,11 +253,11 @@ with MeasureTime("Connect to DB", verbose=TIMES):
 
 with MeasureTime("Query func from DB", verbose=TIMES):
     query_func = generate_func_query(SESSION, FUNC, stage=STAGE)
-    func_results = run_query(driver, query_func)
     if WRITE_QUERIES:
         logger.info("Exporting queries...")
         with open(OUT / "query_func.cypher", "w") as f:
             f.write(query_func)
+    func_results = run_query(driver, query_func)
 
 
 with MeasureTime("Query candidates from DB", verbose=TIMES):
@@ -275,11 +275,11 @@ with MeasureTime("Query candidates from DB", verbose=TIMES):
         stage=STAGE,
         limit=LIMIT_RESULTS,
     )
-    results = run_query(driver, query)
     if WRITE_QUERIES:
         logger.info("Exporting queries...")
         with open(OUT / "query_candidates.cypher", "w") as f:
             f.write(query)
+    results = run_query(driver, query)
 
 # TODO: move to helper func
 # TODO: print number of results
