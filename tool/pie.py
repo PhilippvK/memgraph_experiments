@@ -24,6 +24,8 @@ def generate_pie_chart(subs_df):
             return "Filtered (Branch)"
         if x & ExportFilter.FILTERED_ENC:
             return "Filtered (Enc)"
+        if x & ExportFilter.FILTERED_OPERANDS:
+            return "Filtered (Operands)"
         if x & ExportFilter.FILTERED_WEIGHTS:
             return "Filtered (Weights)"
         if x & ExportFilter.INVALID:

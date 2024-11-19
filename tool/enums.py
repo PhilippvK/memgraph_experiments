@@ -52,6 +52,8 @@ class ExportFilter(IntFlag):
     FILTERED_BRANCH = auto()  # 512
     INVALID = auto()  # 1024
     ERROR = auto()  # 2048
+    # TODO: reorder
+    FILTERED_OPERANDS = auto()  # 4096
     ALL = (
         SELECTED
         | ISO
@@ -65,6 +67,7 @@ class ExportFilter(IntFlag):
         | FILTERED_BRANCH
         | INVALID
         | ERROR
+        | FILTERED_OPERANDS
     )
 
 

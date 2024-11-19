@@ -1205,6 +1205,42 @@ with MeasureTime("FullHash Creation", verbose=TIMES):
         subs_df.loc[i, "FullHash"] = full_hash
         subs_df.loc[i, "GlobalHash"] = global_hash
 
+
+with MeasureTime("Filtering subgraphs (Operands)", verbose=TIMES):
+    filtered_operands = set()
+    logger.info("Filtering subgraphs (Operands)...")
+    filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_GEN_FLT) > 0].copy()
+    subs_iter = [(i, sub) for i, sub in enumerate(subs) if i in filtered_subs_df.index]
+    # for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
+    # print("len(subs_iter)", len(subs_iter))
+    for i, sub in tqdm(subs_iter, disable=not PROGRESS):
+        sub_data = subs_df.iloc[i]
+        valids = []
+        operand_dirs = sub_data["OperandDirs"]
+        # print("operand_dirs")
+        num_in_operands = operand_dirs.count("IN")
+        # print("num_in_operands", num_in_operands)
+        num_out_operands = operand_dirs.count("OUT")
+        # print("num_out_operands", num_out_operands)
+        num_inout_operands = operand_dirs.count("INOUT")
+        # print("num_inout_operands", num_inout_operands)
+        valid = True
+        # TODO: expose
+        MAX_IN_OPERANDS = 2
+        MAX_OUT_OPERANDS = 1
+        if num_in_operands > MAX_IN_OPERANDS:
+            valid = False
+        if (num_out_operands + num_inout_operands) > MAX_OUT_OPERANDS:
+            valid = False
+        # print("valid", valid)
+        if not valid:
+            filtered_operands.add(i)
+        # input(">>>")
+    # print("filtered_operands", filtered_operands)
+    # input(">>>2")
+    subs_df.loc[list(filtered_operands), "Status"] = ExportFilter.FILTERED_OPERANDS
+
+
 # TODO: filter before iso check?
 with MeasureTime("Filtering subgraphs (Encoding)", verbose=TIMES):
     filtered_enc = set()
