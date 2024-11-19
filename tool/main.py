@@ -528,6 +528,7 @@ with MeasureTime("I/O Analysis", verbose=TIMES):
         # print("===========================")
         # print("i, sub", i, sub)
         nodes = sub.nodes
+        num_nodes = len(nodes)
         num_inputs, inputs, num_constants, constants = calc_inputs(GF, sub)
         num_outputs, outputs = calc_outputs(GF, sub)
         # if num_constants > 0:
@@ -539,6 +540,7 @@ with MeasureTime("I/O Analysis", verbose=TIMES):
         unique_instrs = list(set(instrs))
         total_weight, freq = calc_weights(sub)
         subs_df.at[i, "Nodes"] = list(nodes)
+        subs_df.at[i, "#Nodes"] = num_nodes
         subs_df.at[i, "InputNodes"] = list(inputs)
         subs_df.loc[i, "#InputNodes"] = num_inputs
         subs_df.at[i, "ConstantNodes"] = list(constants)
