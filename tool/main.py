@@ -37,7 +37,7 @@ from .graph_utils import (
 from .queries import generate_func_query, generate_candidates_query
 from .pred import check_predicates, detect_predicates
 from .timing import MeasureTime
-from .pie import generate_pie_chart, generate_pie2_chart
+from .pie import generate_pie_chart, generate_pie2_chart, pie_name_helper
 from .index import write_index_file
 from .gen.tree import generate_tree
 from .gen.cdsl import generate_cdsl
@@ -216,6 +216,9 @@ WRITE_GEN_FLT = args.write_gen_flt
 WRITE_PIE = args.write_pie
 WRITE_PIE_FMT = args.write_pie_fmt
 WRITE_PIE_FLT = args.write_pie_flt
+WRITE_SANKEY = True  # TODO: expose
+WRITE_SANKEY_FMT = ExportFormat.MARKDOWN
+WRITE_SANKEY_FLT = ExportFilter.ALL & ~ExportFilter.ISO
 WRITE_DF = args.write_df
 WRITE_DF_FMT = args.write_df_fmt
 WRITE_DF_FLT = args.write_df_flt
@@ -1575,6 +1578,76 @@ if WRITE_PIE:
             pie2_df.to_pickle(OUT / "pie2.pkl")
             index_artifacts[None]["pie"] = OUT / "pie.pkl"
             index_artifacts[None]["pie2"] = OUT / "pie2.pkl"
+
+
+if WRITE_SANKEY:
+    # with MeasureTime("Generate Sankey chart", verbose=TIMES):
+    #     logger.info("Generating Sankey data...")
+    #     filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_SANKEY_FLT) > 0].copy()
+    #     pie_df, pie_fig = generate_pie_chart(filtered_subs_df)
+    #     pie2_df, pie2_fig = generate_pie2_chart(filtered_subs_df)
+
+    with MeasureTime("Dump Sankey chart", verbose=TIMES):
+        logger.info("Exporting Sankey chart...")
+        if WRITE_SANKEY_FMT & ExportFormat.MARKDOWN:  # MERMAID?
+            # TODO: handle variations
+            filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_SANKEY_FLT) > 0].copy()
+            counts_df = filtered_subs_df.value_counts("Status").rename_axis("Status").reset_index(name="Count")
+            print("counts_df", counts_df)
+            sankey_data = []
+            total = counts_df["Count"].sum()
+            counts_dict = counts_df.set_index("Status")["Count"].to_dict()
+            print("counts_dict", counts_dict)
+            levels = {
+                "temp1": ([ExportFilter.ISO], []),
+                "temp2": ([ExportFilter.FILTERED_IO, ExportFilter.FILTERED_COMPLEX, ExportFilter.FILTERED_SIMPLE, ExportFilter.FILTERED_PRED, ExportFilter.FILTERED_MEM, ExportFilter.FILTERED_BRANCH, ExportFilter.INVALID], []),
+                "temp3": ([ExportFilter.FILTERED_OPERANDS], []),
+                "temp4": ([ExportFilter.FILTERED_ENC], []),
+                "temp5": ([ExportFilter.FILTERED_WEIGHTS], []),
+                "temp6": ([ExportFilter.ERROR], []),
+                "temp7": ([ExportFilter.SELECTED], []),
+            }
+            current = "query"
+            for level_name, temp in levels.items():
+                level_keys, abc = temp
+                print("level_name", level_name)
+                print("level_keys", level_keys)
+                print("current", current)
+                print("total", total)
+                total_new = total
+                for level_key in level_keys:
+                    print("level_key", level_key)
+                    level_key_count = counts_dict.get(level_key, 0)
+                    print("level_key_count", level_key_count)
+                    if level_key_count > 0:
+                        new = (current, pie_name_helper(level_key), level_key_count)
+                        print("new", new)
+                        sankey_data.append(new)
+                    total_new -= level_key_count
+                assert total_new >= 0
+                if total_new != 0:
+                    new = (current, level_name, total_new)
+                    print("new", new)
+                sankey_data.append(new)
+                current = level_name
+                total = total_new
+            print("sankey_data", sankey_data)
+            content = """```mermaid
+---
+config:
+  sankey:
+    showValues: true
+---
+sankey-beta
+
+%% source,target,value
+"""
+            for source, target, value in sankey_data:
+                content += f"{source},{target},{value}\n"
+            content += "```"
+            with open(OUT / "sankey.md", "w") as f:
+                f.write(content)
+            index_artifacts[None]["sankey"] = OUT / "sankey.md"
 
 
 if WRITE_INDEX:

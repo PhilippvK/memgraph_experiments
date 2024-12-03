@@ -34,6 +34,7 @@ class ExportFormat(IntFlag):
     FLAT = auto()  # 256
     YAML = auto()  # 512
     HTML = auto()  # 1024
+    MARKDOWN = auto()  # 2048
     # TREE = auto()  # 2048
     # TREE_PKL = auto()  # 4096
 

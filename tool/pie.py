@@ -4,37 +4,39 @@ import pandas as pd
 from .enums import ExportFilter
 
 
-def generate_pie_chart(subs_df):
-    def helper(x):
-        if x & ExportFilter.SELECTED:
-            return "Selected"
-        if x & ExportFilter.ISO:
-            return "Iso"
-        if x & ExportFilter.FILTERED_IO:
-            return "Filtered (I/O)"
-        if x & ExportFilter.FILTERED_COMPLEX:
-            return "Filtered (Complex)"
-        if x & ExportFilter.FILTERED_SIMPLE:
-            return "Filtered (Simple)"
-        if x & ExportFilter.FILTERED_PRED:
-            return "Filtered (Pred)"
-        if x & ExportFilter.FILTERED_MEM:
-            return "Filtered (Mem)"
-        if x & ExportFilter.FILTERED_BRANCH:
-            return "Filtered (Branch)"
-        if x & ExportFilter.FILTERED_ENC:
-            return "Filtered (Enc)"
-        if x & ExportFilter.FILTERED_OPERANDS:
-            return "Filtered (Operands)"
-        if x & ExportFilter.FILTERED_WEIGHTS:
-            return "Filtered (Weights)"
-        if x & ExportFilter.INVALID:
-            return "Invalid"
-        if x & ExportFilter.ERROR:
-            return "ERROR"
-        return "Unknown"
+def pie_name_helper(x):
+    if x & ExportFilter.SELECTED:
+        return "Selected"
+    if x & ExportFilter.ISO:
+        return "Iso"
+    if x & ExportFilter.FILTERED_IO:
+        return "Filtered (I/O)"
+    if x & ExportFilter.FILTERED_COMPLEX:
+        return "Filtered (Complex)"
+    if x & ExportFilter.FILTERED_SIMPLE:
+        return "Filtered (Simple)"
+    if x & ExportFilter.FILTERED_PRED:
+        return "Filtered (Pred)"
+    if x & ExportFilter.FILTERED_MEM:
+        return "Filtered (Mem)"
+    if x & ExportFilter.FILTERED_BRANCH:
+        return "Filtered (Branch)"
+    if x & ExportFilter.FILTERED_ENC:
+        return "Filtered (Enc)"
+    if x & ExportFilter.FILTERED_OPERANDS:
+        return "Filtered (Operands)"
+    if x & ExportFilter.FILTERED_WEIGHTS:
+        return "Filtered (Weights)"
+    if x & ExportFilter.INVALID:
+        return "Invalid"
+    if x & ExportFilter.ERROR:
+        return "ERROR"
+    return "Unknown"
 
-    subs_df["Label"] = subs_df["Status"].apply(helper)
+
+def generate_pie_chart(subs_df):
+
+    subs_df["Label"] = subs_df["Status"].apply(pie_name_helper)
     pie_df = subs_df.value_counts("Label").rename_axis("Label").reset_index(name="Count")
     # print("pie_df")
     # print(pie_df)
