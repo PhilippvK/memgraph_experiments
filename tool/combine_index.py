@@ -1,9 +1,11 @@
 import pickle
 import logging
 import argparse
+from pathlib import Path
 from collections import defaultdict
 
 import yaml
+import pandas as pd
 from tqdm import tqdm
 
 
@@ -19,7 +21,9 @@ def handle_cmdline():
     parser.add_argument("--log", default="info", choices=["critical", "error", "warning", "info", "debug"], help="TODO")
     parser.add_argument("--output", "-o", default=None, help="TODO")  # print if None
     parser.add_argument("--drop-duplicates", action="store_true", help="TODO")
+    parser.add_argument("--overlaps", default=None, help="TODO")
     parser.add_argument("--venn", default=None, help="TODO")
+    parser.add_argument("--sankey", default=None, help="TODO")
     parser.add_argument("--progress", action="store_true", help="TODO")
     parser.add_argument("--sort-by", type=str, default=None, help="TODO")
     parser.add_argument("--sort-asc", action="store_true", help="TODO")
@@ -33,7 +37,11 @@ args = handle_cmdline()
 INS = args.index
 OUT = args.output
 DROP_DUPLICATES = args.drop_duplicates
+OVERLAPS_OUT = args.overlaps
 VENN_OUT = args.venn
+SANKEY_OUT = args.sankey
+SORT_BY = args.sort_by
+TOPK = args.topk
 
 i = 0
 
@@ -41,6 +49,7 @@ candidates = []
 candidate_io_subs = []
 venn_data = []
 global_properties = []
+in_counts = {}
 
 for j, in_path in enumerate(INS):
     logger.info("Loading input %s", in_path)
@@ -50,6 +59,7 @@ for j, in_path in enumerate(INS):
     global_properties_ = global_data["properties"]
     global_properties += global_properties_
     candidates_data = yaml_data["candidates"]
+    in_counts[j] = len(candidates_data)
     path_ids = set()
     for candidate_data in tqdm(candidates_data, disable=not args.progress):
         candidate_data["id"] = i
@@ -66,6 +76,9 @@ for j, in_path in enumerate(INS):
         i += 1
     venn_data.append(path_ids)
 
+total_count = sum(in_counts.values())
+logger.info(f"Loaded {total_count} candidates from {len(INS)} files...")
+
 if DROP_DUPLICATES:
     duplicates = defaultdict(set)
     duplicate_count = 0
@@ -76,13 +89,37 @@ if DROP_DUPLICATES:
             duplicates[sub] = io_isos_
             duplicate_count += len(io_isos_)
             for k in range(len(venn_data)):
-                venn_data[k] = set(i if k2 in io_isos_ else k2 for k2 in venn_data[k])
+                venn_data[k] = set(sub if k2 in io_isos_ else k2 for k2 in venn_data[k])
         # input("@@")
     all_duplicates = set(sum(map(list, duplicates.values()), []))
+    logger.info(f"Dropping {duplicate_count} duplicates out of {total_count} candidates...")
+    # print("duplicates", duplicates)
+    # print("all_duplicates", all_duplicates)
+    # print("duplicate_count", duplicate_count)
     candidates = [x for i, x in enumerate(candidates) if i not in all_duplicates]
+
+if OVERLAPS_OUT:
+    logger.info("Exporting overlaps...")
+    pairwise_overlaps = {}
+    for i, n in enumerate(venn_data):
+        for j, m in enumerate(venn_data):
+            if j <= i:
+                pass
+                continue
+            pairwise_overlaps[(i, j)] = n & m
+    # print("pairwise_overlaps", pairwise_overlaps)
+    pairwise_overlaps_data = [{"x": key[0], "y": key[1], "nodes": nodes, "size": len(nodes)} for key, nodes in pairwise_overlaps.items()]
+    pairwise_overlaps_df = pd.DataFrame(pairwise_overlaps_data)
+    print("Pairwise overlaps:")
+    print(pairwise_overlaps_df)
+    fmt = Path(OVERLAPS_OUT).suffix
+    assert fmt in ".csv"
+    pairwise_overlaps_df.to_csv(OVERLAPS_OUT, index=False)
+
     # TODO: fix ids?
 
 if VENN_OUT is not None:
+    logger.info("Exporting venn diagram...")
     HAS_VENN = True
     try:
         from matplotlib_venn import venn3, venn2
@@ -92,7 +129,7 @@ if VENN_OUT is not None:
     from matplotlib import pyplot as plt
 
     if not HAS_VENN:
-        pass  # TODO: warning
+        logger.error("Package matplotlib_venn not found! Skipping...")
     else:
         assert len(venn_data) > 0, "--venn needs --drop"
         assert len(venn_data) in [2, 3], "--venn only works for 2 or 3 inputs"
@@ -104,7 +141,45 @@ if VENN_OUT is not None:
             )
         elif len(venn_data) == 2:
             fig = venn2(venn_data, ("Set1", "Set2"))
-        plt.savefig(VENN_OUT)
+        plt.savefig(VENN_OUT, dpi=300)
+
+if SANKEY_OUT:
+    logger.info("Exporting sankey diagram...")
+    fmt = Path(SANKEY_OUT).suffix
+    assert fmt in [".md"]
+    content = """
+```mermaid
+---
+config:
+  sankey:
+    showValues: true
+---
+sankey-beta
+
+%% source,target,value
+"""
+    for j, count in in_counts.items():
+        content += f"Set{j},Merged,{count}\n"
+    if DROP_DUPLICATES:
+        content += f"Merged,Duplicates,{duplicate_count}\n"
+        unique_count = len(candidates)
+        content += f"Merged,Unique,{unique_count}\n"
+    if TOPK:
+        final_count = min(TOPK, len(candidates))
+        rest_count = len(candidates) - final_count
+        if DROP_DUPLICATES:
+            if rest_count > 0:
+                content += f"Unique,Rest,{rest_count}\n"
+            content += f"Unique,Topk,{final_count}\n"
+        else:
+            if rest_count > 0:
+                content += f"Merged,Rest,{rest_count}\n"
+            content += f"Merged,Topk,{final_count}\n"
+    content += """
+```
+"""
+    with open(SANKEY_OUT, "w") as f:
+        f.write(content)
 
 # with MeasureTime("Isomorphism Check", verbose=TIMES):
 #     logger.info("Checking isomorphism...")
@@ -126,11 +201,13 @@ if VENN_OUT is not None:
 # logger.info("Writing Combined Index File...")
 # write_index_file(OUT / "index.yml", filtered_subs_df, index_data)
 
-if args.sort_by:
+if SORT_BY:
+    logger.info(f"Sorting candidates by {SORT_BY}...")
     assert isinstance(args.sort_by, str)
     candidates = sorted(candidates, key=lambda x: x["properties"][args.sort_by], reverse=not args.sort_asc)
 
-if args.topk:
+if TOPK:
+    logger.info(f"Keeping TOPK={TOPK} candidates...")
     assert args.sort_by, "--topk is only meaningful on sorted list"
     assert isinstance(args.topk, int)
     candidates = candidates[:args.topk]
