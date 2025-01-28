@@ -1,7 +1,6 @@
 import plotly.express as px
-import pandas as pd
 
-from .enums import ExportFilter
+from .enums import ExportFilter, Variation
 
 
 def pie_name_helper(x):
@@ -34,6 +33,18 @@ def pie_name_helper(x):
     return "Unknown"
 
 
+def pie_name_helper2(x):
+    if x & Variation.REUSE_IO:
+        return "Variation (ReuseIO)"
+    if x & Variation.REG2IMM:
+        return "Variation (Reg2Imm)"
+    if x & Variation.CONST2IMM:
+        return "Variation (Const2Imm)"
+    if x & Variation.CONST2REG:
+        return "Variation (Const2Reg)"
+    return "Unknown"
+
+
 def generate_pie_chart(subs_df):
 
     subs_df["Label"] = subs_df["Status"].apply(pie_name_helper)
@@ -47,7 +58,7 @@ def generate_pie_chart(subs_df):
 
 
 def generate_pie2_chart(subs_df):
-    subs_df["Label"] = subs_df["Parent"].apply(lambda x: "Original" if pd.isna(x) else "Variation")
+    subs_df["Label"] = subs_df["Variations"].apply(pie_name_helper2)
     pie_df = subs_df.value_counts("Label").rename_axis("Label").reset_index(name="Count")
     # print("pie_df")
     # print(pie_df)

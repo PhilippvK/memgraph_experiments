@@ -22,7 +22,9 @@ def check_type(x):
     elif isinstance(x, float):
         if np.isnan(x):
             x = None
-    assert x is None or isinstance(x, (str, int, list, float))
+    elif isinstance(x, np.int64):
+        x = float(x)
+    assert x is None or isinstance(x, (str, int, list, float)), f"Unsupported: {type(x)}"
     return x
 
 

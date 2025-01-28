@@ -20,7 +20,7 @@ from anytree.dotexport import RenderTreeGraph
 
 # from anytree.iterators import AbstractIter
 
-from .enums import ExportFormat, ExportFilter, InstrPredicate, CDFGStage, parse_enum_intflag
+from .enums import ExportFormat, ExportFilter, InstrPredicate, CDFGStage, parse_enum_intflag, Variation
 from .memgraph import connect_memgraph, run_query
 from .iso import calc_io_isos
 from .hash import add_hash_attr, calc_full_hash, calc_global_hash
@@ -37,7 +37,7 @@ from .graph_utils import (
 from .queries import generate_func_query, generate_candidates_query
 from .pred import check_predicates, detect_predicates
 from .timing import MeasureTime
-from .pie import generate_pie_chart, generate_pie2_chart, pie_name_helper
+from .pie import generate_pie_chart, generate_pie2_chart, pie_name_helper, pie_name_helper2
 from .index import write_index_file
 from .gen.tree import generate_tree
 from .gen.cdsl import generate_cdsl
@@ -463,7 +463,7 @@ global_df["max_branches"] = [MAX_BRANCHES]
 subs_df = pd.DataFrame({"result": list(range(len(subs)))})
 subs_df["DateTime"] = ts
 subs_df["Parent"] = np.nan  # used to find the original sub for a variation
-subs_df["Variations"] = np.nan  # used to specify applied variations for Children
+subs_df["Variations"] = Variation.NONE  # used to specify applied variations for Children
 subs_df["SubHash"] = None
 subs_df["IOSubHash"] = None
 subs_df["FullHash"] = None
@@ -1165,7 +1165,7 @@ with MeasureTime("Variation generation", verbose=TIMES):
                         new_operand_enc_bits_sum = sum(new_operand_enc_bits)
                         parent = i
                         new_sub_data["Parent"] = parent
-                        new_sub_data["Variations"] = ["ReuseIO"]
+                        new_sub_data["Variations"] |= Variation.REUSE_IO
                         new_sub_data["OperandNames"] = new_operand_names
                         new_sub_data["OperandNodes"] = new_operand_nodes
                         new_input_nodes = [
@@ -1442,17 +1442,17 @@ with MeasureTime("Apply Styles", verbose=TIMES):
         sub = subs[i]
         nodes = sub.nodes
         sub_data = subs_df.iloc[i]
-        print("sub_data", sub_data)
+        # print("sub_data", sub_data)
         inputs = sub_data["InputNodes"]
         SHOW_NODE_IDS = True
         # SHOW_NODE_IDS = False
         # for inp in inputs:
         j = 0
         for node in io_sub.nodes:
-            print("node", node)
-            print("io_sub.nodes[node]", io_sub.nodes[node])
+            # print("node", node)
+            # print("io_sub.nodes[node]", io_sub.nodes[node])
             _, ip, _, _ = calc_inputs(GF, sub)
-            print("ip", ip)
+            # print("ip", ip)
             if node in inputs:
                 # TODO: physreg?
                 if io_sub.nodes[node]["label"] == "Const":
@@ -1593,15 +1593,20 @@ if WRITE_SANKEY:
             # TODO: handle variations
             filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_SANKEY_FLT) > 0].copy()
             counts_df = filtered_subs_df.value_counts("Status").rename_axis("Status").reset_index(name="Count")
-            print("counts_df", counts_df)
+            # counts_df2 = filtered_subs_df["Parent"].apply(lambda x: "Original" if pd.isna(x) else "Variation").value_counts().rename_axis("Parent").reset_index(name="Count")
+            counts_df2 = filtered_subs_df["Variations"].value_counts().rename_axis("Parent").reset_index(name="Count")
+
+            # print("counts_df", counts_df)
+            # print("counts_df2", counts_df2)
             sankey_data = []
             total = counts_df["Count"].sum()
             counts_dict = counts_df.set_index("Status")["Count"].to_dict()
-            print("counts_dict", counts_dict)
+            counts_dict2 = counts_df2.set_index("Parent")["Count"].to_dict()
+            # print("counts_dict", counts_dict)
             levels = {
                 "temp1": ([ExportFilter.ISO], []),
                 "temp2": ([ExportFilter.FILTERED_IO, ExportFilter.FILTERED_COMPLEX, ExportFilter.FILTERED_SIMPLE, ExportFilter.FILTERED_PRED, ExportFilter.FILTERED_MEM, ExportFilter.FILTERED_BRANCH, ExportFilter.INVALID], []),
-                "temp3": ([ExportFilter.FILTERED_OPERANDS], []),
+                "temp3": ([ExportFilter.FILTERED_OPERANDS], [Variation.REUSE_IO]),  # TODO: make variation enum
                 "temp4": ([ExportFilter.FILTERED_ENC], []),
                 "temp5": ([ExportFilter.FILTERED_WEIGHTS], []),
                 "temp6": ([ExportFilter.ERROR], []),
@@ -1609,29 +1614,39 @@ if WRITE_SANKEY:
             }
             current = "query"
             for level_name, temp in levels.items():
-                level_keys, abc = temp
-                print("level_name", level_name)
-                print("level_keys", level_keys)
-                print("current", current)
-                print("total", total)
+                filters, variations = temp
+                # print("level_name", level_name)
+                # print("filters", filters)
+                # print("variation", variations)
+                # print("current", current)
+                # print("total", total)
                 total_new = total
-                for level_key in level_keys:
-                    print("level_key", level_key)
-                    level_key_count = counts_dict.get(level_key, 0)
-                    print("level_key_count", level_key_count)
-                    if level_key_count > 0:
-                        new = (current, pie_name_helper(level_key), level_key_count)
-                        print("new", new)
+                for var in variations:
+                    # print("var", var)
+                    var_count = counts_dict2.get(var, 0)
+                    # print("var_count", var_count)
+                    if var_count > 0:
+                        new = (pie_name_helper2(var), current, var_count)
+                        # print("new", new)
                         sankey_data.append(new)
-                    total_new -= level_key_count
+                    total_new += var_count
+                for flt in filters:
+                    # print("flt", flt)
+                    flt_count = counts_dict.get(flt, 0)
+                    # print("flt_count", flt_count)
+                    if flt_count > 0:
+                        new = (current, pie_name_helper(flt), flt_count)
+                        # print("new", new)
+                        sankey_data.append(new)
+                    total_new -= flt_count
                 assert total_new >= 0
                 if total_new != 0:
                     new = (current, level_name, total_new)
-                    print("new", new)
+                    # print("new", new)
                 sankey_data.append(new)
                 current = level_name
                 total = total_new
-            print("sankey_data", sankey_data)
+            # print("sankey_data", sankey_data)
             content = """```mermaid
 ---
 config:
@@ -1659,7 +1674,7 @@ if WRITE_INDEX:
 
 if TIMES:
     print(MeasureTime.summary())
-    MeasureTime.write_csv(OUT / "times.csv", index=False)
+    MeasureTime.write_csv(OUT / "times.csv")
 
 # TODO: estimate encoding usage (free bits, rel. for enc_size 16/32/48)
 # TODO: for all constants query isomorph subs and count the different values

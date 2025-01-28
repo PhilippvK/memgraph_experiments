@@ -156,7 +156,6 @@ def calc_sub_io_isos(io_sub, io_subs, i, subs_df=None, ignore_hash: bool = False
 
 def calc_io_isos(io_subs, progress: bool = False, subs_df=None, ignore_hash: bool = False):
     groups = defaultdict(list)
-    print("Grouping")
     for i, io_sub in enumerate(io_subs):
         # print("i", i)
         # print("io_sub", io_sub)
@@ -164,12 +163,10 @@ def calc_io_isos(io_subs, progress: bool = False, subs_df=None, ignore_hash: boo
         # print("len(io_sub.nodes)", len(io_sub.nodes))
         num_nodes = len(io_sub.nodes)
         groups[num_nodes].append((i, io_sub))
-    print("Done")
     # print("groups", groups)
     all_io_isos = set()
     all_sub_io_isos = defaultdict(list)
     for group_num_nodes, group_io_subs in groups.items():
-        print("group_num_nodes", group_num_nodes)
         io_isos = set()
         sub_io_isos = defaultdict(list)
         for i, io_sub in tqdm(group_io_subs, disable=not progress):

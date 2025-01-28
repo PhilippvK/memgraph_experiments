@@ -104,3 +104,11 @@ class CDFGStage(IntFlag):
     STAGE_3 = 8  # post instructionselect
     STAGE_4 = 16  # post fallback/iseldag
     STAGE_5 = 32  # post finalizeisel/expandpseudos
+
+
+class Variation(IntFlag):
+    NONE = 0
+    REUSE_IO = auto()  # 1
+    REG2IMM = auto()  # 2
+    CONST2IMM = auto()  # 4
+    CONST2REG = auto()  # 8
