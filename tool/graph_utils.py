@@ -152,10 +152,16 @@ def calc_weights(sub):
         weights.append(instr_rel_weight)
     # print("weights", weights)
     # print("freqs", freqs)
-    assert len(set(weights)) == 1
+    # crossBB = True
+    crossBB = False
+    if not crossBB:
+        assert len(set(weights)) == 1
     total_weight = sum(weights)
-    assert len(set(freqs)) == 1
-    freq = freqs[0]
+    if not crossBB:
+        assert len(set(freqs)) == 1
+        freq = freqs[0]
+    else:
+        freq = max(freqs)
     # print("total_weight", total_weight)
     # print("freq", freq)
     # input("?!")
@@ -184,10 +190,17 @@ def calc_weights_iso(graph, nodes):
         weights.append(instr_rel_weight)
     # print("weights", weights)
     # print("freqs", freqs)
-    assert len(set(weights)) == 1
+    # crossBB = True
+    crossBB = False
+    if not crossBB:
+        print("weights", weights)
+        assert len(set(weights)) == 1
     total_weight = sum(weights)
-    assert len(set(freqs)) == 1
-    freq = freqs[0]
+    if not crossBB:
+        assert len(set(freqs)) == 1
+        freq = freqs[0]
+    else:
+        freq = max(freqs)
     # print("total_weight", total_weight)
     # print("freq", freq)
     # input("?!")
