@@ -90,7 +90,9 @@ def generate_tree(sub, sub_data, GF, xlen=None):
         # reg_class = node_properties.get("out_reg_class", None)
         reg_class = operand_reg_classes[op_idx].lower()
         reg_size = node_properties.get("out_reg_size", None)
+        reg_name = node_properties.get("out_reg_name", None)
         # enc_bits = int(operand_enc_bits[op_idx])
+        is_phys_reg = reg_name.startswith("$x")
 
         if op_type != "input":
             assert reg_class in ["gpr"], f"Unexpected reg_class: {reg_class}"
@@ -104,6 +106,13 @@ def generate_tree(sub, sub_data, GF, xlen=None):
                 if xlen is not None:
                     pass  # Ignore XLEN for now: check if casts are added automatically
                     # assert reg_size == xlen, f"reg_size ({reg_size}) does not match xlen ({xlen})"
+
+        if is_phys_reg and (reg_size is None or reg_size == "unknown"):
+            if xlen is not None:
+                reg_size = xlen
+            else:
+                reg_size = "XLEN"
+
         res = treegen.visit(inp)
         # print("res", res)
         # name = f"inp{j}"
