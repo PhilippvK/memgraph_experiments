@@ -362,11 +362,13 @@ with MeasureTime("Relabeling", verbose=TIMES):
     topo = list(reversed(list(nx.topological_sort(GF))))
     # print("topo", topo)
     # mapping = dict(zip(G.nodes.keys(), topo))
-    mapping = dict(zip(GF.nodes.keys(), topo))
+    # mapping = dict(zip(GF.nodes.keys(), topo))
+    mapping = dict(zip(topo, list(range(len(GF.nodes)))))
     GF = nx.relabel_nodes(GF, mapping)
     G = nx.relabel_nodes(G, mapping)
     for i in range(len(subs)):
         subs[i] = nx.relabel_nodes(subs[i], mapping)
+    topo = list(nx.topological_sort(GF))
     # print("GF", GF)
     # print("G", G)
     # print("GF.nodes", GF.nodes)
@@ -529,6 +531,7 @@ subs_df["IsoWeight"] = np.nan
 subs_df["Status"] = ExportFilter.SELECTED  # TODO: init with UNKNOWN
 # print("subs_df")
 # print(subs_df)
+
 
 # if True:
 with MeasureTime("I/O Analysis", verbose=TIMES):
