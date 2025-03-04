@@ -151,6 +151,7 @@ def handle_cmdline():
     parser.add_argument("--write-index-fmt", type=int, default=INDEX_FMT_DEFAULT, help="TODO")
     parser.add_argument("--write-index-flt", type=int, default=INDEX_FLT_DEFAULT, help="TODO")
     parser.add_argument("--write-queries", action="store_true", help="TODO")
+    parser.add_argument("--write-query-metrics", action="store_true", help="TODO")
     parser.add_argument("--allowed-enc-sizes", type=int, nargs="+", default=ALLOWED_ENC_SIZES_DEFAULT, help="TODO")
     parser.add_argument(
         "--allowed-imm_widths", type=int, nargs="+", default=ALLOWED_IMM_WIDTHS, help="TODO"
@@ -226,6 +227,7 @@ WRITE_INDEX = args.write_index
 WRITE_INDEX_FMT = args.write_index_fmt
 WRITE_INDEX_FLT = args.write_index_flt
 WRITE_QUERIES = args.write_queries
+WRITE_QUERY_METRICS = args.write_query_metrics
 ALLOWED_ENC_SIZES = args.allowed_enc_sizes
 MAX_ENC_FOOTPRINT = args.max_enc_footprint
 MAX_ENC_WEIGHT = args.max_enc_weight
@@ -322,6 +324,15 @@ with MeasureTime("Subgraph Generation", verbose=TIMES):
         if count > 0:
             pass
         subs.append(G_)
+    if WRITE_QUERY_METRICS:
+        graph = results.graph()
+        num_rows = len(subs)
+        num_nodes = len(graph.nodes)
+        num_edges = len(graph.relationships)
+        logger.info("Exporting query metrics...")
+        query_metrics_data = {"num_rows": num_rows, "num_nodes": num_nodes, "num_edges": num_edges}
+        query_metrics_df = pd.DataFrame([query_metrics_data])
+        query_metrics_df.to_csv(OUT / "query_metrics.csv", index=False)
 
 
 # for i, result in enumerate(results):
