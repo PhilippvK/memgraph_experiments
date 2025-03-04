@@ -1,3 +1,6 @@
+from typing import Union, Optional
+
+
 def parse_llvm_const_str(val_str):
     assert val_str[-1] == "_"
     val_str = val_str[:-1]
@@ -16,8 +19,7 @@ def parse_llvm_const_str(val_str):
     return val, ty, sign
 
 
-def llvm_type_to_cdsl_type(llvm_type: str, signed: bool, reg_size=None, allow_unknown: bool = False):
-    # print("llvm_type_to_cdsl_type", llvm_type, signed, reg_size)
+def llvm_type_to_cdsl_type(llvm_type: str, signed: bool, reg_size: Optional[Union[str, int]] = None, allow_unknown: bool = False):
     if llvm_type is None:
         if reg_size is not None:
             if reg_size == "unknown":
@@ -28,6 +30,7 @@ def llvm_type_to_cdsl_type(llvm_type: str, signed: bool, reg_size=None, allow_un
                         return "unsigned"
                 else:
                     raise ValueError("Unknown regsize!")
+            assert isinstance(reg_size, (int, str))
             if signed:
                 return f"signed<{reg_size}>"
             else:
@@ -36,17 +39,18 @@ def llvm_type_to_cdsl_type(llvm_type: str, signed: bool, reg_size=None, allow_un
             raise RuntimeError(f"Unknown reg_size for unknown LLT: {llvm_type}")
     elif llvm_type == "LLT_invalid":
         if reg_size is not None:
-            if isinstance(reg_size, str):
-                if reg_size == "unknown":
-                    if allow_unknown:
-                        if signed:
-                            return "signed"
-                        else:
-                            return "unsigned"
+            # if isinstance(reg_size, str):
+            if reg_size == "unknown":
+                if allow_unknown:
+                    if signed:
+                        return "signed"
                     else:
-                        raise ValueError("Unknown regsize!")
+                        return "unsigned"
                 else:
-                    reg_size = int(reg_size)
+                    raise ValueError("Unknown regsize!")
+            #     else:
+            #         reg_size = int(reg_size)
+            assert isinstance(reg_size, (int, str))
             if signed:
                 return f"signed<{reg_size}>"
             else:
@@ -57,7 +61,7 @@ def llvm_type_to_cdsl_type(llvm_type: str, signed: bool, reg_size=None, allow_un
         llt_lookup = {
             "p0": (reg_size, 1, signed),
             "s32": (32, 1, signed),
-            "s64": (32, 1, signed),
+            "s64": (64, 1, signed),
         }
         found = llt_lookup.get(llvm_type, None)
         assert found is not None, f"Lookup of LLT failed: {llvm_type}"
