@@ -57,7 +57,7 @@ for j, in_path in enumerate(INS):
         yaml_data = yaml.safe_load(f)
     global_data = yaml_data["global"]
     global_properties_ = global_data["properties"]
-    global_properties += global_properties_
+    # TODO: add metrics automatically
     candidates_data = yaml_data["candidates"]
     in_counts[j] = len(candidates_data)
     path_ids = set()
@@ -74,6 +74,8 @@ for j, in_path in enumerate(INS):
                 io_sub = pickle.load(f)
             candidate_io_subs.append(io_sub)
         i += 1
+    global_properties_[0]["candidate_count"] = len(path_ids)
+    global_properties += global_properties_
     venn_data.append(path_ids)
 
 total_count = sum(in_counts.values())
