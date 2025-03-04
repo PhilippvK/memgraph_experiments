@@ -1,7 +1,7 @@
 import logging
 import pickle
 from pathlib import Path
-from typing import Union
+from typing import Union, Optional
 from anytree import AnyNode
 
 from ..llvm_utils import parse_llvm_const_str, llvm_type_to_cdsl_type
@@ -88,7 +88,16 @@ def tree_from_pkl(path: Union[str, Path]):
 
 class TreeGenContext:
 
-    def __init__(self, graph, sub, inputs=None, outputs=None, constants=None, explicit_types: bool = True) -> None:
+    def __init__(
+        self,
+        graph,
+        sub,
+        inputs=None,
+        outputs=None,
+        constants=None,
+        explicit_types: bool = True,
+        xlen: Optional[int] = None,
+    ) -> None:
         self.graph = graph
         self.sub = sub
         self.inputs = inputs if inputs is not None else []
@@ -99,6 +108,7 @@ class TreeGenContext:
         self.defs = {}
         self.temps = {}
         self.temp_idx = 0
+        self.xlen = xlen
 
     def get_temp(self):
         ret = f"temp{self.temp_idx}"
@@ -186,6 +196,12 @@ class TreeGenContext:
         # print("!3", [self.graph[src, node]["properties"].get("op_reg_size", None) for src in srcs])
         # print("!4", [self.graph[src, node]["properties"].get("op_reg_name", None) for src in srcs])
         # input("!!")
+        is_phys_reg = out_reg_name.startswith("$x")
+        if is_phys_reg and (out_reg_size is None or out_reg_size == "unknown"):
+            if self.xlen is not None:
+                out_reg_size = self.xlen
+            else:
+                out_reg_size = "XLEN"
         if op_type == "constant":
             val_str = self.graph.nodes[node]["properties"]["inst"]
             val, llvm_type, signed = parse_llvm_const_str(val_str)
@@ -196,6 +212,7 @@ class TreeGenContext:
             if node in self.inputs and node not in self.outputs:
                 op_type = "input"
             signed = False  # ?
+            # TODO: flag $x0 as register, not input!
             cdsl_type = llvm_type_to_cdsl_type(out_reg_type, signed, reg_size=out_reg_size)
             # print("cdsl_type", cdsl_type)
             # print("children", children)
