@@ -34,6 +34,8 @@ def generate_candidates_query(
     shared_output: bool = True,
     stage: CDFGStage = CDFGStage.STAGE_3,
     limit: Optional[int] = None,
+    # use_bb_id: bool = False,
+    use_bb_id: bool = True,
 ):
     if shared_input:
         starts = ["a"] * max_path_width
@@ -52,7 +54,11 @@ def generate_candidates_query(
     session_conds = [f"{x}.session = '{session}'" for x in set(starts) | set(ends)]
     func_conds = [f"{x}.func_name = '{func}'" for x in set(starts) | set(ends)]
     if bb:
-        bb_conds = [f"{x}.basic_block = '{bb}'" for x in set(starts) | set(ends)]
+        if use_bb_id:
+            bb_id = int(bb.split(".", 1)[1])
+            bb_conds = [f"{x}.bb_id = {bb_id}" for x in set(starts) | set(ends)]
+        else:
+            bb_conds = [f"{x}.basic_block = '{bb}'" for x in set(starts) | set(ends)]
     else:
         bb_conds = []
     stage_conds = [f"{x}.stage = {stage}" for x in set(starts) | set(ends)]
