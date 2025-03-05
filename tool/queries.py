@@ -3,8 +3,9 @@ from typing import List, Optional
 from .enums import CDFGStage
 
 
-def generate_func_query(session: str, func: str, fix_cycles: bool = True, stage: CDFGStage = CDFGStage.STAGE_3):
-    ret = f"""MATCH p0=(n00:INSTR)-[r01:DFG]->(n01:INSTR)
+def generate_func_query(session: str, func: str, fix_cycles: bool = True, stage: CDFGStage = CDFGStage.STAGE_3, cross_bb: bool = False):
+    rel_suffix = "" if cross_bb else ":DFG"
+    ret = f"""MATCH p0=(n00:INSTR)-[r01{rel_suffix}]->(n01:INSTR)
 WHERE n00.func_name = '{func}'
 AND n00.session = "{session}"
 AND n00.stage = {stage}
