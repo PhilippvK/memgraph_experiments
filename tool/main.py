@@ -1720,40 +1720,66 @@ with MeasureTime("Apply Styles", verbose=TIMES):
         sub_data = subs_df.iloc[i]
         # print("sub_data", sub_data)
         inputs = sub_data["InputNodes"]
+        input_names = sub_data["InputNames"]
+        outputs = sub_data["OutputNodes"]
+        output_names = sub_data["OutputNames"]
+        constants = sub_data["ConstantNodes"]
         SHOW_NODE_IDS = True
+        io_sub_topo = list(reversed(list(nx.topological_sort(io_sub))))
+        # inputs_sorted = sorted(inputs, key=lambda x: io_sub_topo.index(x))
+        # input_node_mapping = {n: f"src{i}" for i, n in enumerate(inputs_sorted)}
         # SHOW_NODE_IDS = False
         # for inp in inputs:
         j = 0
+        for edge in io_sub.edges(data=True, keys=True):
+            u, v, k, data = edge
+            properties = data["properties"]
+            op_idx = properties.get("op_idx")
+            out_idx = properties.get("out_idx")
+            edge_annotation = f"{out_idx} -> {op_idx}"
+            io_sub[u][v][k]["xlabel"] = edge_annotation
         for node in io_sub.nodes:
             # print("node", node)
             # print("io_sub.nodes[node]", io_sub.nodes[node])
-            _, ip, _, _ = calc_inputs(GF, sub)
-            # print("ip", ip)
             if node in inputs:
                 # TODO: physreg?
+                io_sub.nodes[node]["xlabel"] = "IN"
+                io_sub.nodes[node]["fillcolor"] = "gray"
+                io_sub.nodes[node]["style"] = "filled"
+                io_sub.nodes[node]["shape"] = "box"
+                # label = f"src{j}"
+                input_label = input_names[inputs.index(node)]
+                label = input_label
+                # io_sub.nodes[node]["name"] = label
+                if SHOW_NODE_IDS:
+                    assert "font" not in label
+                    label = f'<{label}<br/><font point-size="10">{node}</font>>'
+                io_sub.nodes[node]["label"] = label
+                j += 1
+            elif node in outputs:
+                output_label = output_names[outputs.index(node)]
+                io_sub.nodes[node]["xlabel"] = "OUT"
+                io_sub.nodes[node]["fillcolor"] = "gray"
+                io_sub.nodes[node]["style"] = "filled"
+                io_sub.nodes[node]["shape"] = "box"
+                # io_sub.nodes[node]["name"] = label
+                if SHOW_NODE_IDS:
+                    output_label = f'<{output_label}<br/><font point-size="10">{node}</font>>'
+                io_sub.nodes[node]["label"] = output_label
+            elif node in constants:
                 if io_sub.nodes[node]["label"] == "Const":
-                    io_sub.nodes[node]["xlabel"] = "CONST"
-                    io_sub.nodes[node]["fillcolor"] = "lightgray"
-                    io_sub.nodes[node]["style"] = "filled"
-                    io_sub.nodes[node]["shape"] = "box"
                     label = io_sub.nodes[node]["properties"]["inst"][:-1]
-                    # io_sub.nodes[node]["name"] = label
-                    if SHOW_NODE_IDS:
-                        assert "font" not in label
-                        label = f'<{label}<br/><font point-size="10">{node}</font>>'
-                    io_sub.nodes[node]["label"] = label
                 else:
-                    io_sub.nodes[node]["xlabel"] = "IN"
-                    io_sub.nodes[node]["fillcolor"] = "gray"
-                    io_sub.nodes[node]["style"] = "filled"
-                    io_sub.nodes[node]["shape"] = "box"
-                    label = f"src{j}"
-                    # io_sub.nodes[node]["name"] = label
-                    if SHOW_NODE_IDS:
-                        assert "font" not in label
-                        label = f'<{label}<br/><font point-size="10">{node}</font>>'
-                    io_sub.nodes[node]["label"] = label
-                    j += 1
+                    label = io_sub.nodes[node]["label"]
+                io_sub.nodes[node]["xlabel"] = "CONST"
+                io_sub.nodes[node]["fillcolor"] = "lightgray"
+                io_sub.nodes[node]["style"] = "filled"
+                io_sub.nodes[node]["shape"] = "box"
+                # io_sub.nodes[node]["name"] = label
+                if SHOW_NODE_IDS:
+                    assert "font" not in label
+                    label = f'<{label}<br/><font point-size="10">{node}</font>>'
+                io_sub.nodes[node]["label"] = label
             else:
                 label = io_sub.nodes[node]["label"]
                 # io_sub.nodes[node]["name"] = label
