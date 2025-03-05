@@ -582,56 +582,196 @@ with MeasureTime("I/O Analysis", verbose=TIMES):
             edges = list(io_sub.in_edges(inp))
             io_sub.remove_edges_from(edges)
         j = 0
+        # TODO: drop this (use apply style stage!)
         # SHOW_NODE_IDS = True
-        SHOW_NODE_IDS = False
-        for inp in inputs:
+        # SHOW_NODE_IDS = False
+        # io_sub_topo = list(reversed(list(nx.topological_sort(io_sub))))
+        # print("io_sub_topo", io_sub_topo)
+        # input(">")
+        # inputs_sorted = sorted(inputs, key=lambda x: io_sub_topo.index(x))
+        inputs_sorted = sorted(inputs)
+        # print("inputs_sorted", inputs_sorted)
+        # Normalize io_subs
+        input_node_mapping = {n: f"src{ii}" for ii, n in enumerate(inputs_sorted)}
+        output_node_mapping = {n: (len(GF.nodes) + ii, f"dst{ii}") for ii, n in enumerate(outputs)}
+        # print("output_node_mapping", output_node_mapping)
+        outputs_ = []
+        for out, temp in output_node_mapping.items():
+            out_, out_label = temp
+            old_properties = io_sub.nodes[out]["properties"]
+            new_properties = {
+                "basic_block": old_properties["basic_block"],
+                "bb_id": old_properties["bb_id"],
+                "func_name": old_properties["func_name"],
+                "session": old_properties["session"],
+                "module_name": old_properties["module_name"],
+                # "name": old_properties["name"],
+                "name": out_label,
+                "out_reg_class": old_properties["out_reg_class"],
+                "out_reg_name": old_properties["out_reg_name"],
+                "out_reg_size": old_properties["out_reg_size"],
+                "out_reg_type": old_properties["out_reg_type"],
+                "op_type": "output",
+            }
+            node_data = {
+                "label": out_label,
+                "properties": new_properties,
+            }
+            edge_data = {
+                "properties": {"op_idx": 0, "out_idx": 0},
+            }
+            io_sub.add_node(out_, **node_data)
+            GF.add_node(out_, **node_data)
+            io_sub.add_edge(out, out_, **edge_data)
+            outputs_.append(out_)
+        subs_df.at[i, "OutputNodes"] = outputs_
+
+        # if len(outputs) > 1:
+        #     input("yyy")
+        # Update subs_df
+        subs_df.at[i, "InputNodes"] = list(inputs_sorted)
+        subs_df.at[i, "InputNames"] = list(input_node_mapping.values())
+
+        def canonicalize_node(node, graph):
+            """ Recursively generate a canonical key for a node """
+            node_data = graph.nodes[node]
+            if node in constants:
+                val = node_data["properties"]["inst"][:-1]
+                return f"C:{val}"
+
+            elif node in inputs:
+                input_label = input_node_mapping[node]
+                return f"I:{input_label}"
+            elif node in outputs_:
+                output_label = output_node_mapping[outputs[outputs_.index(node)]][1]
+                return f"O:{output_label}"
+
+            else:  # Computational node
+                operand_hashes = [canonicalize_node(pred, graph) for pred in graph.predecessors(node)]
+
+                COMMUTATIVE_OPS = ["ADD", "MUL"]
+                op = node_data["label"]
+                # print("operand_hashes", operand_hashes)
+                if op in COMMUTATIVE_OPS:
+                    # print("COMM")
+                    operand_hashes.sort()  # Sort operands to make commutative ops unique
+                    # print("sorted_operand_hashes", operand_hashes)
+
+                return f"{op}({','.join(operand_hashes)})"
+
+        new_graph = nx.MultiDiGraph()
+        for n, data in io_sub.nodes(data=True):
+            new_label = input_node_mapping.get(n, n)  # Replace input nodes, keep others unchanged
+            op_hash = canonicalize_node(n, io_sub)
+            # print("op_hash", op_hash)
+            data_new = {
+                # "label": new_label,
+                # "label": n,
+                "new_label": new_label,
+                **data,
+                "op_hash": op_hash,
+            }
+            # new_graph.add_node(new_label, **data_new)
+            new_graph.add_node(n, **data_new)
+
+        # Copy edges, ensuring commutative nodes have sorted inputs
+        def is_commutative(node_data):
+            """Returns True if the node represents a commutative operation."""
+            return node_data.get("label") in {"ADD", "MUL", "AND", "OR", "XOR"}  # TODO: Extend
+        for dst in io_sub.nodes:
+            # print("dst", dst)
+            preds = list(io_sub.predecessors(dst))
+            # print("preds", preds)
+
+            if preds:
+                if is_commutative(io_sub.nodes[dst]):
+                    # print("comm")
+                    # preds.sort()  # Sort predecessors for commutative operations
+                    # preds = sorted(preds, key=lambda x: new_graph.nodes[input_node_mapping.get(x, x)]["op_hash"])
+                    preds = sorted(preds, key=lambda x: new_graph.nodes[x]["op_hash"])
+                    # print("preds_sorted", preds)
+
+                for k, src in enumerate(preds):
+                    # print("src", src)
+                    edge_data = io_sub[src][dst]
+                    # TODO: generalize
+                    assert len(edge_data.keys()) == 1
+                    edge_data = list(edge_data.values())[0]
+                    edge_properties = edge_data["properties"]
+                    op_idx = edge_properties["op_idx"]
+                    # print("k", k)
+                    # print("op_idx", op_idx)
+                    if op_idx != k:
+                        edge_data["properties"]["op_idx"] = k
+                    # input(">>>")
+                    # print("edge_data", edge_data)
+                    # new_src = input_node_mapping.get(src, src)
+                    # new_dst = input_node_mapping.get(dst, dst)
+                    # print("new_src", new_src)
+                    # print("new_dst", new_dst)
+                    # input("?!")
+                    # TODO: add key label type & properties
+                    # new_graph.add_edge(new_src, new_dst, **edge_data)
+                    new_graph.add_edge(src, dst, **edge_data)
+        io_sub = new_graph
+
+        for inp in inputs_sorted:
             # TODO: physreg?
-            if io_sub.nodes[inp]["label"] == "Const":
-                io_sub.nodes[inp]["xlabel"] = "CONST"
-                io_sub.nodes[inp]["fillcolor"] = "lightgray"
-                io_sub.nodes[inp]["style"] = "filled"
-                io_sub.nodes[inp]["shape"] = "box"
-                label = io_sub.nodes[inp]["properties"]["inst"][:-1]
-                # io_sub.nodes[inp]["name"] = label
-                if SHOW_NODE_IDS:
-                    label = f'<{label}<br/><font point-size="10">{inp}</font>>'
-                io_sub.nodes[inp]["label"] = label
-            else:
-                io_sub.nodes[inp]["xlabel"] = "IN"
-                io_sub.nodes[inp]["fillcolor"] = "gray"
-                io_sub.nodes[inp]["style"] = "filled"
-                io_sub.nodes[inp]["shape"] = "box"
-                label = f"src{j}"
-                # io_sub.nodes[inp]["name"] = label
-                if SHOW_NODE_IDS:
-                    label = f'<{label}<br/><font point-size="10">{inp}</font>>'
-                io_sub.nodes[inp]["label"] = label
-                j += 1
-        if SHOW_NODE_IDS:
-            for node in io_sub.nodes:
-                if node in inputs:
-                    continue
-                label = io_sub.nodes[node]["label"]
-                # io_sub.nodes[node]["name"] = label
-                label = f'<{label}<br/><font point-size="10">{node}</font>>'
-                io_sub.nodes[node]["label"] = label
-            for node in sub.nodes:
-                label = sub.nodes[node]["label"]
-                # sub.nodes[node]["name"] = label
-                label = f'<{label}<br/><font point-size="10">{node}</font>>'
-                sub.nodes[node]["label"] = label
+            input_label = input_node_mapping[inp]
+            # inp = input_label
+            io_sub.nodes[inp]["node_type"] = "IN"
+            io_sub.nodes[inp]["label"] = input_label
+        for const in set(constants):
+            assert io_sub.nodes[const]["label"] == "Const"
+            io_sub.nodes[inp]["node_type"] = "CONST"
+            label = io_sub.nodes[const]["properties"]["inst"][:-1]
+            io_sub.nodes[const]["label"] = label
+            value = int(label)  # TODO: handle floating point!
+            io_sub.nodes[inp]["value"] = value
+        for outp in outputs:
+            outp_, output_label = output_node_mapping[outp]
+            io_sub.nodes[outp_]["node_type"] = "OUT"
+            io_sub.nodes[outp_]["label"] = output_label
 
         # TODO: add out nodes to io_sub?
         # print("io_sub", io_sub)
         io_subs.append(io_sub)
 
 
+# with MeasureTime("Normalize Graphs", verbose=TIMES):
+#     logger.info("Normalizing graphs...")
+#     for i, io_sub in enumerate(tqdm(io_subs, disable=not PROGRESS)):
+#         # print("i, io_sub", i, io_sub)
+#         nodes = io_sub.nodes
+#         sub_data = subs_df.iloc[i]
+#         inputs = sub_data["InputNodes"]
+#         # TODO: also handle constants
+#         new_graph = nx.MultiDiGraph()
+#         inputs_constants = inputs | constants
+#         input_node_mapping = {n: f"src{i}" for i, n in enumerate(inputs)}
+#         for n, data in io_sub.nodes(data=True):
+#             new_label = input_node_mapping.get(n, n)  # Replace input nodes, keep others unchanged
+#             new_graph.add_node(new_label, **data)
+#         for dst in io_sub.nodes:
+#             preds = list(io_sub.predecessors(dst))
+# 
+#             if preds:
+#                 if is_commutative(graph.nodes[dst]):
+#                     preds.sort()  # Sort predecessors for commutative operations
+# 
+#                 for src in preds:
+#                     new_src = node_mapping.get(src, src)
+#                     new_dst = node_mapping.get(dst, dst)
+#                     new_graph.add_edge(new_src, new_dst)
+
+
 with MeasureTime("SubHash Creation", verbose=TIMES):
     logger.info("Creating SubHashes...")
     # Does not work for MultiDiGraphs?
     for i, io_sub in enumerate(tqdm(io_subs, disable=not PROGRESS)):
+        # print("i", i)
+        # print("io_sub", io_sub)
         sub = subs[i]
-
 
         add_hash_attr(sub)
         add_hash_attr(io_sub)
@@ -872,6 +1012,14 @@ with MeasureTime("Determining IO names", verbose=TIMES):
         sub = subs[i]
         sub_data = subs_df.iloc[i]
         inputs = sub_data["InputNodes"]
+        # print("inputs", inputs)
+        io_sub_topo = list(reversed(list(nx.topological_sort(io_sub))))
+        # print("io_sub_topo", io_sub_topo)
+        inputs_sorted = sorted(inputs, key=lambda x: io_sub_topo.index(x))
+        # print("inputs_sorted", inputs_sorted)
+        input_node_mapping = {n: f"src{i}" for i, n in enumerate(inputs_sorted)}
+        # input("555")
+        # inputs = sub_data["InputNames"]
         outputs = sub_data["OutputNodes"]
         operand_names = []
         operand_nodes = []
@@ -883,8 +1031,8 @@ with MeasureTime("Determining IO names", verbose=TIMES):
         for output_idx, j in enumerate(outputs):
             output_name = f"outp{output_idx}"
             output_node = io_sub.nodes[j]
-            output_properties = output_node["properties"]
-            op_type = output_properties["op_type"]
+            # output_properties = output_node["properties"]
+            # op_type = output_properties["op_type"]
             output_names.append(output_name)
             # TODO: do not hardcode
             op_type_ = "REG"
