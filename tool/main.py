@@ -1945,7 +1945,7 @@ if WRITE_SANKEY:
                 if total_new != 0:
                     new = (current, level_name, total_new)
                     # print("new", new)
-                sankey_data.append(new)
+                    sankey_data.append(new)
                 current = level_name
                 total = total_new
             # print("sankey_data", sankey_data)
