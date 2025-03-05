@@ -1578,6 +1578,118 @@ if WRITE_GEN:
                 index_artifacts[i]["flat"] = OUT / f"result{i}.flat"
     subs_df.loc[list(errs), "Status"] = ExportFilter.ERROR
 
+
+def extract_inputs_and_constants(graph):
+    """Extracts input and constant nodes separately."""
+    inputs = set()
+    constants = {}
+    for node, data in graph.nodes(data=True):
+        if "value" in data:
+            constants[node] = data["value"]
+        elif data.get("type") == "input":
+            inputs.add(node)
+    return inputs, constants
+
+
+def extract_specialization_mapping(general, specialized, gen_inputs, spec_inputs, gen_constants, spec_constants):
+    """Extracts the mapping of input nodes replaced by constants during specialization."""
+    # TODO: merge with can_specialize?
+    mapping = {}
+    gen_inputs, gen_constants = extract_inputs_and_constants(general)
+    spec_inputs, spec_constants = extract_inputs_and_constants(specialized)
+
+    for node in gen_inputs:
+        if node not in spec_inputs and node in spec_constants:
+            mapping[node] = spec_constants[node]  # Input replaced by constant
+    return mapping
+
+
+def can_specialize(general_graph, specialized_graph, general_inputs, specialized_inputs, general_constants, specialized_constants):
+    """
+    Checks if `specialized_graph` is a specialization of `general_graph`, 
+    meaning some inputs in `general_graph` have been replaced by constants.
+    """
+    # general_inputs, general_constants = extract_inputs_and_constants(general_graph)
+    print("general_inputs", general_inputs)
+    print("general_constants", general_constants)
+    # specialized_inputs, specialized_constants = extract_inputs_and_constants(specialized_graph)
+    print("specialized_inputs", specialized_inputs)
+    print("specialized_constants", specialized_constants)
+
+    # Specialization must have the same or fewer inputs and possibly more constants
+    if not specialized_inputs.issubset(general_inputs):
+        print("ret if1")
+        return False
+
+    # Construct a mapping from general -> specialized
+    # TODO: why is this not used?
+    # input_mappings = {inp: inp for inp in specialized_inputs}  # Inputs must map 1:1
+    replaced_constants = {}
+
+    for node in general_inputs:
+        if node not in specialized_inputs:
+            if node in specialized_constants:  # Input replaced by constant?
+                replaced_constants[node] = specialized_constants[node]
+            else:
+                print("ret invalid placement")
+                return False  # Removed input without a valid replacement
+    print("replaced_constants", replaced_constants)
+
+    # Check if computational structure remains the same
+    general_copy = general_graph.copy()
+    specialized_copy = specialized_graph.copy()
+
+    # Apply replacements in general graph
+    for node, value in replaced_constants.items():
+        general_copy.nodes[node]["value"] = value
+        general_copy.nodes[node]["type"] = "constant"
+
+    # Now, check for graph isomorphism (same structure after replacements)
+    matcher = nx.algorithms.isomorphism.GraphMatcher(
+        general_copy, specialized_copy, 
+        node_match=lambda d1, d2: d1.get("op") == d2.get("op") and d1.get("value", None) == d2.get("value", None)
+    )
+    is_iso = matcher.is_isomorphic()
+    print("is_iso", is_iso)
+
+    return is_iso
+
+
+with MeasureTime("Generate Specialization Graph", verbose=TIMES):
+    logger.info("Generating specialization graph...")
+    filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_SUB_FLT) > 0].copy()
+    io_subs_iter = [(i, io_sub) for i, io_sub in enumerate(io_subs) if i in filtered_subs_df.index]
+    spec_graph = nx.DiGraph()
+    for i, io_sub in io_subs_iter:
+        spec_graph.add_node(i, graph=io_sub)
+
+    for i, io_sub in tqdm(io_subs_iter, disable=not PROGRESS):
+        # sub = subs[i]
+        # nodes = sub.nodes
+        sub_data = subs_df.iloc[i]
+        inputs = set(sub_data["InputNodes"])
+        constant_nodes = sub_data["ConstantNodes"]
+        print("constant_nodes", constant_nodes)
+        constant_values = sub_data["ConstantValues"]
+        print("constant_values", constant_values)
+        constants = {node: constant_values[idx] for idx, node in enumerate(constant_nodes)}
+        for j, io_sub_ in tqdm(io_subs_iter, disable=not PROGRESS):
+            if i == j:
+                continue
+            sub_data_ = subs_df.iloc[j]
+            inputs_ = set(sub_data_["InputNodes"])
+            constant_nodes_ = sub_data_["ConstantNodes"]
+            print("constant_nodes_", constant_nodes_)
+            constant_values_ = sub_data_["ConstantValues"]
+            print("constant_values_", constant_values_)
+            constants_ = {node: constant_values_[idx] for idx, node in enumerate(constant_nodes_)}
+            if can_specialize(io_sub, io_sub_, inputs, inputs_, constants, constants_):
+                mapping = extract_specialization_mapping(io_sub, io_sub_, inputs, inputs_, constants, constants_)
+                spec_graph.add_edge(i, j, mapping=mapping)
+    print("spec_graph", spec_graph)
+    graph_to_file(spec_graph, OUT / "spec_graph.dot")
+    input(">>>>>>>>>")
+
 # TODO: loop multiple times (tree -> MIR -> CDSL -> FLAT) not interleaved
 
 # if len(duplicate_counts) > 0:
