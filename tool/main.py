@@ -1970,6 +1970,7 @@ sankey-beta
 if WRITE_INDEX:
     with MeasureTime("Write Index", verbose=TIMES):
         filtered_subs_df = subs_df[(subs_df["Status"] & WRITE_INDEX_FLT) > 0].copy()
+        global_df["candidate_count"] = len(filtered_subs_df)
         logger.info("Writing Index File...")
         if WRITE_INDEX_FMT & ExportFormat.YAML:
             write_index_file(OUT / "index.yml", filtered_subs_df, global_df, index_artifacts)
