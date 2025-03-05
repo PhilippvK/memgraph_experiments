@@ -1,4 +1,4 @@
-from .cdsl_utils import mem_lookup
+from .utils import mem_lookup
 
 
 from .tree_utils import Ref, Cast, Constant, Register, Operation, Statements, Declaration, Assignment

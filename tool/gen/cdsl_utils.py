@@ -1,6 +1,7 @@
 from enum import IntEnum, auto
 
 from .tree_utils import Ref, Cast, Constant, Register, Operation, Statements, Declaration, Assignment
+from .utils import mem_lookup
 
 
 def wrap_cdsl(name, code):
@@ -8,13 +9,6 @@ def wrap_cdsl(name, code):
     ret += "\n".join(["    " + line for line in code.splitlines()]) + "\n"
     ret += "}\n"
     return ret
-
-
-mem_lookup = {
-    "gpr": "X",
-    "fpr": "F",
-    "csr": "CSR",
-}
 
 
 class ExtendMode(IntEnum):

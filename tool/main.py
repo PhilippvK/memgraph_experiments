@@ -1325,11 +1325,13 @@ if WRITE_TREE_FMT:
         # for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
         for i, sub in tqdm(subs_iter, disable=not PROGRESS):
             sub_data = subs_df.iloc[i]
+            io_sub = io_subs[i]
             try:
                 stmts = generate_tree(
                     sub,
                     sub_data,
-                    GF,
+                    # GF,
+                    io_sub,
                     xlen=XLEN,
                 )
                 sub_stmts[i] = stmts
