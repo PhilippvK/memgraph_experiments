@@ -468,7 +468,7 @@ if settings.write.sankey:
 
 if settings.write.index:
     with MeasureTime("Write Index", verbose=settings.times):
-        stages.write_index(settings, subs_df, global_df, index_artifacts)
+        stages.write_index(settings, GF, G, subs, io_subs, sub_stmts, subs_df, global_df, index_artifacts)
 
 
 HDF5_FILE = "/tmp/mytestfile.hdf5"
