@@ -120,6 +120,4 @@ def write_index_file(
         ],
     )
     TEMP_PATH = "/tmp/abc.yml"
-    index.to_yaml(TEMP_PATH)
-    print("index", index)
-    input(">>>")
+    index.to_yaml_file(TEMP_PATH)

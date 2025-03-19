@@ -7,10 +7,10 @@ import logging
 from ..enums import ExportFilter, ExportFormat, Variation
 from ..pie import pie_name_helper, pie_name_helper2
 
-logger = logging.getLogger("write_hdf5")
+logger = logging.getLogger("write_sankey")
 
 
-def write_hdf5(settings, subs_df, index_artifacts):
+def write_sankey(settings, subs_df, index_artifacts):
     logger.info("Exporting Sankey chart...")
     if settings.write.sankey_fmt & ExportFormat.MARKDOWN:  # MERMAID?
         # TODO: handle variations

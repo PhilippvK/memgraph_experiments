@@ -2,7 +2,7 @@ import logging
 
 from tqdm import tqdm
 
-from ..enum import ExportFilter
+from ..enums import ExportFilter
 
 logger = logging.getLogger("filter_subs_weights")
 

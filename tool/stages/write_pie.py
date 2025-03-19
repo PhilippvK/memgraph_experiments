@@ -7,10 +7,10 @@ import logging
 from ..enums import ExportFormat
 from ..pie import generate_pie_chart, generate_pie2_chart
 
-logger = logging.getLogger("write_hdf5")
+logger = logging.getLogger("write_pie")
 
 
-def write_hdf5(settings, subs_df, index_artifacts):
+def write_pie(settings, subs_df, index_artifacts):
     logger.info("Generating PieChart...")
     filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.pie_flt) > 0].copy()
     pie_df, pie_fig = generate_pie_chart(filtered_subs_df)

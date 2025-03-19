@@ -45,7 +45,7 @@ def generate_tree(sub, sub_data, io_sub, xlen=None):
 
     # node_aliases = find_aliases(GF, sub_data)
     node_aliases = find_aliases(io_sub, sub_data)
-    print("node_aliases", node_aliases)
+    # print("node_aliases", node_aliases)
 
     def get_all_inputs(inputs, node_aliases, outputs):
         all_inputs = []

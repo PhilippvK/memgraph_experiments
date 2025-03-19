@@ -32,7 +32,7 @@ settings = Settings.initialize(args)
 with MeasureTime("Settings Validation", verbose=settings.times):
     stages.validate_settings(settings)
 
-settings.to_yaml(settings.out_dir / "settings.yml")
+settings.to_yaml_file(settings.out_dir / "settings.yml")
 
 
 logger.info("Running queries...")
@@ -65,7 +65,7 @@ with MeasureTime("Subgraph Generation", verbose=settings.times):
 #     print("result", result, i, dir(result), result.data())
 
 with MeasureTime("Relabeling", verbose=settings.times):
-    topo = stages.relabel_nodes(settings, GF, subs)
+    G, GF, topo = stages.relabel_nodes(settings, G, GF, subs)
 
 index_artifacts = defaultdict(dict)
 
@@ -87,9 +87,6 @@ if settings.write.func:
 # print("isos", isos, len(isos))
 
 
-io_subs = []
-
-
 now = datetime.now()
 ts = now.strftime("%Y%m%dT%H%M%S")
 
@@ -109,10 +106,10 @@ def init_global_df(settings, ts):
     global_df["func"] = [settings.query.func]
     global_df["bb"] = [settings.query.bb]
     global_df["stage"] = [settings.query.stage]
-    global_df["limit_results"] = [settings.limit_results]
-    global_df["min_path_len"] = [settings.filters.min_path_len]
-    global_df["max_path_len"] = [settings.filters.max_path_len]
-    global_df["max_path_width"] = [settings.filters.max_path_width]
+    global_df["limit_results"] = [settings.query.limit_results]
+    global_df["min_path_len"] = [settings.query.min_path_len]
+    global_df["max_path_len"] = [settings.query.max_path_len]
+    global_df["max_path_width"] = [settings.query.max_path_width]
     global_df["instr_predicates"] = [settings.filters.instr_predicates]
     global_df["ignore_names"] = [settings.query.ignore_names]
     global_df["ignore_op_types"] = [settings.query.ignore_op_types]
@@ -179,7 +176,7 @@ def init_subs_df(settings):
     subs_df["BranchNodes"] = [np.array([])] * len(subs_df)
     subs_df["UniqueInstrs"] = [np.array([])] * len(subs_df)
     subs_df["#UniqueInstrs"] = np.nan
-    for enc_size in settings.allowed_enc_sizes:
+    for enc_size in settings.filters.allowed_enc_sizes:
         subs_df[f"EncodingBitsLeft ({enc_size} bits)"] = np.nan
         subs_df[f"EncodingWeight ({enc_size} bits)"] = np.nan
         subs_df[f"EncodingFootprint ({enc_size} bits)"] = np.nan
@@ -193,12 +190,12 @@ def init_subs_df(settings):
     return subs_df
 
 
-global_df = init_global_df(settings)
+global_df = init_global_df(settings, ts)
 subs_df = init_subs_df(settings)
 
 
 with MeasureTime("I/O Analysis", verbose=settings.times):
-    stages.analyze_io(settings, GF, subs, io_subs, subs_df)
+    io_subs = stages.analyze_io(settings, GF, subs, subs_df)
 
 
 # with MeasureTime("Normalize Graphs", verbose=settings.times):
@@ -474,9 +471,10 @@ if settings.write.index:
 HDF5_FILE = "/tmp/mytestfile.hdf5"
 
 
+print("settings.read_hdf5", settings.read_hdf5, type(settings.read_hdf5))
 if settings.read_hdf5:
     with MeasureTime("HDF5 Read", verbose=settings.times):
-        stages.read_hdf5(settings, subs_df, HDF5_FILE)
+        stages.read_hdf5(settings, subs, subs_df, HDF5_FILE)
 
 
 if settings.write.hdf5:

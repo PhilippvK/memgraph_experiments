@@ -2,7 +2,7 @@ import logging
 
 
 from ..iso import calc_io_isos
-from ..enum import ExportFilter
+from ..enums import ExportFilter
 
 logger = logging.getLogger("check_iso")
 

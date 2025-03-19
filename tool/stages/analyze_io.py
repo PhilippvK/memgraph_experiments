@@ -13,8 +13,9 @@ from ..graph_utils import (
 logger = logging.getLogger("analyze_io")
 
 
-def analyze_io(settings, GF, subs, io_subs, subs_df):
+def analyze_io(settings, GF, subs, subs_df):
     logger.info("Collecting I/O details...")
+    io_subs = []
     for i, sub in enumerate(tqdm(subs, disable=not settings.progress)):
         # if i in isos:
         #     continue
@@ -210,3 +211,4 @@ def analyze_io(settings, GF, subs, io_subs, subs_df):
         # TODO: add out nodes to io_sub?
         # print("io_sub", io_sub)
         io_subs.append(io_sub)
+    return io_subs

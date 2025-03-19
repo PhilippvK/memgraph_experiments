@@ -23,6 +23,7 @@ def parse_enum_intflag(arg, cls):
 
 
 class ExportFormat(IntFlag):
+    NONE = 0
     TXT = auto()  # 1
     DOT = auto()  # 2
     PDF = auto()  # 4

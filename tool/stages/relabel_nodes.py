@@ -79,3 +79,4 @@ def relabel_nodes(settings, G, GF, subs):
 
     # print("subs[0]", subs[0])
     # print("subs[0].nodes", subs[0].nodes)
+    return G, GF, topo

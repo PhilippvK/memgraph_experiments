@@ -2,7 +2,7 @@ import logging
 import pickle
 
 from ..graph_utils import graph_to_file
-from ..enum import ExportFormat
+from ..enums import ExportFormat
 
 logger = logging.getLogger("dump_func_graph")
 

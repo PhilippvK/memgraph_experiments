@@ -7,10 +7,12 @@ import tool.defaults as defaults
 def handle_cmdline():
     # TODO: add help messages
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("--yaml", default=None, help="TODO")
     parser.add_argument("--log", default="info", choices=["critical", "error", "warning", "info", "debug"], help="TODO")
     # TODO: introduce stages (query, filter_isol, variations, filter_?, write, generate,...)
     parser.add_argument("--until", type=int, default=None, choices=[0, 1, 2, 3], help="TODO")
     parser.add_argument("--times", action="store_true", help="TODO")
+    parser.add_argument("--append-times", action="store_true", help="TODO")
     parser.add_argument("--progress", action="store_true", help="TODO")
     parser.add_argument("--host", default="localhost", help="TODO")
     parser.add_argument("--port", type=int, default=7687, help="TODO")
@@ -65,6 +67,10 @@ def handle_cmdline():
     parser.add_argument("--write-index", action="store_true", help="TODO")
     parser.add_argument("--write-index-fmt", type=int, default=defaults.INDEX_FMT_DEFAULT, help="TODO")
     parser.add_argument("--write-index-flt", type=int, default=defaults.INDEX_FLT_DEFAULT, help="TODO")
+    parser.add_argument("--write-hdf5", action="store_true", help="TODO")
+    parser.add_argument("--write-hdf5-flt", type=int, default=defaults.WRITE_HDF5_FLT_DEFAULT, help="TODO")
+    parser.add_argument("--read-hdf5", action="store_true", help="TODO")
+    parser.add_argument("--read-hdf5-flt", type=int, default=defaults.READ_HDF5_FLT_DEFAULT, help="TODO")
     parser.add_argument("--write-queries", action="store_true", help="TODO")
     parser.add_argument("--write-query-metrics", action="store_true", help="TODO")
     parser.add_argument("--allowed-enc-sizes", type=int, nargs="+", default=defaults.ALLOWED_ENC_SIZES_DEFAULT, help="TODO")

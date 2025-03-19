@@ -3,7 +3,7 @@ from math import log2, ceil
 
 from tqdm import tqdm
 
-from .llvm_utils import parse_llvm_const_str
+from ..llvm_utils import parse_llvm_const_str
 
 logger = logging.getLogger("analyze_const")
 

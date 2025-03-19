@@ -2,8 +2,8 @@ import logging
 
 from tqdm import tqdm
 
-from .enum import InstrPredicate
-from .pred import detect_predicates as detect_predicates_
+from ..enums import InstrPredicate
+from ..pred import detect_predicates as detect_predicates_
 
 logger = logging.getLogger("detect_predicates")
 

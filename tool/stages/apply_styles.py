@@ -71,7 +71,7 @@ def apply_styles(settings, subs, io_subs, subs_df):
 
 
 # TODO: move to index.py?
-from ..enum import ExportFilter
+from ..enums import ExportFilter
 
 
 def filter_candidates(candidates, flt: ExportFilter):

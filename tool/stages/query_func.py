@@ -8,7 +8,7 @@ logger = logging.getLogger("query_func")
 
 
 def query_func(settings: Settings, driver):
-    query_func = generate_func_query(settings.session, settings.func, stage=settings.stage)
+    query_func = generate_func_query(settings.query.session, settings.query.func, stage=settings.query.stage)
     if settings.write.queries:
         logger.info("Exporting queries...")
         with open(settings.out_dir / "query_func.cypher", "w") as f:

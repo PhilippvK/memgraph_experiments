@@ -2,8 +2,7 @@ import logging
 
 from tqdm import tqdm
 
-from ..enum import ExportFilter
-from .hash import calc_full_hash, calc_global_hash
+from ..hash import calc_full_hash, calc_global_hash
 
 logger = logging.getLogger("create_fullhash")
 

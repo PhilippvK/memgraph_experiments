@@ -3,7 +3,7 @@ import logging
 from tqdm import tqdm
 
 from ..hash import add_hash_attr
-from ..enum import Variation
+from ..enums import Variation
 from ..encoding import calc_encoding_footprint
 
 logger = logging.getLogger("generate_variations")

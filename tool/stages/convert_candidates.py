@@ -1,6 +1,6 @@
 import logging
 
-from .graph_utils import memgraph_to_nx
+from ..graph_utils import memgraph_to_nx
 
 logger = logging.getLogger("convert_candidates")
 

@@ -80,7 +80,7 @@ def assign_io_names(settings, subs, io_subs, subs_df):
         enc_bits_sum = sum(operand_enc_bits)
         subs_df.loc[i, "OperandEncBitsSum"] = enc_bits_sum
         # TODO: move to new stage
-        for enc_size in settings.allowed_enc_sizes:
+        for enc_size in settings.filters.allowed_enc_sizes:
             enc_bits_left, enc_weight, enc_footprint = calc_encoding_footprint(enc_bits_sum, enc_size)
             subs_df.loc[i, f"EncodingBitsLeft ({enc_size} bits)"] = enc_bits_left
             subs_df.loc[i, f"EncodingWeight ({enc_size} bits)"] = enc_weight

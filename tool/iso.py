@@ -169,7 +169,7 @@ def calc_io_isos(io_subs, progress: bool = False, subs_df=None, ignore_hash: boo
     for group_num_nodes, group_io_subs in groups.items():
         io_isos = set()
         sub_io_isos = defaultdict(list)
-        for i, io_sub in tqdm(group_io_subs, disable=not progress):
+        for i, io_sub in tqdm(group_io_subs, disable=not progress, leave=False):
             # break  # TODO
             # print("io_sub", i, io_sub, io_sub.nodes)
             # print("io_sub nodes", [GF.nodes[n] for n in io_sub.nodes])

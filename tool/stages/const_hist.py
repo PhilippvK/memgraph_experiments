@@ -30,7 +30,7 @@ def const_hist(settings, io_subs, subs_df):
             constant_value = constant_values[c]
             const_value_subs[c][constant_value].append(i)
 
-        for j, io_sub_ in tqdm(io_subs_iter, disable=not settings.progress):
+        for j, io_sub_ in tqdm(io_subs_iter, disable=not settings.progress, leave=False):
             if j <= i:
                 continue
             if j in covered:

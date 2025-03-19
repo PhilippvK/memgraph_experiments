@@ -7,7 +7,7 @@ from anytree.dotexport import RenderTreeGraph
 
 from ..gen.desc import generate_desc
 from ..gen.tree import generate_tree as generate_tree_
-from ..enum import ExportFormat
+from ..enums import ExportFormat
 
 logger = logging.getLogger("generate_tree")
 

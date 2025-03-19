@@ -2,7 +2,7 @@ import logging
 
 from tqdm import tqdm
 
-from ..enum import ExportFilter
+from ..enums import ExportFilter
 from ..pred import check_predicates
 
 logger = logging.getLogger("filter_subs")
