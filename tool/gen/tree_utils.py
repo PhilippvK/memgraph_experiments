@@ -132,7 +132,7 @@ class TreeGenContext:
     def visit(self, node):
         # print("visit", node)
         if node in self.visited:
-            # print("not visited")
+            # print("visited")
             op_type = self.graph.nodes[node]["properties"]["op_type"]
             # print("op_type", op_type)
             if op_type == "constant":
@@ -156,17 +156,11 @@ class TreeGenContext:
                     ret = Ref(name=ref, in_types=[], out_types=tree_node.out_types)
                     ret2 = Ref(name=ref, in_types=[], out_types=tree_node.out_types)
                     parent = self.node_map[node].parent
-                    print("node", node)
-                    print("tree_node", tree_node)
-                    print("parent", parent)
-                    print("parent.children", parent.children)
                     parent.children = [child if child.id != tree_node.id else ret2 for child in parent.children]
-                    print("parent.children1", parent.children)
-
-                    # input("444")
-                    # = ret2
+            # print("ret", ret)
             return ret
-            # return self.node_map[node]
+        # print("not visited")
+        # return self.node_map[node]
         # if node in inputs:
         #     children = []
         # else:
@@ -219,9 +213,12 @@ class TreeGenContext:
             assert len(children) == 0
             ret = Constant(value=val, in_types=[], out_types=[cdsl_type])
         else:
+            # print("op_type", op_type)
             if node in self.inputs and node not in self.outputs:
                 op_type = "input"
+            # print("op_type", op_type)
             signed = False  # ?
+            # print("node", node)
             # TODO: flag $x0 as register, not input!
             cdsl_type = llvm_type_to_cdsl_type(out_reg_type, signed, reg_size=out_reg_size)
             # print("cdsl_type", cdsl_type)
@@ -434,11 +431,11 @@ class TreeGenContext:
         ret = self.visit(outp_)
         # print("ret", ret)
         temp_idx_after = self.temp_idx
-        print("temp_idx_before", temp_idx_before)
-        print("temp_idx_after", temp_idx_after)
+        # print("temp_idx_before", temp_idx_before)
+        # print("temp_idx_after", temp_idx_after)
         if temp_idx_after > temp_idx_before:
-            print("TEMP")
-            input("!")
+            # print("TEMP")
+            # input("!")
             refs = [f"temp{idx}" for idx in range(temp_idx_before, temp_idx_after)]
             # print("temps")
             for ref in refs:
