@@ -27,6 +27,7 @@ def yaml_types_helper(x, allow_missing: bool = False):
 
 @dataclass
 class Candidate(YAMLSettings):
+    name: Optional[str] = None
     sub: Optional[nx.MultiDiGraph] = None  # TODO: do not write to yaml
     io_sub: Optional[nx.MultiDiGraph] = None  # TODO: do not write to yaml
     tree: Optional[AnyNode] = None  # TODO: do not write to yaml
@@ -108,6 +109,7 @@ def write_index_file(
         # TODO: metrics
         candidates=[
             Candidate(
+                name=f"c{c['id']}",
                 sub=subs[c["id"]],
                 io_sub=io_subs[c["id"]],
                 tree=trees[c["id"]],
