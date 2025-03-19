@@ -45,6 +45,9 @@ OUT = args.output
 OVERLAPS_OUT = args.overlaps
 DROP_DUPLICATES = args.drop_duplicates
 PROGRESS = args.progress
+IGNORE_COVERED = False
+# Not meaningful:
+# IGNORE_COVERED = True
 
 candidates = []
 candidate_io_subs = []
@@ -65,7 +68,8 @@ for candidate_data in tqdm(candidates_data, disable=not args.progress):
     properties = candidate_data["properties"]
     # path_ids.add(i)
     candidates.append(candidate_data)
-    if DROP_DUPLICATES:
+    # if DROP_DUPLICATES:
+    if True:
         io_sub_path = artifacts.get("io_sub", None)
         assert io_sub_path is not None, "PKL for io_sub not found in artifacts"
         with open(io_sub_path, "rb") as f:
@@ -108,7 +112,7 @@ for i, c in tqdm(enumerate(candidates), disable=not PROGRESS):
         if j <= i:
             # print("cont (sym.)")
             continue
-        if j in covered:
+        if not IGNORE_COVERED and j in covered:
             # print("cont (cov.)")
             continue
         # TODO: skip if num consts does not match?
