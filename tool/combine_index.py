@@ -13,6 +13,8 @@ from .iso import calc_io_isos
 
 logger = logging.getLogger("combine_index")
 
+# TODO: expose via python (via __main__)
+
 
 def handle_cmdline():
     # TODO: add help messages
