@@ -1170,6 +1170,7 @@ with MeasureTime("Creating Constants Histograms", verbose=TIMES):
                 covered.add(j)
                 mapping = matcher.mapping
                 # print("mapping", mapping)
+                const_mapping = {}
                 for c, constant in enumerate(constants):
                     # print("c", c)
                     # print("constant", constant)
@@ -1183,6 +1184,7 @@ with MeasureTime("Creating Constants Histograms", verbose=TIMES):
                     matching_constant_value = constant_values_[c_]
                     # print("matching_constant_value", matching_constant_value)
                     const_value_subs[c][matching_constant_value].append(j)
+                    const_mapping[constant] = f"{constant_value} -> {matching_constant_value}"
         # print("const_value_subs", const_value_subs)
         sub_const_value_subs[i] = const_value_subs
         # TODO: implement generation
