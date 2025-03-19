@@ -3,12 +3,29 @@ from hashlib import sha1
 import numpy as np
 
 
-def add_hash_attr(sub, attr_name: str = "hash_attr", ignore_const: bool = False):
+def add_hash_attr(sub, attr_name: str = "hash_attr", ignore_const: bool = False, ignore_names: bool = False):
     for node in sub.nodes:
+        print("node", node)
+        print("sub.nodes[node]", sub.nodes[node])
         temp = sub.nodes[node]["label"]
+
+        def drop_style(label):
+            print("drop_style", label)
+            label = label[1:]
+            if "<br/>" in label:
+                label = label.split("<br/>", 1)[0]
+            # label = label.replace("<br/>", "")
+            # label = label.replace("</font>", "")
+            # label = label.replace("<font point-size=\"10\">", "")  # TODO: use re
+            return label
+        if temp[0] == "<":
+            temp = drop_style(temp)
+        if ignore_names and temp.startswith("src"):
+            temp = "src"
         if temp == "Const" and not ignore_const:
             temp += "-" + sub.nodes[node]["properties"]["inst"]
         temp += "-" + str(sub.nodes[node].get("alias", None))
+        print("temp", temp)
         sub.nodes[node][attr_name] = temp
     for edge in sub.edges:
         sub.edges[edge][attr_name] = str(sub.edges[edge]["properties"]["op_idx"])
