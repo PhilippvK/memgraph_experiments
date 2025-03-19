@@ -343,11 +343,14 @@ with MeasureTime("Relabeling", verbose=TIMES):
     # print("GF", GF)
     # print("GF.nodes", GF.nodes)
     mapping = dict(zip(GF.nodes.keys(), range(len(GF.nodes))))
-    mapping1 = mapping
+    # mapping1 = mapping
+    # print("subs[0].nodes", subs[0].nodes)
     GF = nx.relabel_nodes(GF, mapping)
     G = nx.relabel_nodes(G, mapping)
     for i in range(len(subs)):
         subs[i] = nx.relabel_nodes(subs[i], mapping)
+    # print("subs[0].nodes", subs[0].nodes)
+    # input("1!")
     # print("GF", GF)
     # print("G", G)
     # print("GF.nodes", GF.nodes)
@@ -360,15 +363,21 @@ with MeasureTime("Relabeling", verbose=TIMES):
     # print("G.nodes", G.nodes)
     # topo = list(reversed(list(nx.topological_sort(G))))
     topo = list(reversed(list(nx.topological_sort(GF))))
+    # print("subs[0].nodes", subs[0].nodes)
     # print("topo", topo)
     # mapping = dict(zip(G.nodes.keys(), topo))
     # mapping = dict(zip(GF.nodes.keys(), topo))
     mapping = dict(zip(topo, list(range(len(GF.nodes)))))
+    # print("mapping", mapping)
     GF = nx.relabel_nodes(GF, mapping)
     G = nx.relabel_nodes(G, mapping)
     for i in range(len(subs)):
         subs[i] = nx.relabel_nodes(subs[i], mapping)
+    # print("subs[0].nodes", subs[0].nodes)
     topo = list(nx.topological_sort(GF))
+    # print("topo", topo)
+    # print("topo for subs[0]", list(nx.topological_sort(subs[0])))
+    # input("2!")
     # print("GF", GF)
     # print("G", G)
     # print("GF.nodes", GF.nodes)
@@ -548,11 +557,6 @@ with MeasureTime("I/O Analysis", verbose=TIMES):
         num_nodes = len(nodes)
         num_inputs, inputs, num_constants, constants = calc_inputs(GF, sub)
         num_outputs, outputs = calc_outputs(GF, sub)
-        # if num_constants > 0:
-        #     print("num_inputs", num_inputs)
-        #     print("num_constants", num_constants)
-        #     print("num_outputs", num_outputs)
-        #     input(">")
         instrs = get_instructions(sub)
         unique_instrs = list(set(instrs))
         total_weight, freq = calc_weights(sub)
@@ -741,7 +745,7 @@ with MeasureTime("I/O Analysis", verbose=TIMES):
 # with MeasureTime("Normalize Graphs", verbose=TIMES):
 #     logger.info("Normalizing graphs...")
 #     for i, io_sub in enumerate(tqdm(io_subs, disable=not PROGRESS)):
-#         # print("i, io_sub", i, io_sub)
+#         print("i, io_sub", i, io_sub)
 #         nodes = io_sub.nodes
 #         sub_data = subs_df.iloc[i]
 #         inputs = sub_data["InputNodes"]
@@ -895,9 +899,11 @@ with MeasureTime("Schedule Subs", verbose=TIMES):
         #     continue
         # print("i", i)
         # print("io_sub", io_sub)
+        # print("io_sub.nodes", io_sub.nodes)
         sub_data = subs_df.iloc[i]
         # print("sub_data", sub_data)
         inputs = subs_df.loc[i, "InputNodes"]
+        # inputs = subs_df.loc[i, "InputNames"]
         # print("inputs", inputs)
         outputs = subs_df.loc[i, "OutputNodes"]
         terminators = subs_df.loc[i, "TerminatorNodes"]
@@ -905,6 +911,9 @@ with MeasureTime("Schedule Subs", verbose=TIMES):
 
         def estimate_schedule_length(io_sub, ins, ends):
             # TODO: allow resource constraints (regfile ports, alus, ...)
+            # print("io_sub", io_sub)
+            # print("ins", ins)
+            # print("ends", ends)
             lengths = []
             for inp in ins:
                 lengths_ = [
@@ -977,6 +986,8 @@ with MeasureTime("Filtering subgraphs", verbose=TIMES):
                         filtered_branch.add(i)
         else:
             filtered_io.add(i)
+            # print("sub_data", sub_data)
+            # input("FILTERED_IO")
     subs_df.loc[list(filtered_io), "Status"] = ExportFilter.FILTERED_IO
     subs_df.loc[list(filtered_complex), "Status"] = ExportFilter.FILTERED_COMPLEX
     subs_df.loc[list(filtered_simple), "Status"] = ExportFilter.FILTERED_SIMPLE
@@ -1170,7 +1181,6 @@ with MeasureTime("Creating Constants Histograms", verbose=TIMES):
                 covered.add(j)
                 mapping = matcher.mapping
                 # print("mapping", mapping)
-                const_mapping = {}
                 for c, constant in enumerate(constants):
                     # print("c", c)
                     # print("constant", constant)
@@ -1184,7 +1194,6 @@ with MeasureTime("Creating Constants Histograms", verbose=TIMES):
                     matching_constant_value = constant_values_[c_]
                     # print("matching_constant_value", matching_constant_value)
                     const_value_subs[c][matching_constant_value].append(j)
-                    const_mapping[constant] = f"{constant_value} -> {matching_constant_value}"
         # print("const_value_subs", const_value_subs)
         sub_const_value_subs[i] = const_value_subs
         # TODO: implement generation
@@ -1474,6 +1483,8 @@ if WRITE_TREE_FMT:
         subs_iter = [(i, sub) for i, sub in enumerate(subs) if i in filtered_subs_df.index]
         # for i, sub in enumerate(tqdm(subs, disable=not PROGRESS)):
         for i, sub in tqdm(subs_iter, disable=not PROGRESS):
+            # print("i", i)
+            # print("sub", sub)
             sub_data = subs_df.iloc[i]
             io_sub = io_subs[i]
             try:
@@ -1484,6 +1495,7 @@ if WRITE_TREE_FMT:
                     io_sub,
                     xlen=XLEN,
                 )
+                # input(">>>")
                 sub_stmts[i] = stmts
             except AssertionError as e:
                 logger.exception(e)
@@ -1612,15 +1624,15 @@ def can_specialize(general_graph, specialized_graph, general_inputs, specialized
     meaning some inputs in `general_graph` have been replaced by constants.
     """
     # general_inputs, general_constants = extract_inputs_and_constants(general_graph)
-    print("general_inputs", general_inputs)
-    print("general_constants", general_constants)
+    # print("general_inputs", general_inputs)
+    # print("general_constants", general_constants)
     # specialized_inputs, specialized_constants = extract_inputs_and_constants(specialized_graph)
-    print("specialized_inputs", specialized_inputs)
-    print("specialized_constants", specialized_constants)
+    # print("specialized_inputs", specialized_inputs)
+    # print("specialized_constants", specialized_constants)
 
     # Specialization must have the same or fewer inputs and possibly more constants
     if not specialized_inputs.issubset(general_inputs):
-        print("ret if1")
+        # print("ret if1")
         return False
 
     # Construct a mapping from general -> specialized
@@ -1633,9 +1645,9 @@ def can_specialize(general_graph, specialized_graph, general_inputs, specialized
             if node in specialized_constants:  # Input replaced by constant?
                 replaced_constants[node] = specialized_constants[node]
             else:
-                print("ret invalid placement")
+                # print("ret invalid placement")
                 return False  # Removed input without a valid replacement
-    print("replaced_constants", replaced_constants)
+    # print("replaced_constants", replaced_constants)
 
     # Check if computational structure remains the same
     general_copy = general_graph.copy()
@@ -1652,7 +1664,7 @@ def can_specialize(general_graph, specialized_graph, general_inputs, specialized
         node_match=lambda d1, d2: d1.get("op") == d2.get("op") and d1.get("value", None) == d2.get("value", None)
     )
     is_iso = matcher.is_isomorphic()
-    print("is_iso", is_iso)
+    # print("is_iso", is_iso)
 
     return is_iso
 
@@ -1671,9 +1683,9 @@ with MeasureTime("Generate Specialization Graph", verbose=TIMES):
         sub_data = subs_df.iloc[i]
         inputs = set(sub_data["InputNodes"])
         constant_nodes = sub_data["ConstantNodes"]
-        print("constant_nodes", constant_nodes)
+        # print("constant_nodes", constant_nodes)
         constant_values = sub_data["ConstantValues"]
-        print("constant_values", constant_values)
+        # print("constant_values", constant_values)
         constants = {node: constant_values[idx] for idx, node in enumerate(constant_nodes)}
         for j, io_sub_ in tqdm(io_subs_iter, disable=not PROGRESS):
             if i == j:
@@ -1681,16 +1693,16 @@ with MeasureTime("Generate Specialization Graph", verbose=TIMES):
             sub_data_ = subs_df.iloc[j]
             inputs_ = set(sub_data_["InputNodes"])
             constant_nodes_ = sub_data_["ConstantNodes"]
-            print("constant_nodes_", constant_nodes_)
+            # print("constant_nodes_", constant_nodes_)
             constant_values_ = sub_data_["ConstantValues"]
-            print("constant_values_", constant_values_)
+            # print("constant_values_", constant_values_)
             constants_ = {node: constant_values_[idx] for idx, node in enumerate(constant_nodes_)}
             if can_specialize(io_sub, io_sub_, inputs, inputs_, constants, constants_):
                 mapping = extract_specialization_mapping(io_sub, io_sub_, inputs, inputs_, constants, constants_)
                 spec_graph.add_edge(i, j, mapping=mapping)
-    print("spec_graph", spec_graph)
+    # print("spec_graph", spec_graph)
     graph_to_file(spec_graph, OUT / "spec_graph.dot")
-    input(">>>>>>>>>")
+    # input(">>>>>>>>>")
 
 # TODO: loop multiple times (tree -> MIR -> CDSL -> FLAT) not interleaved
 
@@ -2014,13 +2026,13 @@ if READ_HDF5:
                     raise NotImplementedError
                 else:
                     lookup = f"{SESSION}/{FUNC}/{BB}/{global_hash}/{sub_hash}/{io_sub_hash}/{full_hash}"
-                    print("lookup", lookup)
+                    # print("lookup", lookup)
                     found = lookup in f
-                    print("found", found)
+                    # print("found", found)
                     if found:
-                        print("f?", f[lookup], list(f[lookup]))
+                        # print("f?", f[lookup], list(f[lookup]))
                         already_selected = "selected" in f[lookup]
-                        print("already_selected", already_selected)
+                        # print("already_selected", already_selected)
                         # input(">>>")
                 # dset = f.create_dataset(dest, sub_data.to_frame().T.to_records(index=False), dtype=np.float32)
                 # sub_data.to_hdf(HDF5_FILE, key=dest, mode="a")
@@ -2042,9 +2054,9 @@ if WRITE_HDF5:
             subs_iter = [(i, sub) for i, sub in enumerate(subs) if i in filtered_subs_df.index]
             for i, sub in tqdm(subs_iter, disable=not PROGRESS):
                 sub_data = subs_df.iloc[i]
-                print("sub_data", sub_data.to_frame().T)
-                print("sub_data", sub_data.to_frame().T.to_records(index=False))
-                print("sub_data.dtypes", sub_data.to_frame().T.dtypes)
+                # print("sub_data", sub_data.to_frame().T)
+                # print("sub_data", sub_data.to_frame().T.to_records(index=False))
+                # print("sub_data.dtypes", sub_data.to_frame().T.dtypes)
                 sub_hash = sub_data["SubHash"]
                 io_sub_hash = sub_data["IOSubHash"]
                 full_hash = sub_data["FullHash"]
@@ -2069,7 +2081,7 @@ if WRITE_HDF5:
                 dt = sub_data["DateTime"]
                 # dest = f"{sub_hash}/{io_sub_hash}/{full_hash}/{global_hash}/{dt}"
                 dest = f"{SESSION}/{FUNC}/{BB}/{global_hash}/{sub_hash}/{io_sub_hash}/{full_hash}/{status}/{dt}"
-                print("dest", dest)
+                # print("dest", dest)
                 # dset = f.create_dataset(dest, sub_data.to_frame().T.to_records(index=False), dtype=np.float32)
                 sub_data.to_hdf("/tmp/mytestfile.hdf5", key=dest, mode="a")
                 # sub_data.to_frame().T.to_hdf("/tmp/mytestfile.hdf5", key=dest, mode="a")
