@@ -12,6 +12,7 @@ import networkx.algorithms.isomorphism as iso
 
 
 # from .iso import calc_io_isos
+from .graph_utils import graph_to_file
 
 logger = logging.getLogger("combine_index")
 
@@ -42,6 +43,8 @@ def handle_cmdline():
     parser.add_argument("index", nargs="+", help="TODO")  # print if None
     parser.add_argument("--log", default="info", choices=["critical", "error", "warning", "info", "debug"], help="TODO")
     parser.add_argument("--output", "-o", default=None, help="TODO")  # print if None
+    parser.add_argument("--drop", action="store_true", help="TODO")
+    parser.add_argument("--graph", default=None, help="TODO")  # print if None
     parser.add_argument("--progress", action="store_true", help="TODO")
     args = parser.parse_args()
     logging.basicConfig(level=getattr(logging, args.log.upper()))
@@ -54,6 +57,8 @@ assert len(INS) == 1
 in_path = INS[0]
 OUT = args.output
 PROGRESS = args.progress
+DROP = args.drop
+GRAPH = args.graph
 
 candidates = []
 candidate_io_subs = []
@@ -190,3 +195,29 @@ print("sub_specializations", sub_specializations)
 for i, specs in sub_specializations.items():
     print(f"{i}\t: {len(specs)}")
 
+spec_graph = nx.DiGraph()
+for i, c in enumerate(candidates):
+    spec_graph.add_node(i, label=f"c{i}")
+for i, specs in sub_specializations.items():
+    for spec in specs:
+        j, label = spec
+        spec_graph.add_edge(i, j, label=label)
+sources = [x for x in spec_graph.nodes() if spec_graph.in_degree(x) == 0 ]
+for source in sources:
+    spec_graph.nodes[source].update({"style": "filled", "fillcolor": "lightgray"})
+print("sources", sources, len(sources))
+print("spec_graph", spec_graph)
+if GRAPH is not None:
+    graph_to_file(spec_graph, GRAPH)
+
+
+if DROP:
+    candidates = [x for i, x in enumerate(candidates) if i in sources]
+
+temp = {"global": {"artifacts": [], "properties": global_properties}, "candidates": candidates}
+if OUT:
+    with open(OUT, "w") as f:
+        yaml.dump(temp, f)
+else:
+    yaml_str = yaml.dump(temp)
+    print(yaml_str)
