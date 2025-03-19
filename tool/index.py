@@ -6,6 +6,7 @@ import yaml
 import pandas as pd
 import numpy as np
 import networkx as nx
+from anytree import AnyNode
 
 from .settings import Settings, YAMLSettings
 
@@ -64,7 +65,7 @@ def write_index_file(
     G,
     subs,
     io_subs,
-    sub_stmts,
+    trees,
     subs_df: pd.DataFrame,
     global_df: pd.DataFrame,
     index_artifacts: Dict[int, Dict[str, Any]],
@@ -105,7 +106,16 @@ def write_index_file(
         settings=settings,
         properties=yaml_data["global"]["properties"][0],
         # TODO: metrics
-        candidates=[Candidate(sub=subs[c["id"]], io_sub=io_subs[c["id"]], tree=sub_stmts[c["id"]], artifacts=c["artifacts"], properties=c["properties"]) for c in yaml_data["candidates"]],
+        candidates=[
+            Candidate(
+                sub=subs[c["id"]],
+                io_sub=io_subs[c["id"]],
+                tree=trees[c["id"]],
+                artifacts=c["artifacts"],
+                properties=c["properties"],
+            )
+            for c in yaml_data["candidates"]
+        ],
     )
     TEMP_PATH = "/tmp/abc.yml"
     index.to_yaml(TEMP_PATH)
