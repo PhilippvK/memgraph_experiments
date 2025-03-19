@@ -14,6 +14,7 @@ def graph_to_file(graph, dest, fmt="auto"):
     if fmt == "auto":
         fmt = dest.suffix[1:].upper()
     prog = "dot"
+    # TODO: support pkl
     if fmt == "DOT":
         write_dot(graph, dest)
     elif fmt in ["PDF", "PNG"]:
@@ -84,27 +85,27 @@ def calc_inputs(G, sub):
 
 
 def calc_outputs(G, sub):
-    # print("calc_outputs", sub)
+    print("calc_outputs", sub)
     ret = 0
     sub_nodes = sub.nodes
-    # print("sub_nodes", sub_nodes)
+    print("sub_nodes", sub_nodes)
     outputs = []
     for node in sub_nodes:
-        # print("node", node, G.nodes[node].get("label"))
+        print("node", node, G.nodes[node].get("label"))
         if G.nodes[node]["properties"]["op_type"] == "output":
-            # print("A")
+            print("A")
             # print("OUT2")
             ret += 1
             if node not in outputs:
                 outputs.append(node)
         else:
-            # print("B")
+            print("B")
             outs = G.out_edges(node)
-            # print("outs", outs)
+            print("outs", outs)
             for out_ in outs:
-                # print("out_", out_, G.nodes[out_[0]].get("label"))
+                print("out_", out_, G.nodes[out_[0]].get("label"))
                 dst = out_[1]
-                # print("dst", dst, G.nodes[dst].get("label"))
+                print("dst", dst, G.nodes[dst].get("label"))
                 if dst not in sub_nodes:
                     # print("OUT")
                     ret += 1
