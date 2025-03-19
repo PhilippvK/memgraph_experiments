@@ -1989,10 +1989,6 @@ if WRITE_INDEX:
         if WRITE_INDEX_FMT & ExportFormat.YAML:
             write_index_file(OUT / "index.yml", filtered_subs_df, global_df, index_artifacts)
 
-if TIMES:
-    print(MeasureTime.summary())
-    MeasureTime.write_csv(OUT / "times.csv")
-
 # TODO: estimate encoding usage (free bits, rel. for enc_size 16/32/48)
 # TODO: for all constants query isomorph subs and count the different values
 # TODO: pass allowed imm width (5bit, 12bits)
@@ -2085,3 +2081,9 @@ if WRITE_HDF5:
                 # dset = f.create_dataset(dest, sub_data.to_frame().T.to_records(index=False), dtype=np.float32)
                 sub_data.to_hdf("/tmp/mytestfile.hdf5", key=dest, mode="a")
                 # sub_data.to_frame().T.to_hdf("/tmp/mytestfile.hdf5", key=dest, mode="a")
+
+
+if TIMES:
+    print(MeasureTime.summary())
+    MeasureTime.write_csv(OUT / "times.csv")
+
