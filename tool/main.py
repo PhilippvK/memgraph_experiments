@@ -1413,7 +1413,7 @@ with MeasureTime("Filtering subgraphs (Operands)", verbose=TIMES):
         # print("num_inout_operands", num_inout_operands)
         valid = True
         # TODO: expose
-        MAX_IN_OPERANDS = 2
+        MAX_IN_OPERANDS = 3
         MAX_OUT_OPERANDS = 1
         if num_in_operands > MAX_IN_OPERANDS:
             valid = False
