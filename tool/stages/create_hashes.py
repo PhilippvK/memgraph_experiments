@@ -20,10 +20,13 @@ def create_hashes(settings, subs, io_subs, subs_df):
         add_hash_attr(sub)
         add_hash_attr(io_sub)
         add_hash_attr(io_sub, attr_name="hash_attr_ignore_const", ignore_const=True)
-        #     edge_attr = "hash_attr"
+        # edge_attr = "hash_attr"
         node_attr = "hash_attr"
         # TODO: check if num iters and digest is fine?
+        # TODO: check if multidigraph works? (probably not -> ignore for hash?)
+        # sub_hash = nx.weisfeiler_lehman_graph_hash(sub, node_attr=node_attr, iterations=3, digest_size=16)
         sub_hash = nx.weisfeiler_lehman_graph_hash(sub, node_attr=node_attr, iterations=3, digest_size=16)
+        # io_sub_hash = nx.weisfeiler_lehman_graph_hash(io_sub, node_attr=node_attr, iterations=3, digest_size=16)
         io_sub_hash = nx.weisfeiler_lehman_graph_hash(io_sub, node_attr=node_attr, iterations=3, digest_size=16)
         # print("sub_hash", sub_hash)
         # print("io_sub_hash", io_sub_hash)

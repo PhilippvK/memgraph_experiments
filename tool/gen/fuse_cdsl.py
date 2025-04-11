@@ -64,8 +64,9 @@ def process(
         # print("candidate_properties", candidate_properties)
         candidate_artifacts = candidate_data["artifacts"]
         # print("candidate_artifacts", candidate_artifacts)
-        name = f"name{i}"
-        print("name", name)
+        name = candidate_properties.get("InstrName")
+        if name is None:
+            name = f"name{i}"
         sub_data = candidate_properties
         desc = generate_desc(i, sub_data, name=name)
         tree_pkl = candidate_artifacts.get("tree", None)

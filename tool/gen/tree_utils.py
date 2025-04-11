@@ -110,6 +110,7 @@ class TreeGenContext:
         self.graph = graph
         self.sub = sub
         self.sub_data = sub_data
+        self.node_aliases = node_aliases
         self.inputs = inputs if inputs is not None else []
         self.outputs = outputs if outputs is not None else []
         self.constants = constants if constants is not None else []
@@ -182,25 +183,25 @@ class TreeGenContext:
         # srcs = sorted(srcs, key=lambda src: self.graph[src, node]["properties"]["op_idx"])
         # print("srcs2", srcs)
         children = [self.visit(src) for src in srcs]
-        # print("children", children)
+        print("children", children)
         op_type = self.graph.nodes[node]["properties"]["op_type"]
-        # print("op_type", op_type)
+        print("op_type", op_type)
         name = self.graph.nodes[node]["properties"]["name"]
-        # print("name", name)
-        # out_reg_class = self.graph.nodes[node]["properties"].get("out_reg_class", None)
-        # print("out_reg_class", out_reg_class)
+        print("name", name)
+        out_reg_class = self.graph.nodes[node]["properties"].get("out_reg_class", None)
+        print("out_reg_class", out_reg_class)
         out_reg_type = self.graph.nodes[node]["properties"].get("out_reg_type", None)
-        # print("out_reg_type", out_reg_type)
+        print("out_reg_type", out_reg_type)
         out_reg_size = self.graph.nodes[node]["properties"].get("out_reg_size", None)
-        # print("out_reg_size", out_reg_size)
+        print("out_reg_size", out_reg_size)
         out_reg_name = self.graph.nodes[node]["properties"].get("out_reg_name", None)
-        # print("out_reg_name", out_reg_name)
+        print("out_reg_name", out_reg_name)
         # print("!1", [self.graph[src, node]["properties"].get("op_reg_class", None) for src in srcs])
         # print("!2", [self.graph[src, node]["properties"].get("op_reg_type", None) for src in srcs])
         # print("!3", [self.graph[src, node]["properties"].get("op_reg_size", None) for src in srcs])
         # print("!4", [self.graph[src, node]["properties"].get("op_reg_name", None) for src in srcs])
         # input("!!")
-        is_phys_reg = out_reg_name.startswith("$x")
+        is_phys_reg = out_reg_name.startswith("$x") or out_reg_name.startswith("$f")
         if is_phys_reg and (out_reg_size is None or out_reg_size == "unknown"):
             if self.xlen is not None:
                 out_reg_size = self.xlen
@@ -213,12 +214,22 @@ class TreeGenContext:
             assert len(children) == 0
             ret = Constant(value=val, in_types=[], out_types=[cdsl_type])
         else:
-            # print("op_type", op_type)
+            print("op_type", op_type)
+            if op_type == "label" and out_reg_size == "unknown":
+                # TODO: handle labels properly!
+                print("if")
+                print("self.xlen", self.xlen)
+                # if self.xlen is not None:
+                #     out_reg_size = self.xlen
+                if self.xlen is not None:
+                    out_reg_size = self.xlen
+                else:
+                    out_reg_size = "XLEN"
             if node in self.inputs and node not in self.outputs:
                 op_type = "input"
-            # print("op_type", op_type)
+            print("op_type", op_type)
             signed = False  # ?
-            # print("node", node)
+            print("node", node)
             # TODO: flag $x0 as register, not input!
             cdsl_type = llvm_type_to_cdsl_type(out_reg_type, signed, reg_size=out_reg_size)
             # print("cdsl_type", cdsl_type)
@@ -261,6 +272,13 @@ class TreeGenContext:
         operand_types = self.sub_data["OperandTypes"]  # TODO: rename to Classes?
         # operand_enc_bits = self.sub_data["OperandEncBits"]
         operand_reg_classes = self.sub_data["OperandRegClasses"]
+        if inp in self.node_aliases:
+            inp = self.node_aliases[inp]
+            assert inp in operand_nodes
+            # print("return None")
+            # return None
+        # if inp in self.visited:
+        #     return None
         op_idx = operand_nodes.index(inp)
         # print("op_idx", op_idx)
         # print("i", i)
@@ -275,13 +293,15 @@ class TreeGenContext:
             assert inp in self.node_aliases.values()
             alias = list(self.node_aliases.keys())[list(self.node_aliases.values()).index(inp)]
             inp = alias
+
+        # print("inp", inp)
         node_data = self.graph.nodes[inp]
         # print("node_data", node_data)
         # print("node_data", node_data)
         node_properties = node_data["properties"]
         # print("node_properties", node_properties)
         op_type = node_properties["op_type"]
-        # print("op_type", op_type)
+        print("op_type", op_type)
 
         if op_type == "constant":
             return None
@@ -312,16 +332,25 @@ class TreeGenContext:
                 reg_size = self.xlen
             else:
                 reg_size = "XLEN"
+        if op_type == "label" and (reg_size == "unknown" or reg_size is None):
+            if self.xlen is not None:
+                reg_size = self.xlen
+            else:
+                reg_size = "XLEN"
 
+        # print("visit", inp)
         res = self.visit(inp)
         # print("res", res)
+        # input(">>>")
         # name = f"inp{j}"
         name = f"{operand_name}_val"
         # print("name", name)
         self.defs[inp] = name
+        # print("res.name", dir(res), res.name if "name" in dir(res) else None)
+        print("reg_class", reg_class)
         # ret[name] = res
-        if hasattr(res, "name") and res.name[:2] == "$x":
-            # print("if")
+        if hasattr(res, "name") and (res.name[:2] == "$x" or res.name[:2] == "$f"):
+            print("if")
             idx = int(res.name[2:])
             # print("idx", idx)
             # TODO: make more generic to also work for assignments

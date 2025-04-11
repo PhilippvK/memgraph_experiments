@@ -12,6 +12,8 @@ def apply_styles(settings, subs, io_subs, subs_df):
     io_subs_iter = [(i, io_sub) for i, io_sub in enumerate(io_subs) if i in filtered_subs_df.index]
     for i, io_sub in tqdm(io_subs_iter, disable=not settings.progress):
         sub_data = subs_df.iloc[i]
+        # print("sub_data", sub_data)
+        # input(">")
         inputs = sub_data["InputNodes"]
         input_names = sub_data["InputNames"]
         outputs = sub_data["OutputNodes"]
@@ -86,6 +88,8 @@ def apply_styles_new(settings, index):
         # sub = candidate.sub
         io_sub = candidate.io_sub
         sub_data = candidate.properties
+        # print("sub_data", sub_data)
+        # input(">")
         inputs = sub_data["InputNodes"]
         input_names = sub_data["InputNames"]
         outputs = sub_data["OutputNodes"]

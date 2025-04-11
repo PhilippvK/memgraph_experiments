@@ -20,6 +20,9 @@ def parse_llvm_const_str(val_str):
 
 
 def llvm_type_to_cdsl_type(llvm_type: str, signed: bool, reg_size: Optional[Union[str, int]] = None, allow_unknown: bool = False):
+    print("llvm_type_to_cdsl_type", llvm_type, signed, reg_size, allow_unknown)
+    if llvm_type == "unknown":
+        llvm_type = None
     if llvm_type is None:
         if reg_size is not None:
             if reg_size == "unknown":

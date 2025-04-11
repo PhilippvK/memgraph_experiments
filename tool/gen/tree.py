@@ -7,9 +7,13 @@ from ..llvm_utils import llvm_type_to_cdsl_type
 # def generate_tree(sub, sub_data, GF, xlen=None):
 def generate_tree(sub, sub_data, io_sub, xlen=None):
     # print("generate_tree", sub, sub_data, GF, xlen)
-    # print("generate_tree", sub, sub_data, io_sub, xlen)
+    print("generate_tree", sub, sub_data, io_sub, xlen)
 
     constants = sub_data["ConstantNodes"]
+    # input_nodes = sub_data["InputNodes"]
+    # output_nodes = sub_data["OutputNodes"]
+    # print("input_nodes", input_nodes)
+    # print("output_nodes", output_nodes)
     operand_names = sub_data["OperandNames"]
     # print("operand_names", operand_names)
     operand_nodes = sub_data["OperandNodes"]
@@ -29,7 +33,9 @@ def generate_tree(sub, sub_data, io_sub, xlen=None):
     # topo = list(nx.topological_sort(GF))
     topo = list(nx.topological_sort(io_sub))
     inputs = sorted(inputs, key=lambda x: topo.index(x))
+    # print("inputs", inputs)
     outputs = sorted(outputs, key=lambda x: topo.index(x))
+    # print("outputs", outputs)
 
     def find_aliases(graph, sub_data):
         ret = {}
@@ -52,11 +58,14 @@ def generate_tree(sub, sub_data, io_sub, xlen=None):
         all_inputs += inputs
         for k, v in node_aliases.items():
             all_inputs.append(k)
-            all_inputs.append(v)
+            # all_inputs.append(v)
+            all_inputs.remove(v)
             assert v in outputs
         return all_inputs
 
     all_inputs = get_all_inputs(inputs, node_aliases, outputs)
+    # all_inputs = inputs
+    # print("all_inputs", all_inputs)
 
     # TODO: io_sub for edges?
     treegen = TreeGenContext(

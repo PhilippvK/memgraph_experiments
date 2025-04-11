@@ -16,6 +16,8 @@ def pie_name_helper(x):
         return "Filtered (Simple)"
     if x & ExportFilter.FILTERED_PRED:
         return "Filtered (Pred)"
+    if x & ExportFilter.FILTERED_REGS:
+        return "Filtered (Regs)"
     if x & ExportFilter.FILTERED_MEM:
         return "Filtered (Mem)"
     if x & ExportFilter.FILTERED_BRANCH:

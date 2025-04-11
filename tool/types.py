@@ -1,5 +1,5 @@
 from typing import Optional
-from enum import IntEnum, auto
+from enum import IntEnum, IntFlag, auto
 
 
 class TypeKind(IntEnum):
@@ -8,10 +8,12 @@ class TypeKind(IntEnum):
     SCALAR = auto()
 
 
-class RegisterClass(IntEnum):
-    GPR = auto()
-    FPR = auto()
-    CSR = auto()
+class RegisterClass(IntFlag):
+    NONE = 0
+    UNKNOWN = auto()  # 1
+    GPR = auto()  # 2
+    FPR = auto()  # 4
+    CSR = auto()  # 8
 
 
 def kind2char(kind: TypeKind):

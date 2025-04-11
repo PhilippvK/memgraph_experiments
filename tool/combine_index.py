@@ -10,6 +10,7 @@ from tqdm import tqdm
 
 
 from .iso import calc_io_isos
+from .hash import add_hash_attr
 
 logger = logging.getLogger("combine_index")
 
@@ -87,6 +88,8 @@ if DROP_DUPLICATES:
     duplicates = defaultdict(set)
     duplicate_count = 0
     logger.info("Detecting duplicates...")
+    for io_sub in candidate_io_subs:
+        add_hash_attr(io_sub, handle_commutable=False)
     _, sub_io_isos = calc_io_isos(candidate_io_subs, progress=args.progress)
     for sub, io_isos_ in sub_io_isos.items():
         if len(io_isos_) > 0:
@@ -101,6 +104,10 @@ if DROP_DUPLICATES:
     # print("all_duplicates", all_duplicates)
     # print("duplicate_count", duplicate_count)
     candidates = [x for i, x in enumerate(candidates) if i not in all_duplicates]
+    UPDATE_IDS = True
+    if UPDATE_IDS:
+        for i, candidate in enumerate(candidates):
+            candidate["id"] = i
 
 if OVERLAPS_OUT:
     logger.info("Exporting overlaps...")
@@ -115,7 +122,8 @@ if OVERLAPS_OUT:
     pairwise_overlaps_data = [{"x": key[0], "y": key[1], "nodes": nodes, "size": len(nodes)} for key, nodes in pairwise_overlaps.items()]
     pairwise_overlaps_df = pd.DataFrame(pairwise_overlaps_data)
     print("Pairwise overlaps:")
-    print(pairwise_overlaps_df)
+    with pd.option_context("display.max_rows", None):
+        print(pairwise_overlaps_df)
     fmt = Path(OVERLAPS_OUT).suffix
     assert fmt in ".csv"
     pairwise_overlaps_df.to_csv(OVERLAPS_OUT, index=False)

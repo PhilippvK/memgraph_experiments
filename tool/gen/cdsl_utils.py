@@ -320,31 +320,35 @@ class CDSLEmitter:
         assert isinstance(node, Operation)
         # TODO: imm needed?
         lookup = {
-            "ADD": ("+", True, self.xlen, False, 0),
-            "ADDW": ("+", True, 32, False, 0),
-            "ADDI": ("+", True, self.xlen, True, 0),
-            "ADDIW": ("+", True, 32, True, 0),
-            "SUB": ("-", True, self.xlen, False, 0),
-            "SUBW": ("-", True, 32, False, 0),
-            "SRA": (">>", True, self.xlen, False, 0),
-            "SRAI": (">>", True, self.xlen, True, 0),
-            "SRLI": (">>", False, self.xlen, True, 0),
-            "SRL": (">>", False, self.xlen, False, 0),
-            "SLL": ("<<", False, self.xlen, False, 0),
-            "SLLI": ("<<", False, self.xlen, True, 0),
-            "AND": ("&", False, self.xlen, False, 0),
-            "OR": ("|", False, self.xlen, False, 0),
-            "XOR": ("^", False, self.xlen, False, 0),
-            "XORI": ("^", False, self.xlen, True, 0),
-            "ANDI": ("&", False, self.xlen, True, 0),
-            "ORI": ("|", False, self.xlen, True, 0),
-            "MULW": ("*", True, 32, False, 0),
-            "MUL": ("*", True, self.xlen, False, 0),
-            "MULH": ("*", True, self.xlen, False, self.xlen),
+            "ADD": ("+", True, True, self.xlen, False, 0),
+            "ADDW": ("+", True, True, 32, False, 0),
+            "ADDI": ("+", True, True, self.xlen, True, 0),
+            "ADDIW": ("+", True, True, 32, True, 0),
+            "SUB": ("-", True, True, self.xlen, False, 0),
+            "SUBW": ("-", True, True, 32, False, 0),
+            "SRA": (">>", True, True, self.xlen, False, 0),
+            "SRAI": (">>", True, True, self.xlen, True, 0),
+            "SRLI": (">>", False, False, self.xlen, True, 0),
+            "SRL": (">>", False, False, self.xlen, False, 0),
+            "SLL": ("<<", False, False, self.xlen, False, 0),
+            "SLLI": ("<<", False, False, self.xlen, True, 0),
+            "AND": ("&", False, False, self.xlen, False, 0),
+            "OR": ("|", False, False, self.xlen, False, 0),
+            "XOR": ("^", False, False, self.xlen, False, 0),
+            "XORI": ("^", False, False, self.xlen, True, 0),
+            "ANDI": ("&", False, False, self.xlen, True, 0),
+            "ORI": ("|", False, False, self.xlen, True, 0),
+            "MULW": ("*", True, True, 32, False, 0),
+            "MUL": ("*", True, True, self.xlen, False, 0),
+            "MULH": ("*", True, True, self.xlen, False, self.xlen),
+            "MULHSU": ("*", True, False, self.xlen, False, self.xlen),
+            "MULHU": ("*", False, False, self.xlen, False, self.xlen),
+            "DIVU": ("/", False, False, self.xlen, False, 0),
+            "REMU": ("%", False, False, self.xlen, False, 0),
         }
         res = lookup.get(node.name)
         assert res is not None
-        op, signed, sz, imm, shift = res
+        op, lhs_signed, rhs_signed, sz, imm, shift = res
         # TODO: check imm (sign/sz?)
         # TODO: dtype
         self.write("(")
@@ -353,23 +357,23 @@ class CDSLEmitter:
         # TODO: add size only of != xlen?
         if shift > 0:
             assert shift == 32
-            if signed:
+            if lhs_signed:
                 self.write(f"(signed<{sz}>)")
             else:
                 self.write(f"(unsigned<{sz}>)")
             self.write("(")
-            if signed:
+            if lhs_signed:
                 self.write(f"(signed<{sz * 2}>)")
             else:
                 self.write(f"(unsigned<{sz * 2}>)")
             self.write("(")
-        if signed:
+        if lhs_signed:
             self.write(f"(signed<{sz}>)")
         else:
             self.write(f"(unsigned<{sz}>)")
         self.visit(lhs)
         self.write(op)
-        if signed:
+        if rhs_signed:
             self.write(f"(signed<{sz}>)")
         else:
             self.write(f"(unsigned<{sz}>)")
@@ -381,10 +385,33 @@ class CDSLEmitter:
             self.write(")")
         self.write(")")
 
+    def visit_binop_riscv_divu_remu(self, node):
+        lhs, rhs = node.children
+        self.write("(")
+        self.write("(")
+        self.visit(rhs)
+        self.write("!=")
+        self.write("0")
+        self.write(")")
+        self.write("?")
+        self.visit_binop_riscv(node)
+        self.write(":")
+        if node.name == "DIVU":
+            self.write(-1)
+        elif node.name == "REMU":
+            self.visit(lhs)
+        else:
+            raise NotImplementedError(f"Op: {node.name}")
+        self.write(")")
+        assert len(node.children) == 2
+
+    def visit_binop_riscv_div_rem(self, node):
+        raise NotImplementedError("Op: DIV/REM")
+
     def visit_cond_set_riscv(self, node):
         # raise NotImplementedError("SLTU/SLTIU breaks hls flow")
         assert isinstance(node, Operation)
-        lookup = {"SLT": ("<", True), "SLTU": ("<", False), "SLTIU": ("<", False)}
+        lookup = {"SLT": ("<", True), "SLTU": ("<", False), "SLTIU": ("<", False), "SLTI": ("<", "True")}
         res = lookup.get(node.name)
         assert res is not None
         pred, signed = res
@@ -424,6 +451,8 @@ class CDSLEmitter:
             "MULW",
             "MUL",
             "MULH",
+            "MULHSU",
+            "MULHU",
             "SRA",
             "SRAI",
             "SRL",
@@ -432,7 +461,17 @@ class CDSLEmitter:
             "SUBW",
         ]:
             self.visit_binop_riscv(node)
-        elif name in ["SLT", "SLTU", "SLTIU"]:
+        elif name in [
+            "DIVU",
+            "REMU",
+        ]:
+            self.visit_binop_riscv_divu_remu(node)
+        elif name in [
+            "DIV",
+            "REM",
+        ]:
+            self.visit_binop_riscv_div_rem(node)
+        elif name in ["SLT", "SLTU", "SLTIU", "SLTI"]:
             self.visit_cond_set_riscv(node)
         elif name in ["BNE", "BEQ"]:
             self.visit_branch_riscv(node)

@@ -26,12 +26,11 @@ def filter_subs_operands(settings, subs, subs_df):
         num_inout_operands = operand_dirs.count("INOUT")
         # print("num_inout_operands", num_inout_operands)
         valid = True
-        # TODO: expose
-        MAX_IN_OPERANDS = 3
-        MAX_OUT_OPERANDS = 1
-        if num_in_operands > MAX_IN_OPERANDS:
+        if num_in_operands > settings.filters.max_in_operands:
             valid = False
-        if (num_out_operands + num_inout_operands) > MAX_OUT_OPERANDS:
+        if (num_out_operands + num_inout_operands) > settings.filters.max_out_operands:
+            valid = False
+        if num_inout_operands > settings.filters.max_inout_operands:
             valid = False
         # print("valid", valid)
         if not valid:

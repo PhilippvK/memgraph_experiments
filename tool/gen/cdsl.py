@@ -65,7 +65,9 @@ def generate_complete_cdsl(codes: List[str], operands, xlen: int, name="result",
     codes = ["    " + code for code in codes]
     asm_ins = []
     asm_outs = []
-    mnemonic = "myinst"
+    if name is None:
+        name = "MyInst"
+    mnemonic = name.lower()
     operands_code = "operands: {\n"
     for operand_name, operand in operands.items():
         operand_code, reg_class, is_output = operand
@@ -88,7 +90,7 @@ def generate_complete_cdsl(codes: List[str], operands, xlen: int, name="result",
         + codes
         + ["}"]
     )
-    codes = wrap_cdsl("MyInst", "\n".join(codes)).split("\n")
+    codes = wrap_cdsl(name, "\n".join(codes)).split("\n")
     codes = ["    " * 2 + code for code in codes]
     code = "\n".join(codes) + "\n"
     prefix = f'import "RV{xlen}I.core_desc"\n\n'
@@ -143,7 +145,7 @@ def process(
     global_properties = global_data["properties"]
     # print("global_properties", global_properties)
     global_df = get_global_df(global_properties)
-    global_artifacts = global_data["artifacts"]
+    # global_artifacts = global_data["artifacts"]
     # print("global_artifacts", global_artifacts)
     xlens = global_df["xlen"].unique()
     assert len(xlens) == 1
@@ -154,7 +156,9 @@ def process(
         # print("candidate_properties", candidate_properties)
         candidate_artifacts = candidate_data["artifacts"]
         # print("candidate_artifacts", candidate_artifacts)
-        name = f"name{i}"
+        name = candidate_properties.get("InstrName")
+        if name is None:
+            name = f"name{i}"
         print("name", name)
         sub_data = candidate_properties
         desc = generate_desc(i, sub_data, name=name)

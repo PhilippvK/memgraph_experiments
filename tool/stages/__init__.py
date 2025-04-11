@@ -12,6 +12,7 @@ from .create_hashes import create_hashes
 from .check_iso import check_iso
 from .check_overlaps import check_overlaps
 from .detect_predicates import detect_predicates
+from .detect_registers import detect_registers
 from .schedule_subs import schedule_subs
 from .filter_subs import filter_subs
 from .assign_io_names import assign_io_names
@@ -53,6 +54,7 @@ __all__ = [
     "check_iso",
     "check_overlaps",
     "detect_predicates",
+    "detect_registers",
     "schedule_subs",
     "filter_subs",
     "assign_io_names",

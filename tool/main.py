@@ -241,6 +241,10 @@ with MeasureTime("Predicate Detection", verbose=settings.times):
     stages.detect_predicates(settings, subs, subs_df, io_isos)
 
 
+with MeasureTime("Register Detection", verbose=settings.times):
+    stages.detect_registers(settings, subs, subs_df, io_isos)
+
+
 # TODO: toggle on/off via cmdline?
 with MeasureTime("Schedule Subs", verbose=settings.times):
     stages.schedule_subs(settings, io_subs, subs_df, io_isos)
@@ -460,7 +464,7 @@ if settings.write.pie:
 
 if settings.write.sankey:
     with MeasureTime("Dump Sankey chart", verbose=settings.times):
-        stages.dump_sankey(settings, subs_df, index_artifacts)
+        stages.write_sankey(settings, subs_df, index_artifacts)
 
 
 if settings.write.index:

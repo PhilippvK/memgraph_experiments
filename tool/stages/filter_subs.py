@@ -5,7 +5,17 @@ from tqdm import tqdm
 from ..enums import ExportFilter
 from ..pred import check_predicates
 
+
 logger = logging.getLogger("filter_subs")
+
+
+def check_reg_classes(reg_classes, allowed_reg_classes):
+    # print("check", reg_classes, allowed_reg_classes)
+    # print("CHECK", int(reg_classes), int(allowed_reg_classes))
+    ret = (reg_classes & allowed_reg_classes) == reg_classes
+    # print("ret", ret)
+    # input("!")
+    return ret
 
 
 def filter_subs(settings, subs, subs_df, io_isos):
@@ -15,6 +25,7 @@ def filter_subs(settings, subs, subs_df, io_isos):
     filtered_predicates = set()
     filtered_mem = set()
     filtered_branch = set()
+    filtered_regs = set()
     invalid = set()
     logger.info("Filtering subgraphs...")
     subs_iter = [(i, sub) for i, sub in enumerate(subs) if i not in io_isos]
@@ -38,6 +49,7 @@ def filter_subs(settings, subs, subs_df, io_isos):
             and settings.filters.min_outputs <= num_outputs <= settings.filters.max_outputs
         ):
             pred = subs_df.loc[i, "Predicates"]
+            reg_classes = subs_df.loc[i, "Registers"]
             if num_nodes > settings.filters.max_nodes:
                 filtered_complex.add(i)
             elif num_nodes < settings.filters.min_nodes:
@@ -45,6 +57,8 @@ def filter_subs(settings, subs, subs_df, io_isos):
             elif not check_predicates(pred, settings.filters.instr_predicates):
                 # TODO: add predicates details to df in prerequisite step
                 filtered_predicates.add(i)
+            elif not check_reg_classes(reg_classes, settings.filters.allowed_reg_classes):
+                filtered_regs.add(i)
             else:
                 num_loads = subs_df.loc[i, "#Loads"]
                 num_stores = subs_df.loc[i, "#Stores"]
@@ -67,6 +81,7 @@ def filter_subs(settings, subs, subs_df, io_isos):
     subs_df.loc[list(filtered_complex), "Status"] = ExportFilter.FILTERED_COMPLEX
     subs_df.loc[list(filtered_simple), "Status"] = ExportFilter.FILTERED_SIMPLE
     subs_df.loc[list(filtered_predicates), "Status"] = ExportFilter.FILTERED_PRED
+    subs_df.loc[list(filtered_regs), "Status"] = ExportFilter.FILTERED_REGS
     subs_df.loc[list(filtered_mem), "Status"] = ExportFilter.FILTERED_MEM
     subs_df.loc[list(filtered_branch), "Status"] = ExportFilter.FILTERED_BRANCH
     subs_df.loc[list(invalid), "Status"] = ExportFilter.INVALID

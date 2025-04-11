@@ -51,7 +51,8 @@ def generate_variations(settings, subs, GF, io_subs, subs_df):
             # print("input_op_names", input_op_names)
             num_outputs = int(sub_data["#OutputNodes"])
             # print("num_outputs", num_outputs)
-            if num_inputs < 1 or num_outputs < 1:
+            if num_inputs <= 1 or num_outputs < 1:
+                # 1 source & 1 dest as as cheap as it can get, no need for sharing
                 continue
             # new = []
             for input_idx, j in enumerate(inputs):
@@ -112,7 +113,15 @@ def generate_variations(settings, subs, GF, io_subs, subs_df):
                             GF.add_edge(new_input_node_id, dst, **dat)
                             # print(f"{new_input_node_id} -> {dst}")
                         # print("new_io_sub_nodes", new_io_sub_nodes)
-                        new_io_sub = GF.subgraph(new_io_sub_nodes)
+                        new_io_sub = GF.subgraph(new_io_sub_nodes).copy()
+                        for src, dst, dat in io_sub.in_edges(k, data=True):
+                            assert src in io_sub.nodes
+                            # print("src", src)
+                            # print("dst", dst)
+                            # print("dat", dat)
+                            new_io_sub.add_edge(src, dst, **dat)
+                            # print(f"{new_input_node_id} -> {dst}")
+                        # print("new_io_sub_nodes", new_io_sub_nodes)
                         # print("new_io_sub", new_io_sub)
                         # print("new_io_sub.nodes", new_io_sub.nodes)
                         # print("new_io_sub.edges", new_io_sub.edges)
@@ -159,7 +168,7 @@ def generate_variations(settings, subs, GF, io_subs, subs_df):
                         new_sub_data["OperandRegClasses"] = new_operand_reg_classes
                         new_sub_data["OperandEncBits"] = new_operand_enc_bits
                         new_sub_data["OperandEncBitsSum"] = new_operand_enc_bits_sum
-                        for enc_size in settings.allowed_enc_sizes:
+                        for enc_size in settings.filters.allowed_enc_sizes:
                             enc_bits_left, enc_weight, enc_footprint = calc_encoding_footprint(
                                 new_operand_enc_bits_sum, enc_size
                             )
@@ -170,13 +179,19 @@ def generate_variations(settings, subs, GF, io_subs, subs_df):
                         new_sub_id = len(io_subs)
                         # print("new_sub_id", new_sub_id)
                         new_sub_data["result"] = new_sub_id
-                        # print("new_sub_data_", new_sub_data)
                         subs_df.loc[new_sub_id] = new_sub_data
                         add_hash_attr(new_sub)
                         add_hash_attr(new_io_sub)
                         add_hash_attr(new_io_sub, attr_name="hash_attr_ignore_const", ignore_const=True)
                         subs.append(new_sub)
                         io_subs.append(new_io_sub)
+                        # if new_sub_id == 12:
+                        #     print("sub_data", sub_data)
+                        #     print("new_sub_data_", new_sub_data)
+                        #     print("io_sub", io_sub, io_sub.nodes, io_sub.edges)
+                        #     print("new_io_sub", new_io_sub, new_io_sub.nodes, new_io_sub.edges)
+                        #     print("alias", k)
+                        #     input("!")
                         # new.append(None)
                         # input("||")
             # print("new", new)

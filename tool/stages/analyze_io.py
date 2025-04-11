@@ -29,6 +29,13 @@ def analyze_io(settings, GF, subs, subs_df):
         num_inputs, inputs, num_constants, constants = calc_inputs(GF, sub)
         num_outputs, outputs = calc_outputs(GF, sub)
         instrs = get_instructions(sub)
+        # if "OR" in instrs and "XORI" in instrs:
+        #     print("i", i)
+        #     print("sub", sub)
+        #     print("sub.nodes", sub.nodes)
+        #     print("num_outputs", num_outputs)
+        #     print("outputs", outputs)
+        #     input(">>>>>>>>>>>>")
         unique_instrs = list(set(instrs))
         total_weight, freq = calc_weights(sub)
         subs_df.at[i, "Nodes"] = list(nodes)
@@ -106,89 +113,89 @@ def analyze_io(settings, GF, subs, subs_df):
         subs_df.at[i, "InputNodes"] = list(inputs_sorted)
         subs_df.at[i, "InputNames"] = list(input_node_mapping.values())
 
-        def canonicalize_node(node, graph):
-            """Recursively generate a canonical key for a node"""
-            node_data = graph.nodes[node]
-            if node in constants:
-                val = node_data["properties"]["inst"][:-1]
-                return f"C:{val}"
+        ### def canonicalize_node(node, graph):
+        ###     """Recursively generate a canonical key for a node"""
+        ###     node_data = graph.nodes[node]
+        ###     if node in constants:
+        ###         val = node_data["properties"]["inst"][:-1]
+        ###         return f"C:{val}"
 
-            elif node in inputs:
-                input_label = input_node_mapping[node]
-                return f"I:{input_label}"
-            elif node in outputs_:
-                output_label = output_node_mapping[outputs[outputs_.index(node)]][1]
-                return f"O:{output_label}"
+        ###     elif node in inputs:
+        ###         input_label = input_node_mapping[node]
+        ###         return f"I:{input_label}"
+        ###     elif node in outputs_:
+        ###         output_label = output_node_mapping[outputs[outputs_.index(node)]][1]
+        ###         return f"O:{output_label}"
 
-            else:  # Computational node
-                operand_hashes = [canonicalize_node(pred, graph) for pred in graph.predecessors(node)]
+        ###     else:  # Computational node
+        ###         operand_hashes = [canonicalize_node(pred, graph) for pred in graph.predecessors(node)]
 
-                COMMUTATIVE_OPS = ["ADD", "MUL"]
-                op = node_data["label"]
-                # print("operand_hashes", operand_hashes)
-                if op in COMMUTATIVE_OPS:
-                    # print("COMM")
-                    operand_hashes.sort()  # Sort operands to make commutative ops unique
-                    # print("sorted_operand_hashes", operand_hashes)
+        ###         COMMUTATIVE_OPS = ["ADD", "MUL"]
+        ###         op = node_data["label"]
+        ###         # print("operand_hashes", operand_hashes)
+        ###         if op in COMMUTATIVE_OPS:
+        ###             # print("COMM")
+        ###             operand_hashes.sort()  # Sort operands to make commutative ops unique
+        ###             # print("sorted_operand_hashes", operand_hashes)
 
-                return f"{op}({','.join(operand_hashes)})"
+        ###         return f"{op}({','.join(operand_hashes)})"
 
-        new_graph = nx.MultiDiGraph()
-        for n, data in io_sub.nodes(data=True):
-            new_label = input_node_mapping.get(n, n)  # Replace input nodes, keep others unchanged
-            op_hash = canonicalize_node(n, io_sub)
-            # print("op_hash", op_hash)
-            data_new = {
-                # "label": new_label,
-                # "label": n,
-                "new_label": new_label,
-                **data,
-                "op_hash": op_hash,
-            }
-            # new_graph.add_node(new_label, **data_new)
-            new_graph.add_node(n, **data_new)
+        ### new_graph = nx.MultiDiGraph()
+        ### for n, data in io_sub.nodes(data=True):
+        ###     new_label = input_node_mapping.get(n, n)  # Replace input nodes, keep others unchanged
+        ###     op_hash = canonicalize_node(n, io_sub)
+        ###     # print("op_hash", op_hash)
+        ###     data_new = {
+        ###         # "label": new_label,
+        ###         # "label": n,
+        ###         "new_label": new_label,
+        ###         **data,
+        ###         "op_hash": op_hash,
+        ###     }
+        ###     # new_graph.add_node(new_label, **data_new)
+        ###     new_graph.add_node(n, **data_new)
 
-        # Copy edges, ensuring commutative nodes have sorted inputs
-        def is_commutative(node_data):
-            """Returns True if the node represents a commutative operation."""
-            return node_data.get("label") in {"ADD", "MUL", "AND", "OR", "XOR"}  # TODO: Extend
+        ### # Copy edges, ensuring commutative nodes have sorted inputs
+        ### def is_commutative(node_data):
+        ###     """Returns True if the node represents a commutative operation."""
+        ###     return node_data.get("label") in {"ADD", "MUL", "AND", "OR", "XOR"}  # TODO: Extend
 
-        for dst in io_sub.nodes:
-            # print("dst", dst)
-            preds = list(io_sub.predecessors(dst))
-            # print("preds", preds)
+        ### for dst in io_sub.nodes:
+        ###     # print("dst", dst)
+        ###     preds = list(io_sub.predecessors(dst))
+        ###     # print("preds", preds)
 
-            if preds:
-                if is_commutative(io_sub.nodes[dst]):
-                    # print("comm")
-                    # preds.sort()  # Sort predecessors for commutative operations
-                    # preds = sorted(preds, key=lambda x: new_graph.nodes[input_node_mapping.get(x, x)]["op_hash"])
-                    preds = sorted(preds, key=lambda x: new_graph.nodes[x]["op_hash"])
-                    # print("preds_sorted", preds)
+        ###     if preds:
+        ###         if is_commutative(io_sub.nodes[dst]):
+        ###             # print("comm")
+        ###             # preds.sort()  # Sort predecessors for commutative operations
+        ###             # preds = sorted(preds, key=lambda x: new_graph.nodes[input_node_mapping.get(x, x)]["op_hash"])
+        ###             preds = sorted(preds, key=lambda x: new_graph.nodes[x]["op_hash"])
+        ###             # print("preds_sorted", preds)
 
-                for k, src in enumerate(preds):
-                    # print("src", src)
-                    edge_data = io_sub[src][dst]
-                    # TODO: generalize
-                    assert len(edge_data.keys()) == 1
-                    edge_data = list(edge_data.values())[0]
-                    edge_properties = edge_data["properties"]
-                    op_idx = edge_properties["op_idx"]
-                    # print("k", k)
-                    # print("op_idx", op_idx)
-                    if op_idx != k:
-                        edge_data["properties"]["op_idx"] = k
-                    # input(">>>")
-                    # print("edge_data", edge_data)
-                    # new_src = input_node_mapping.get(src, src)
-                    # new_dst = input_node_mapping.get(dst, dst)
-                    # print("new_src", new_src)
-                    # print("new_dst", new_dst)
-                    # input("?!")
-                    # TODO: add key label type & properties
-                    # new_graph.add_edge(new_src, new_dst, **edge_data)
-                    new_graph.add_edge(src, dst, **edge_data)
-        io_sub = new_graph
+        ###         for k, src in enumerate(preds):
+        ###             # print("src", src)
+        ###             edge_data = io_sub[src][dst]
+        ###             # TODO: generalize
+        ###             assert len(edge_data.keys()) == 1
+        ###             edge_data = list(edge_data.values())[0]
+        ###             edge_properties = edge_data["properties"]
+        ###             op_idx = edge_properties["op_idx"]
+        ###             # print("k", k)
+        ###             # print("op_idx", op_idx)
+        ###             if op_idx != k:
+        ###                 edge_data["properties"]["op_idx"] = k
+        ###             # input(">>>")
+        ###             # print("edge_data", edge_data)
+        ###             # new_src = input_node_mapping.get(src, src)
+        ###             # new_dst = input_node_mapping.get(dst, dst)
+        ###             # print("new_src", new_src)
+        ###             # print("new_dst", new_dst)
+        ###             # input("?!")
+        ###             # TODO: add key label type & properties
+        ###             # new_graph.add_edge(new_src, new_dst, **edge_data)
+        ###             new_graph.add_edge(src, dst, **edge_data)
+        # # io_sub = new_graph
 
         for inp in inputs_sorted:
             # TODO: physreg?

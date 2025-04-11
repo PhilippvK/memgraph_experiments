@@ -3,6 +3,10 @@ from functools import reduce
 
 
 def parse_enum_intflag(arg, cls):
+    if arg is None:
+        return None
+        # assert hasattr(cls, "NONE")
+        # return cls.NONE
     if isinstance(arg, cls):
         return arg
     if isinstance(arg, int):
@@ -56,6 +60,8 @@ class ExportFilter(IntFlag):
     ERROR = auto()  # 2048
     # TODO: reorder
     FILTERED_OPERANDS = auto()  # 4096
+    SYNTAX_ERROR = auto()  # 8192
+    FILTERED_REGS = auto()  # 16384
     ALL = (
         SELECTED
         | ISO
@@ -113,3 +119,11 @@ class Variation(IntFlag):
     REG2IMM = auto()  # 2
     CONST2IMM = auto()  # 4
     CONST2REG = auto()  # 8
+
+
+class Status(IntFlag):
+    NONE = 0
+    GOOD = auto()  # 1
+    ERROR = auto()  # 2
+    QUERY_TIMEOUT = auto()  # 4
+    STAGE_TIMEOUT = auto()  # 8

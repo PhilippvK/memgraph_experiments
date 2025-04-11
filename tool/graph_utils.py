@@ -26,33 +26,38 @@ def graph_to_file(graph, dest, fmt="auto"):
 
 
 def memgraph_to_nx(results):
+    # print("results", results, type(results), isinstance(results, list))
+    # input("!")
     graph = nx.MultiDiGraph()
-    nodes = list(results.graph()._nodes.values())
-    # print("nodes", nodes)
-    for node in nodes:
-        # print("node", node)
-        if len(node._labels) > 0:
-            label = list(node._labels)[0]
-        else:
-            label = "?!"
-        name = node._properties.get("name", "?")
-        graph.add_node(int(node.element_id), xlabel=label, label=name, properties=node._properties)
+    if not isinstance(results, list):
+        results = [results]
+    for result in results:
+        nodes = list(result.graph()._nodes.values())
+        # print("nodes", nodes)
+        for node in nodes:
+            # print("node", node)
+            if len(node._labels) > 0:
+                label = list(node._labels)[0]
+            else:
+                label = "?!"
+            name = node._properties.get("name", "?")
+            graph.add_node(int(node.element_id), key=int(node.element_id), xlabel=label, label=name, properties=node._properties)
 
-    rels = list(results.graph()._relationships.values())
-    for rel in rels:
-        label = rel.type
-        # graph.add_edge(
-        #     rel.start_node.element_id, rel.end_node.element_id, key=rel.element_id,
-        #     label=label, type=rel.type, properties=rel._properties,
-        # )
-        graph.add_edge(
-            int(rel.start_node.element_id),
-            int(rel.end_node.element_id),
-            key=int(rel.element_id),
-            label=label,
-            type=rel.type,
-            properties=rel._properties,
-        )
+        rels = list(result.graph()._relationships.values())
+        for rel in rels:
+            label = rel.type
+            # graph.add_edge(
+            #     rel.start_node.element_id, rel.end_node.element_id, key=rel.element_id,
+            #     label=label, type=rel.type, properties=rel._properties,
+            # )
+            graph.add_edge(
+                int(rel.start_node.element_id),
+                int(rel.end_node.element_id),
+                key=int(rel.element_id),
+                label=label,
+                type=rel.type,
+                properties=rel._properties,
+            )
     return graph
 
 
@@ -102,6 +107,11 @@ def calc_outputs(G, sub):
         else:
             # print("B")
             outs = G.out_edges(node)
+            NOT_BRANCH_OR_STORE = True  # TODO: fix this
+            if len(outs) == 0 and NOT_BRANCH_OR_STORE:
+                ret += 1
+                outputs.append(node)
+                continue
             # print("outs", outs)
             for out_ in outs:
                 # print("out_", out_, G.nodes[out_[0]].get("label"))
@@ -136,6 +146,7 @@ def calc_weights(sub):
     weights = []
     freqs = []
     sub_nodes = sub.nodes
+    maxmiso_factors = set()
     for node in sub_nodes:
         # print("node", node)
         node_data = sub.nodes[node]
@@ -150,6 +161,11 @@ def calc_weights(sub):
         instr_rel_weight = node_properties.get("instr_rel_weight", None)
         if instr_rel_weight is None:
             return None, None
+        maxmiso_factor = node_properties.get("maxmiso_factor", None)
+        # print("maxmiso_factor", maxmiso_factor)
+        # print("instr_rel_weight", instr_rel_weight)
+        if maxmiso_factor is not None and maxmiso_factor > 1:
+            maxmiso_factors.add(maxmiso_factor)
         freqs.append(instr_freq)
         weights.append(instr_rel_weight)
     # print("weights", weights)
@@ -159,6 +175,12 @@ def calc_weights(sub):
     if not crossBB:
         assert len(set(weights)) == 1
     total_weight = sum(weights)
+
+    if len(maxmiso_factors) > 0:
+        # print("maxmiso_factors", maxmiso_factors)
+        assert len(maxmiso_factors) == 1
+        total_weight *= list(maxmiso_factors)[0]
+
     if not crossBB:
         assert len(set(freqs)) == 1
         freq = freqs[0]
@@ -171,9 +193,11 @@ def calc_weights(sub):
 
 
 def calc_weights_iso(graph, nodes):
+    # TODO: share code!
     weights = []
     freqs = []
     assert len(nodes) == len(set(nodes))
+    maxmiso_factors = set()
     for node in nodes:
         # print("node", node)
         node_data = graph.nodes[node]
@@ -188,6 +212,12 @@ def calc_weights_iso(graph, nodes):
         instr_rel_weight = node_properties.get("instr_rel_weight", None)
         if instr_rel_weight is None:
             return None, None
+        maxmiso_factor = node_properties.get("maxmiso_factor", None)
+        # print("maxmiso_factor", maxmiso_factor)
+        # print("instr_rel_weight", instr_rel_weight)
+        if maxmiso_factor is not None and maxmiso_factor > 1:
+            # TODO: maybe do average instead?
+            maxmiso_factors.add(maxmiso_factor)
         freqs.append(instr_freq)
         weights.append(instr_rel_weight)
     # print("weights", weights)
@@ -198,6 +228,13 @@ def calc_weights_iso(graph, nodes):
         # print("weights", weights)
         assert len(set(weights)) == 1
     total_weight = sum(weights)
+
+    if len(maxmiso_factors) > 0:
+        print("maxmiso_factors", maxmiso_factors)
+        # assert len(maxmiso_factors) == 1
+        maxmiso_factor = max(maxmiso_factors)  # TODO: is this fine?
+        total_weight *= maxmiso_factor
+
     if not crossBB:
         assert len(set(freqs)) == 1
         freq = freqs[0]

@@ -5,8 +5,27 @@ import networkx.algorithms.isomorphism as iso
 from tqdm import tqdm
 
 
+def categorical_edge_match_multidigraph(attr, default):
+    if isinstance(attr, str):
+
+        def match(data1, data2):
+            assert len(data1) == 1
+            data1 = list(data1.values())[0]
+            assert len(data2) == 1
+            data2 = list(data2.values())[0]
+            return data1.get(attr, default) == data2.get(attr, default)
+
+    else:
+        attrs = list(zip(attr, default))  # Python 3
+
+        def match(data1, data2):
+            return all(data1.get(attr, d) == data2.get(attr, d) for attr, d in attrs)
+
+    return match
+
+
 # def calc_sub_io_isos(io_sub, io_subs):
-def calc_sub_io_isos(io_sub, io_subs, i, subs_df=None, ignore_hash: bool = False):
+def calc_sub_io_isos(io_sub, io_subs, i, subs_df=None, ignore_hash: bool = False, hash_attr: str = "hash_attr"):
     # TODO: label -> name
     # def node_match(x, y):
     #     # print("node_match")
@@ -74,8 +93,9 @@ def calc_sub_io_isos(io_sub, io_subs, i, subs_df=None, ignore_hash: bool = False
                 ret = nx.is_isomorphic(
                     io_sub,
                     io_sub_,
-                    node_match=iso.categorical_node_match("hash_attr", None),
-                    edge_match=iso.categorical_edge_match("hash_attr", None),
+                    node_match=iso.categorical_node_match(hash_attr, None),
+                    # edge_match=iso.categorical_edge_match("hash_attr", None),
+                    edge_match=categorical_edge_match_multidigraph(hash_attr, None),
                     # node_match=node_match_,
                     # edge_match=edge_match_,
                 )
@@ -88,8 +108,9 @@ def calc_sub_io_isos(io_sub, io_subs, i, subs_df=None, ignore_hash: bool = False
             ret = nx.is_isomorphic(
                 io_sub,
                 io_sub_,
-                node_match=iso.categorical_node_match("hash_attr", None),
-                edge_match=iso.categorical_edge_match("hash_attr", None),
+                node_match=iso.categorical_node_match(hash_attr, None),
+                # edge_match=iso.categorical_edge_match("hash_attr", None),
+                edge_match=categorical_edge_match_multidigraph(hash_attr, None),
                 # node_match=node_match_,
                 # edge_match=edge_match_,
             )

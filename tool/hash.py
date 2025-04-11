@@ -1,13 +1,18 @@
+import ast
 import json
 from hashlib import sha1
 import numpy as np
 
 
-def add_hash_attr(sub, attr_name: str = "hash_attr", ignore_const: bool = False, ignore_names: bool = False):
+def add_hash_attr(sub, attr_name: str = "hash_attr", ignore_const: bool = False, ignore_names: bool = False, ignore_alias: bool = False, handle_commutable: bool = True):
+    commutable_edges = []
     for node in sub.nodes:
         # print("node", node)
         # print("sub.nodes[node]", sub.nodes[node])
         temp = sub.nodes[node]["label"]
+        # print("temp", temp)
+        # input("!")
+        # TODO: export without style!
 
         def drop_style(label):
             # print("drop_style", label)
@@ -18,17 +23,49 @@ def add_hash_attr(sub, attr_name: str = "hash_attr", ignore_const: bool = False,
             # label = label.replace("</font>", "")
             # label = label.replace("<font point-size=\"10\">", "")  # TODO: use re
             return label
+
+        def parse_const(x):
+            try:
+                ret = ast.literal_eval(x)
+            except ValueError:
+                return None
+            return ret
+
         if temp[0] == "<":
             temp = drop_style(temp)
+            const = parse_const(temp)
+            # print("const", const)
+            if const is not None:
+                temp = "Const"
+        # TODO: improve this!
         if ignore_names and temp.startswith("src"):
             temp = "src"
+        if ignore_names and temp.startswith("inp"):
+            temp = "inp"
+        if ignore_names and temp.startswith("outp"):
+            temp = "outp"
+        properties = sub.nodes[node]["properties"]
         if temp == "Const" and not ignore_const:
-            temp += "-" + sub.nodes[node]["properties"]["inst"]
-        temp += "-" + str(sub.nodes[node].get("alias", None))
+            temp += "-" + properties["inst"]
+        if not ignore_alias:
+            temp += "-" + str(sub.nodes[node].get("alias", None))
+        is_commutable = properties.get("isCommutable", False)
+        # print("is_commutable", is_commutable)
+        if is_commutable:
+            ins = sub.in_edges(node, keys=True)
+            # print("ins", ins)
+            commutable_edges += ins
+            # input(">")
         # print("temp", temp)
         sub.nodes[node][attr_name] = temp
     for edge in sub.edges:
-        sub.edges[edge][attr_name] = str(sub.edges[edge]["properties"]["op_idx"])
+        # print("edge", edge)
+        is_commutable_edge = edge in commutable_edges
+        # print("is_commutable_edge", is_commutable_edge)
+        op_idx = sub.edges[edge]["properties"]["op_idx"]
+        if handle_commutable and is_commutable_edge:
+            op_idx = "%"
+        sub.edges[edge][attr_name] = str(op_idx)
 
 
 def check_type(x):

@@ -3,13 +3,16 @@ from typing import List, Optional
 from .enums import CDFGStage
 
 
-def generate_func_query(session: str, func: str, fix_cycles: bool = True, stage: CDFGStage = CDFGStage.STAGE_3, cross_bb: bool = False):
+def generate_func_query(
+    session: str, func: str, fix_cycles: bool = True, stage: CDFGStage = CDFGStage.STAGE_3, cross_bb: bool = False
+):
     rel_suffix = "" if cross_bb else ":DFG"
     ret = f"""MATCH p0=(n00:INSTR)-[r01{rel_suffix}]->(n01:INSTR)
 WHERE n00.func_name = '{func}'
 AND n00.session = "{session}"
 AND n00.stage = {stage}
 """
+    # fix_cycles = False
     if fix_cycles:
         # PHI nodes sometimes create cycles which are not allowed,
         # hence we drop all ingoing edges to PHIs as their src MI
@@ -37,7 +40,58 @@ def generate_candidates_query(
     limit: Optional[int] = None,
     # use_bb_id: bool = False,
     use_bb_id: bool = True,
+    simple_mode: bool = False,
+    maxmiso_idx: Optional[int] = None,
 ):
+    limit = 100000
+    # limit = 50000
+    # max_nodes = 10
+    # simple_mode = True
+    simple_mode = False
+    if simple_mode:
+        pass
+        # max_path_length = 3
+        # limit = 20000
+    bb_id = int(bb.split(".", 1)[1])
+    extra = ""
+    if maxmiso_idx is not None:
+        extra = f""" AND a0.maxmiso_idx = {maxmiso_idx}
+  AND a1.maxmiso_idx = {maxmiso_idx}
+  AND b.maxmiso_idx = {maxmiso_idx}
+"""
+    return f"""
+MATCH (a0:INSTR), (a1:INSTR), (b:INSTR)
+WHERE true
+  AND id(a0) <= id(a1)  // Ensure canonical order and avoid duplicates, but also eliminates sharing...
+  AND a0.session = '{session}'
+  AND a1.session = '{session}'
+  AND b.session = '{session}'
+  AND a0.func_name = '{func}'
+  AND a1.func_name = '{func}'
+  AND b.func_name = '{func}'
+  AND a0.bb_id = {bb_id} AND a1.bb_id = {bb_id} AND b.bb_id = {bb_id}
+  AND a0.stage = {stage} AND a1.stage = {stage} AND b.stage = {stage}
+  // AND b.name IN ["ADD", "XOR", "SLLI", "SRLI", "AND", "OR"]
+  {extra}
+
+MATCH p0=(a0)-[:DFG*{min_path_length}..{max_path_length}]->(b)
+MATCH p1=(a1)-[:DFG*{min_path_length}..{max_path_length}]->(b)
+WHERE true
+AND all(node in collections.union(nodes(p0), nodes(p1)) WHERE NOT node.name IN ['G_PHI', 'PHI', 'COPY', 'PseudoCALLIndirect', 'PseudoLGA', 'Select_GPR_Using_CC_GPR', 'LUI', 'PseudoMovAddr'] AND NOT node.op_type IN ['input', 'constant', 'label'])
+AND size(collections.union(nodes(p0), nodes(p1))) >= {min_nodes}
+AND size(collections.union(nodes(p0), nodes(p1))) <= {max_nodes}
+
+WITH p0, p1
+ORDER BY rand()
+LIMIT {limit}
+WITH p0, p1
+RETURN p0, p1
+ORDER BY size(collections.union(nodes(p0), nodes(p1))) desc
+"""
+    if max_nodes is not None:
+        max_possible_nodes = 1 + max_path_width * max_path_length
+        if max_possible_nodes > max_nodes:
+            pass  # TODO: warn (but consider nodes can be shared and one path can be shorter)
     if shared_input:
         starts = ["a"] * max_path_width
     else:
@@ -104,6 +158,8 @@ ORDER BY {order_by_str} desc
         ret += f"""LIMIT {limit}
 """
     return ret + ";"
+
+
 #     return """
 # MATCH p0=(a0:INSTR)-[:DFG*1..5]->(b:INSTR)
 # MATCH p1=(a1:INSTR)-[:DFG*1..5]->(b:INSTR)
@@ -115,7 +171,7 @@ ORDER BY {order_by_str} desc
 # AND all(node in all_nodes WHERE node.name != 'G_PHI' AND node.name != 'PHI' AND node.name != 'COPY' AND node.name != 'PseudoCALLIndirect' AND node.name != 'PseudoLGA' AND node.name != 'Select_GPR_Using_CC_GPR' AND node.op_type != 'input' AND node.op_type != 'constant')
 # AND size(all_nodes) >= 1
 # AND size(all_nodes) <= 1000
-# 
+#
 # RETURN p0, p1 // , size(all_nodes) as num_nodes
 # // ORDER BY size(all_nodes) asc
 # """
