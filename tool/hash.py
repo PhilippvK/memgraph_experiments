@@ -4,12 +4,20 @@ from hashlib import sha1
 import numpy as np
 
 
-def add_hash_attr(sub, attr_name: str = "hash_attr", ignore_const: bool = False, ignore_names: bool = False, ignore_alias: bool = False, handle_commutable: bool = True):
+def add_hash_attr(
+    sub,
+    attr_name: str = "hash_attr",
+    ignore_const: bool = False,
+    ignore_names: bool = False,
+    ignore_alias: bool = False,
+    handle_commutable: bool = True,
+):
     commutable_edges = []
     for node in sub.nodes:
         # print("node", node)
         # print("sub.nodes[node]", sub.nodes[node])
         temp = sub.nodes[node]["label"]
+        properties = sub.nodes[node]["properties"]
         # print("temp", temp)
         # input("!")
         # TODO: export without style!
@@ -31,24 +39,39 @@ def add_hash_attr(sub, attr_name: str = "hash_attr", ignore_const: bool = False,
                 return None
             return ret
 
-        if temp[0] == "<":
-            temp = drop_style(temp)
-            const = parse_const(temp)
-            # print("const", const)
-            if const is not None:
-                temp = "Const"
-        # TODO: improve this!
-        if ignore_names and temp.startswith("src"):
-            temp = "src"
-        if ignore_names and temp.startswith("inp"):
-            temp = "inp"
-        if ignore_names and temp.startswith("outp"):
-            temp = "outp"
-        properties = sub.nodes[node]["properties"]
-        if temp == "Const" and not ignore_const:
-            temp += "-" + properties["inst"]
+        def label_helper(temp):
+            if temp[0] == "<":
+                temp = drop_style(temp)
+                const = parse_const(temp)
+                # print("const", const)
+                if const is not None:
+                    temp = "Const"
+            # TODO: improve this!
+            if ignore_names and temp.startswith("src"):
+                temp = "src"
+            if ignore_names and temp.startswith("inp"):
+                temp = "inp"
+            if ignore_names and temp.startswith("outp"):
+                temp = "outp"
+            if temp == "Const" and not ignore_const:
+                temp += "-" + properties["inst"]
+            return temp
+
+        temp = label_helper(temp)
+
         if not ignore_alias:
-            temp += "-" + str(sub.nodes[node].get("alias", None))
+            alias = sub.nodes[node].get("alias", None)
+            if alias is not None:
+                assert alias in sub.nodes
+                alias_node_data = sub.nodes[alias]
+                # print("alias_node_data", alias_node_data)
+                alias_label = alias_node_data["label"]
+                alias_label = label_helper(alias_label)
+                # print("alias_label", alias_label)
+                alias = alias_label
+                # input("!")
+            temp += "-" + str(alias)
+
         is_commutable = properties.get("isCommutable", False)
         # print("is_commutable", is_commutable)
         if is_commutable:
@@ -62,10 +85,11 @@ def add_hash_attr(sub, attr_name: str = "hash_attr", ignore_const: bool = False,
         # print("edge", edge)
         is_commutable_edge = edge in commutable_edges
         # print("is_commutable_edge", is_commutable_edge)
+        out_idx = sub.edges[edge]["properties"]["out_idx"]
         op_idx = sub.edges[edge]["properties"]["op_idx"]
         if handle_commutable and is_commutable_edge:
             op_idx = "%"
-        sub.edges[edge][attr_name] = str(op_idx)
+        sub.edges[edge][attr_name] = f"{out_idx}->{op_idx}"
 
 
 def check_type(x):

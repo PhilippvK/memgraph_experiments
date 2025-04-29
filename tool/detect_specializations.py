@@ -13,6 +13,8 @@ import networkx.algorithms.isomorphism as iso
 # from .iso import calc_io_isos
 from .graph_utils import graph_to_file
 from .hash import add_hash_attr
+from .detect_name_isos import name_iso_helper
+from .iso import categorical_edge_match_multidigraph
 
 logger = logging.getLogger("combine_index")
 
@@ -44,6 +46,7 @@ def handle_cmdline():
     parser.add_argument("--drop", action="store_true", help="TODO")
     parser.add_argument("--graph", default=None, help="TODO")  # print if None
     parser.add_argument("--progress", action="store_true", help="TODO")
+    parser.add_argument("--noop", action="store_true", help="TODO")
     args = parser.parse_args()
     logging.basicConfig(level=getattr(logging, args.log.upper()))
     return args
@@ -75,6 +78,31 @@ def load_candidates(in_path, progress: bool = False):
     return yaml_data, candidates, candidate_io_subs
 
 
+def check_iso(io_sub, io_sub_, ignore_alias: bool = False, ignore_names: bool = False):
+    add_hash_attr(
+        io_sub,
+        attr_name="hash_attr2",
+        ignore_const=False,
+        ignore_names=ignore_names,
+        handle_commutable=True,
+        ignore_alias=ignore_alias,
+    )
+    add_hash_attr(
+        io_sub_,
+        attr_name="hash_attr2",
+        ignore_const=False,
+        ignore_names=ignore_names,
+        handle_commutable=True,
+        ignore_alias=ignore_alias,
+    )
+    nm = iso.categorical_node_match("hash_attr2", None)
+    # em = iso.categorical_edge_match("hash_attr2", None)
+    em = categorical_edge_match_multidigraph("hash_attr2", None)
+    matcher = nx.algorithms.isomorphism.DiGraphMatcher(io_sub, io_sub_, node_match=nm, edge_match=em)
+    check = matcher.is_isomorphic()
+    return check
+
+
 def detect_sub_specializations(candidates, candidate_io_subs, progress: bool = False):
     sub_specializations = {}
     # WARN: symmetry can not be used here!
@@ -86,6 +114,7 @@ def detect_sub_specializations(candidates, candidate_io_subs, progress: bool = F
         input_nodes = sub_data["InputNodes"]
         input_names = sub_data["InputNames"]
         output_nodes = sub_data["OutputNodes"]
+        output_names = sub_data["OutputNames"]
         # operand_nodes = sub_data["OperandNodes"]
         # operand_names = sub_data["OperandNames"]
         # print("sub_data", sub_data)
@@ -105,6 +134,44 @@ def detect_sub_specializations(candidates, candidate_io_subs, progress: bool = F
             num_nodes_ = sub_data_["#Nodes"]
             input_nodes_ = sub_data_["InputNodes"]
             output_nodes_ = sub_data_["OutputNodes"]
+            io_sub_ = candidate_io_subs[j]
+            if (num_nodes == num_nodes_):
+                is_iso = check_iso(io_sub, io_sub_, ignore_alias=True)
+                is_name_iso = check_iso(io_sub, io_sub_, ignore_names=True, ignore_alias=True)
+                is_alias_iso = check_iso(io_sub, io_sub_, ignore_alias=False)
+                is_name_alias_iso = check_iso(io_sub, io_sub_, ignore_names=True, ignore_alias=False)
+                print("is_iso", is_iso)
+                print("is_alias_iso", is_alias_iso)
+                print("is_name_iso", is_name_iso)
+                print("is_name_alias_iso", is_name_alias_iso)
+                if not is_iso and is_name_iso:
+                    # input("!!!1")
+                    continue
+                if not is_alias_iso and is_name_alias_iso:
+                    # input("!!!2")
+                    continue
+                if not is_iso:
+                    continue
+                if is_alias_iso:
+                    continue
+                alias_nodes = [x for x in io_sub.nodes if io_sub.nodes[x].get("alias") is not None]
+                alias_nodes_ = [x for x in io_sub_.nodes if io_sub_.nodes[x].get("alias") is not None]
+                print("alias_nodes", alias_nodes)
+                print("alias_nodes_", alias_nodes_)
+                if len(alias_nodes) >= len(alias_nodes_):
+                    continue
+                if len(alias_nodes) != 0:
+                    continue
+                if len(alias_nodes_) != 1:
+                    continue
+                # input("stop")
+                constr = "TODO"
+                spec = (j, f"ALIAS ({constr})")
+                # print("spec", spec)
+                # input(">>>")
+                specs.append(spec)
+                 # if alias_spec:
+
             if (num_nodes - num_nodes_) != 1:
                 continue
             instrs = sub_data["Instrs"]
@@ -136,7 +203,6 @@ def detect_sub_specializations(candidates, candidate_io_subs, progress: bool = F
             print("num_nodes", num_nodes)
             print("num_nodes_", num_nodes_)
             print("possible_dropped_nodes", possible_dropped_nodes)
-            io_sub_ = candidate_io_subs[j]
             artifacts_ = c_["artifacts"]
             flat_artifact_ = artifacts_["flat"]
             print("flat_artifact_", flat_artifact_)
@@ -164,6 +230,7 @@ def detect_sub_specializations(candidates, candidate_io_subs, progress: bool = F
                     is_variable = [x in input_nodes for x in sorted_in_nodes]
                     print("is_variable", is_variable)
                     if not any(is_variable):
+                        print("A")
                         return None, {}
 
                     assignments = {}
@@ -177,18 +244,27 @@ def detect_sub_specializations(candidates, candidate_io_subs, progress: bool = F
                             temp = io_sub.out_edges(lhs_node)
                             print("temp", temp)
                             if len(temp) > 1:
+                                print("B")
                                 return None, {}
                             assignments[lhs_node] = neutral_element
+                            print("assignments", assignments)
+                            print("new1", new)
+                            new.remove_node(lhs_node)
                             new.remove_node(to_remove)
+                            print("new2", new)
                             for _, dst, data in outs:
+                                print("dst", dst)
                                 new.add_edge(rhs_node, dst, **data)
+                            print("new3", new)
                         elif rhs_variable:
                             # check if input is used elsewhere
                             temp = io_sub.out_edges(rhs_node)
                             print("temp", temp)
                             if len(temp) > 1:
+                                print("C")
                                 return None, {}
                             assignments[rhs_node] = neutral_element
+                            new.remove_node(rhs_node)
                             new.remove_node(to_remove)
                             for _, dst, data in outs:
                                 new.add_edge(lhs_node, dst, **data)
@@ -201,11 +277,13 @@ def detect_sub_specializations(candidates, candidate_io_subs, progress: bool = F
                         lhs_variable, rhs_variable = is_variable
                         if lhs_variable:
                             assignments[lhs_node] = neutral_element
+                            new.remove_node(lhs_node)
                             new.remove_node(to_remove)
                             for _, dst, data in outs:
                                 new.add_edge(rhs_node, dst, **data)
                         elif rhs_variable:
                             assignments[rhs_node] = neutral_element
+                            new.remove_node(rhs_node)
                             new.remove_node(to_remove)
                             for _, dst, data in outs:
                                 new.add_edge(lhs_node, dst, **data)
@@ -218,11 +296,13 @@ def detect_sub_specializations(candidates, candidate_io_subs, progress: bool = F
                         lhs_variable, rhs_variable = is_variable
                         if lhs_variable:
                             assignments[lhs_node] = neutral_element
+                            new.remove_node(lhs_node)
                             new.remove_node(to_remove)
                             for _, dst, data in outs:
                                 new.add_edge(rhs_node, dst, **data)
                         elif rhs_variable:
                             assignments[rhs_node] = neutral_element
+                            new.remove_node(rhs_node)
                             new.remove_node(to_remove)
                             for _, dst, data in outs:
                                 new.add_edge(lhs_node, dst, **data)
@@ -234,8 +314,10 @@ def detect_sub_specializations(candidates, candidate_io_subs, progress: bool = F
                         lhs_node, rhs_node = sorted_in_nodes
                         _, rhs_variable = is_variable
                         if not rhs_variable:
+                            print("D")
                             return None, {}
                         assignments[rhs_node] = neutral_element
+                        new.remove_node(rhs_node)
                         new.remove_node(to_remove)
                         for _, dst, data in outs:
                             new.add_edge(lhs_node, dst, **data)
@@ -245,8 +327,10 @@ def detect_sub_specializations(candidates, candidate_io_subs, progress: bool = F
                         lhs_node, rhs_node = sorted_in_nodes
                         _, rhs_variable = is_variable
                         if not rhs_variable:
+                            print("E")
                             return None, {}
                         assignments[rhs_node] = neutral_element
+                        new.remove_node(rhs_node)
                         new.remove_node(to_remove)
                         for _, dst, data in outs:
                             new.add_edge(lhs_node, dst, **data)
@@ -256,19 +340,23 @@ def detect_sub_specializations(candidates, candidate_io_subs, progress: bool = F
                         lhs_node, rhs_node = sorted_in_nodes
                         _, rhs_variable = is_variable
                         if not rhs_variable:
+                            print("F")
                             return None, {}
                         assignments[rhs_node] = neutral_element
+                        new.remove_node(rhs_node)
                         new.remove_node(to_remove)
                         for _, dst, data in outs:
                             new.add_edge(lhs_node, dst, **data)
-                    elif dropped_instr in ["SLTIU", "MULH"]:
+                    elif dropped_instr in ["SLTIU", "SLT", "MULH"]:
                         # Currently unsupported. Maybe possible?
+                        print("G")
                         return None, {}
                     else:
                         raise RuntimeError(f"Unhandled Instruction for dropping: {dropped_instr}")
                     # print("assignments", assignments)
                     # input("?")
                     if not nx.is_weakly_connected(new):
+                        print("H")
                         return None, {}
                     return new, assignments
 
@@ -281,31 +369,53 @@ def detect_sub_specializations(candidates, candidate_io_subs, progress: bool = F
                     # input("!!!")
                     continue
 
-                def drop_io_nodes(io_sub, input_nodes, output_nodes):
-                    assert nx.is_weakly_connected(io_sub)
-                    new = io_sub.copy()
-                    for input_node in input_nodes:
-                        new.remove_node(input_node)
-                    for output_node in output_nodes:
-                        new.remove_node(output_node)
-                    assert nx.is_weakly_connected(io_sub)
-                    return new
+                # def drop_io_nodes(io_sub, input_nodes, output_nodes):
+                #     assert nx.is_weakly_connected(io_sub)
+                #     new = io_sub.copy()
+                #     for input_node in input_nodes:
+                #         if input_node in io_sub.nodes:
+                #             new.remove_node(input_node)
+                #     for output_node in output_nodes:
+                #         new.remove_node(output_node)
+                #     assert nx.is_weakly_connected(io_sub)
+                #     return new
 
-                temp_sub = drop_io_nodes(temp_io_sub, input_nodes, output_nodes)
-                print("temp_sub", temp_sub)
-                assert temp_sub is not None
-                sub_ = drop_io_nodes(io_sub_, input_nodes_, output_nodes_)
-                print("sub_", sub_)
-                assert sub_ is not None
+                temp_sub_data = sub_data.copy()
+                temp_input_nodes = [x for x in input_nodes if x in temp_io_sub.nodes]
+                temp_input_names = [input_names[input_nodes.index(x)] for x in temp_input_nodes]
+                temp_output_nodes = [x for x in output_nodes if x in temp_io_sub.nodes]
+                temp_output_names = [output_names[output_nodes.index(x)] for x in temp_output_nodes]
+                temp_sub_data["InputNodes"] = temp_input_nodes
+                temp_sub_data["InputNames"] = temp_input_names
+                temp_sub_data["OutputNodes"] = temp_output_nodes
+                temp_sub_data["OutputNames"] = temp_output_names
+                check = name_iso_helper(temp_io_sub, io_sub_, sub_data, sub_data_, None, None)
+                ### temp_sub = drop_io_nodes(temp_io_sub, input_nodes, output_nodes)
+                ### temp_sub = temp_io_sub
+                ### print("temp_sub", temp_sub)
+                ### assert temp_sub is not None
+                ### sub_ = drop_io_nodes(io_sub_, input_nodes_, output_nodes_)
+                ### sub_ = io_sub_
+                ### print("sub_", sub_)
+                ### assert sub_ is not None
 
-                add_hash_attr(temp_sub, attr_name="hash_attr2", ignore_const=False, ignore_names=False)
-                add_hash_attr(sub_, attr_name="hash_attr2", ignore_const=False, ignore_names=False)
-                # nm = iso.categorical_node_match("hash_attr_ignore_const", None)
-                nm = iso.categorical_node_match("hash_attr2", None)
-                em = iso.categorical_edge_match("hash_attr2", None)
-                matcher = nx.algorithms.isomorphism.DiGraphMatcher(temp_sub, sub_, node_match=nm, edge_match=em)
-                check = matcher.is_isomorphic()
-                print("check", check)
+                ### # add_hash_attr(temp_sub, attr_name="hash_attr2", ignore_const=False, ignore_names=False)
+                ### # add_hash_attr(sub_, attr_name="hash_attr2", ignore_const=False, ignore_names=False)
+                ### add_hash_attr(temp_sub, attr_name="hash_attr2", ignore_const=False, ignore_names=True)
+                ### add_hash_attr(sub_, attr_name="hash_attr2", ignore_const=False, ignore_names=True)
+                ### print("A", [temp_sub.nodes[node]["hash_attr2"] for node in temp_sub.nodes])
+                ### print("B", [sub_.nodes[node]["hash_attr2"] for node in sub_.nodes])
+                ### 
+                ### print("AA", [temp_sub.edges[edge]["hash_attr2"] for edge in temp_sub.edges])
+                ### print("BB", [sub_.edges[edge]["hash_attr2"] for edge in sub_.edges])
+                ### # nm = iso.categorical_node_match("hash_attr_ignore_const", None)
+                ### nm = iso.categorical_node_match("hash_attr2", None)
+                ### em = iso.categorical_edge_match("hash_attr2", None)
+                ### matcher = nx.algorithms.isomorphism.DiGraphMatcher(temp_sub, sub_, node_match=nm, edge_match=em)
+                ### check = matcher.is_isomorphic()
+                ### mapping = matcher.mapping
+                ### print("mapping", mapping)
+                ### print("check", check)
                 if not check:
                     print("cont (not iso)")
                     continue
@@ -390,6 +500,9 @@ def main():
     print("spec_graph", spec_graph)
     if GRAPH is not None:
         graph_to_file(spec_graph, GRAPH)
+
+    if args.noop:
+        return
 
     if DROP:
         sources = get_sources(spec_graph)

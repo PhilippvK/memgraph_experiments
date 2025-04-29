@@ -6,6 +6,7 @@ import argparse
 import yaml
 import pandas as pd
 from tqdm import tqdm
+from anytree import AnyNode, RenderTree
 
 from .cdsl_utils import CDSLEmitter, wrap_cdsl
 from .tree_utils import tree_from_pkl
@@ -109,6 +110,9 @@ def generate_complete_cdsl(codes: List[str], operands, xlen: int, name="result",
 
 
 def generate_cdsl(stmts_root, sub_data, xlen: int, name="result", desc=None):
+    print("stmts_root", stmts_root)
+    print(RenderTree(stmts_root))
+    # input(">>>")
     emitter = CDSLEmitter(xlen)
     emitter.visit(stmts_root)
     output = emitter.output

@@ -55,6 +55,37 @@ def generate_variations(settings, subs, GF, io_subs, subs_df):
                 # 1 source & 1 dest as as cheap as it can get, no need for sharing
                 continue
             # new = []
+            # TODO: avoid generating 2 variations for MUL(rd_val, rs2_val) & MUL(rs1_val, rd_val)
+            # -> if commutable op is only consumer of 2 inputs, only consider lhs (op_idx=0)
+            # from collections import defaultdict
+
+            # input_consumers = defaultdict(set)
+            # for input_idx, input_node in enumerate(inputs):
+            #     out_edges = io_sub.out_edges(input_node)
+            #     for _, dst in out_edges:
+            #         input_consumers[input_idx].add(dst)
+            # print("input_consumers", input_consumers)
+            # input_consumer_single = {
+            #     input_idx: list(consumers)[0] for input_idx, consumers in input_consumers.items() if len(consumers) == 1
+            # }
+            # print("input_consumer_single", input_consumer_single)
+            # consumer_is_comutable = {
+            #     consumer: io_sub.nodes[consumer]["properties"]["isCommutable"]
+            #     for consumer in set(input_consumer_single.values())
+            # }
+            # print("consumer_is_comutable", consumer_is_comutable)
+            # consumer_input_nodes = {
+            #     consumer: set([src for src, _ in io_sub.in_edges(consumer)])
+            #     for consumer in set(input_consumer_single.values())
+            # }
+            # print("consumer_input_nodes", consumer_input_nodes)
+            # consumer_input_nodes_ok = {
+            #     consumer: set([input_node in inputs for input_node in input_nodes])
+            #     for consumer, input_nodes in consumer_input_nodes.items()
+            # }
+            # print("consumer_input_nodes_ok", consumer_input_nodes_ok)
+            # input("!!!")
+
             for input_idx, j in enumerate(inputs):
                 # print("input_idx", input_idx)
                 # print("j", j)

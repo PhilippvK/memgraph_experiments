@@ -77,6 +77,8 @@ def analyze_io(settings, GF, subs, subs_df):
         output_node_mapping = {n: (len(GF.nodes) + ii, f"dst{ii}") for ii, n in enumerate(outputs)}
         # print("output_node_mapping", output_node_mapping)
         outputs_ = []
+        for in_node_id, in_label in input_node_mapping.items():
+            io_sub.nodes[in_node_id]["label"] = in_label
         for out, temp in output_node_mapping.items():
             out_, out_label = temp
             old_properties = io_sub.nodes[out]["properties"]

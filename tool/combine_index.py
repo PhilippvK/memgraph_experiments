@@ -11,6 +11,7 @@ from tqdm import tqdm
 
 from .iso import calc_io_isos
 from .hash import add_hash_attr
+from .detect_name_isos import collect_name_isos
 
 logger = logging.getLogger("combine_index")
 
@@ -24,6 +25,7 @@ def handle_cmdline():
     parser.add_argument("--log", default="info", choices=["critical", "error", "warning", "info", "debug"], help="TODO")
     parser.add_argument("--output", "-o", default=None, help="TODO")  # print if None
     parser.add_argument("--drop-duplicates", action="store_true", help="TODO")
+    parser.add_argument("--drop-name-isos", action="store_true", help="TODO")
     parser.add_argument("--overlaps", default=None, help="TODO")
     parser.add_argument("--venn", default=None, help="TODO")
     parser.add_argument("--sankey", default=None, help="TODO")
@@ -40,6 +42,7 @@ args = handle_cmdline()
 INS = args.index
 OUT = args.output
 DROP_DUPLICATES = args.drop_duplicates
+DROP_NAME_ISOS = args.drop_name_isos
 OVERLAPS_OUT = args.overlaps
 VENN_OUT = args.venn
 SANKEY_OUT = args.sankey
@@ -89,10 +92,17 @@ if DROP_DUPLICATES:
     duplicate_count = 0
     logger.info("Detecting duplicates...")
     for io_sub in candidate_io_subs:
-        add_hash_attr(io_sub, handle_commutable=False)
-    _, sub_io_isos = calc_io_isos(candidate_io_subs, progress=args.progress)
+        add_hash_attr(io_sub, handle_commutable=True)
+        # add_hash_attr(io_sub, handle_commutable=False)
+    all_isos, sub_io_isos = calc_io_isos(candidate_io_subs, progress=args.progress)
+    # print("all_isos", all_isos, len(all_isos))
+    # input(">")
+
     for sub, io_isos_ in sub_io_isos.items():
         if len(io_isos_) > 0:
+            # print("sub", sub)
+            # print("io_isos_", io_isos_)
+            # input(">")
             duplicates[sub] = io_isos_
             duplicate_count += len(io_isos_)
             for k in range(len(venn_data)):
@@ -103,7 +113,23 @@ if DROP_DUPLICATES:
     # print("duplicates", duplicates)
     # print("all_duplicates", all_duplicates)
     # print("duplicate_count", duplicate_count)
+
     candidates = [x for i, x in enumerate(candidates) if i not in all_duplicates]
+    candidate_io_subs = [x for i, x in enumerate(candidate_io_subs) if i not in all_duplicates]
+    UPDATE_IDS = True
+    if UPDATE_IDS:
+        for i, candidate in enumerate(candidates):
+            candidate["id"] = i
+
+remaining_count = len(candidates)
+if DROP_NAME_ISOS:
+    all_name_isos, sub_name_isos, missmatched_constraints = collect_name_isos(candidates, candidate_io_subs, progress=args.progress)
+    # print("all_name_isos", all_name_isos, len(all_name_isos))
+    # print("sub_name_isos", sub_name_isos, len(sub_name_isos))
+    # input("!")
+    name_iso_count = len(all_name_isos)
+    logger.info(f"Dropping {name_iso_count} name_isos out of {remaining_count} remaining candidates...")
+    candidates = [x for i, x in enumerate(candidates) if i not in all_name_isos]
     UPDATE_IDS = True
     if UPDATE_IDS:
         for i, candidate in enumerate(candidates):
@@ -172,14 +198,18 @@ sankey-beta
 """
     for j, count in in_counts.items():
         content += f"Set{j},Merged,{count}\n"
-    if DROP_DUPLICATES:
-        content += f"Merged,Duplicates,{duplicate_count}\n"
+    if DROP_DUPLICATES or DROP_NAME_ISOS:
+        if DROP_DUPLICATES:
+            content += f"Merged,Duplicates,{duplicate_count}\n"
+        unique_count = len(candidates)
+        if DROP_NAME_ISOS:
+            content += f"Merged,NameIsos,{name_iso_count}\n"
         unique_count = len(candidates)
         content += f"Merged,Unique,{unique_count}\n"
     if TOPK:
         final_count = min(TOPK, len(candidates))
         rest_count = len(candidates) - final_count
-        if DROP_DUPLICATES:
+        if DROP_DUPLICATES or DROP_NAME_ISOS:
             if rest_count > 0:
                 content += f"Unique,Rest,{rest_count}\n"
             content += f"Unique,Topk,{final_count}\n"

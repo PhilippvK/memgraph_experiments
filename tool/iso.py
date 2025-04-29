@@ -9,11 +9,30 @@ def categorical_edge_match_multidigraph(attr, default):
     if isinstance(attr, str):
 
         def match(data1, data2):
-            assert len(data1) == 1
-            data1 = list(data1.values())[0]
-            assert len(data2) == 1
-            data2 = list(data2.values())[0]
-            return data1.get(attr, default) == data2.get(attr, default)
+            # print("data1", data1)
+            # print("data2", data2)
+            # print("data1!", {k: v.get(attr, default) for k, v in data1.items()})
+            # print("data2!", {k: v.get(attr, default) for k, v in data2.items()})
+            if len(data1) == 1:
+                assert len(data2) == 1
+                data1 = list(data1.values())[0]
+                data2 = list(data2.values())[0]
+                return data1.get(attr, default) == data2.get(attr, default)
+            else:
+                assert len(data2) == len(data1)
+                temp1 = {k: v.get(attr, default) for k, v in data1.items()}
+                temp2 = {k: v.get(attr, default) for k, v in data2.items()}
+                vals1 = list(temp1.values())
+                vals2 = list(temp2.values())
+                unique_vals1 = set(vals1)
+                unique_vals2 = set(vals2)
+                # print("vals1", vals1)
+                # print("vals2", vals2)
+                # print("unique_vals1", unique_vals1)
+                # print("unique_vals2", unique_vals2)
+                if len(unique_vals1) != len(unique_vals2):
+                    return False
+                return unique_vals1 == unique_vals2
 
     else:
         attrs = list(zip(attr, default))  # Python 3
@@ -26,6 +45,7 @@ def categorical_edge_match_multidigraph(attr, default):
 
 # def calc_sub_io_isos(io_sub, io_subs):
 def calc_sub_io_isos(io_sub, io_subs, i, subs_df=None, ignore_hash: bool = False, hash_attr: str = "hash_attr"):
+    print("calc_sub_io_isos", io_sub, io_subs, i, subs_df is not None, ignore_hash, hash_attr)
     # TODO: label -> name
     # def node_match(x, y):
     #     # print("node_match")
@@ -90,15 +110,42 @@ def calc_sub_io_isos(io_sub, io_subs, i, subs_df=None, ignore_hash: bool = False
             ret = a == b
             # print("ret", ret)
             if ret:
-                ret = nx.is_isomorphic(
-                    io_sub,
-                    io_sub_,
-                    node_match=iso.categorical_node_match(hash_attr, None),
-                    # edge_match=iso.categorical_edge_match("hash_attr", None),
-                    edge_match=categorical_edge_match_multidigraph(hash_attr, None),
-                    # node_match=node_match_,
-                    # edge_match=edge_match_,
-                )
+                try:
+                    ret = nx.is_isomorphic(
+                        io_sub,
+                        io_sub_,
+                        node_match=iso.categorical_node_match(hash_attr, None),
+                        # edge_match=iso.categorical_edge_match("hash_attr", None),
+                        edge_match=categorical_edge_match_multidigraph(hash_attr, None),
+                        # node_match=node_match_,
+                        # edge_match=edge_match_,
+                    )
+                except AssertionError:
+                    print("io_sub", io_sub)
+                    print("io_sub_", io_sub_)
+                    from networkx.drawing.nx_agraph import write_dot
+                    for edge in io_sub.edges(data=True, keys=True):
+                        u, v, k, data = edge
+                        properties = data["properties"]
+                        op_idx = properties.get("op_idx")
+                        out_idx = properties.get("out_idx")
+                        edge_annotation = f"{out_idx} -> {op_idx}"
+                        io_sub[u][v][k]["xlabel"] = edge_annotation
+                    for edge in io_sub_.edges(data=True, keys=True):
+                        u, v, k, data = edge
+                        properties = data["properties"]
+                        op_idx = properties.get("op_idx")
+                        out_idx = properties.get("out_idx")
+                        edge_annotation = f"{out_idx} -> {op_idx}"
+                        io_sub_[u][v][k]["xlabel"] = edge_annotation
+                    import pickle
+                    with open("/tmp/io_sub.pkl", "wb") as f:
+                        pickle.dump(io_sub, f)
+                    with open("/tmp/io_sub_.pkl", "wb") as f:
+                        pickle.dump(io_sub_, f)
+                    write_dot(io_sub, "/tmp/io_sub.dot")
+                    write_dot(io_sub_, "/tmp/io_sub_.dot")
+                    input("ASSERTION")
                 # print("ret2", ret2)
                 # if ret != ret2:
                 #     input("<>")

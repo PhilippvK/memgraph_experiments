@@ -43,6 +43,7 @@ def generate_candidates_query(
     simple_mode: bool = False,
     maxmiso_idx: Optional[int] = None,
 ):
+    # TODO: allow to drop unsupported reg classes (FPR,...) already in query!
     limit = 100000
     # limit = 50000
     # max_nodes = 10

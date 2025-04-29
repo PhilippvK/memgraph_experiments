@@ -137,27 +137,35 @@ class TreeGenContext:
             op_type = self.graph.nodes[node]["properties"]["op_type"]
             # print("op_type", op_type)
             if op_type == "constant":
+                # print("if constant")
                 val_str = self.graph.nodes[node]["properties"]["inst"]
                 val, llvm_type, signed = parse_llvm_const_str(val_str)
                 out_reg_size = self.graph.nodes[node]["properties"].get("out_reg_size", None)
                 cdsl_type = llvm_type_to_cdsl_type(llvm_type, signed, reg_size=out_reg_size, allow_unknown=True)
                 ret = Constant(value=val, in_types=[], out_types=cdsl_type)
             else:
+                # print("!if constant")
                 # assert node in self.defs, f"node {node} not in defs {self.defs}"
                 if node in self.defs:
+                    # print("if in defs")
                     ref = self.defs[node]
                     tree_node = self.node_map[node]
                     ret = Ref(name=ref, in_types=[], out_types=tree_node.out_types)
                     self.node_map[node] = ret
                 else:
+                    # print("!if in defs")
                     tree_node = self.node_map[node]
                     ref = self.get_temp()
                     self.defs[node] = ref
                     self.temps[ref] = tree_node
                     ret = Ref(name=ref, in_types=[], out_types=tree_node.out_types)
                     ret2 = Ref(name=ref, in_types=[], out_types=tree_node.out_types)
+                    # print("self.node_map", self.node_map)
+                    # print("self.node_map[node]", self.node_map[node])
                     parent = self.node_map[node].parent
-                    parent.children = [child if child.id != tree_node.id else ret2 for child in parent.children]
+                    # print("parent", parent)
+                    if parent is not None:
+                        parent.children = [child if child.id != tree_node.id else ret2 for child in parent.children]
             # print("ret", ret)
             return ret
         # print("not visited")
@@ -183,19 +191,36 @@ class TreeGenContext:
         # srcs = sorted(srcs, key=lambda src: self.graph[src, node]["properties"]["op_idx"])
         # print("srcs2", srcs)
         children = [self.visit(src) for src in srcs]
-        print("children", children)
+        for i, child in enumerate(children):
+            # print("i", i)
+            # print("child", child)
+            src = srcs[i]
+            # print("src", src)
+            if src in self.defs:
+                # print("src in defs!")
+                ref = self.defs[src]
+                # print("ref", ref)
+                if ref in self.temps:
+                    # print("ref in temps")
+                    if not isinstance(child, Ref):
+                        child = Ref(name=ref, in_types=[], out_types=child.out_types)
+                        children[i] = child
+                    # temp = self.temps[ref]
+                # input("!!!")
+
+        # print("children", children)
         op_type = self.graph.nodes[node]["properties"]["op_type"]
-        print("op_type", op_type)
+        # print("op_type", op_type)
         name = self.graph.nodes[node]["properties"]["name"]
-        print("name", name)
-        out_reg_class = self.graph.nodes[node]["properties"].get("out_reg_class", None)
-        print("out_reg_class", out_reg_class)
+        # print("name", name)
+        # out_reg_class = self.graph.nodes[node]["properties"].get("out_reg_class", None)
+        # print("out_reg_class", out_reg_class)
         out_reg_type = self.graph.nodes[node]["properties"].get("out_reg_type", None)
-        print("out_reg_type", out_reg_type)
+        # print("out_reg_type", out_reg_type)
         out_reg_size = self.graph.nodes[node]["properties"].get("out_reg_size", None)
-        print("out_reg_size", out_reg_size)
+        # print("out_reg_size", out_reg_size)
         out_reg_name = self.graph.nodes[node]["properties"].get("out_reg_name", None)
-        print("out_reg_name", out_reg_name)
+        # print("out_reg_name", out_reg_name)
         # print("!1", [self.graph[src, node]["properties"].get("op_reg_class", None) for src in srcs])
         # print("!2", [self.graph[src, node]["properties"].get("op_reg_type", None) for src in srcs])
         # print("!3", [self.graph[src, node]["properties"].get("op_reg_size", None) for src in srcs])
@@ -214,7 +239,7 @@ class TreeGenContext:
             assert len(children) == 0
             ret = Constant(value=val, in_types=[], out_types=[cdsl_type])
         else:
-            print("op_type", op_type)
+            # print("op_type", op_type)
             if op_type == "label" and out_reg_size == "unknown":
                 # TODO: handle labels properly!
                 print("if")
@@ -227,9 +252,9 @@ class TreeGenContext:
                     out_reg_size = "XLEN"
             if node in self.inputs and node not in self.outputs:
                 op_type = "input"
-            print("op_type", op_type)
+            # print("op_type", op_type)
             signed = False  # ?
-            print("node", node)
+            # print("node", node)
             # TODO: flag $x0 as register, not input!
             cdsl_type = llvm_type_to_cdsl_type(out_reg_type, signed, reg_size=out_reg_size)
             # print("cdsl_type", cdsl_type)
@@ -247,6 +272,8 @@ class TreeGenContext:
                 out_types=[type_str],
             )
         self.node_map[node] = ret
+        print("ret", ret)
+        print("ret.parent", ret.children)
         return ret
 
     def resolve_op_idx(self, node):
@@ -588,7 +615,7 @@ class TreeGenContext:
             in_types=[None] * len(all_stmts),
             out_types=[None],
         )
-        # print("root", root)
-        # print(RenderTree(root))
+        print("root", root)
+        print(RenderTree(root))
         # input(">>>")
         return root

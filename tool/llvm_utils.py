@@ -12,15 +12,16 @@ def parse_llvm_const_str(val_str):
         # TODO: use type to decide on operand bits?
     assert " " not in val_str, f"Unexpected const syntax: {val_str}"
     val = float(val_str)
-    assert int(val) == val
+    assert int(val) == val  # TODO: support float constants
     val = int(val)
     # print("val", val)
-    sign = True  # For now handle all constants as signed
+    # sign = True  # For now handle all constants as signed
+    sign = val < 0
     return val, ty, sign
 
 
 def llvm_type_to_cdsl_type(llvm_type: str, signed: bool, reg_size: Optional[Union[str, int]] = None, allow_unknown: bool = False):
-    print("llvm_type_to_cdsl_type", llvm_type, signed, reg_size, allow_unknown)
+    # print("llvm_type_to_cdsl_type", llvm_type, signed, reg_size, allow_unknown)
     if llvm_type == "unknown":
         llvm_type = None
     if llvm_type is None:

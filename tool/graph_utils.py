@@ -1,3 +1,4 @@
+import pickle
 import logging
 from pathlib import Path
 
@@ -15,7 +16,10 @@ def graph_to_file(graph, dest, fmt="auto"):
         fmt = dest.suffix[1:].upper()
     prog = "dot"
     # TODO: support pkl
-    if fmt == "DOT":
+    if fmt == "PKL":
+        with open(dest, "wb") as f:
+            pickle.dump(graph, f)
+    elif fmt == "DOT":
         write_dot(graph, dest)
     elif fmt in ["PDF", "PNG"]:
         graph = nx.nx_agraph.to_agraph(graph)
