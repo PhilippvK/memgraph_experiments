@@ -17,8 +17,8 @@ def write_pie(settings, subs_df, index_artifacts):
     pie2_df, pie2_fig = generate_pie2_chart(filtered_subs_df)
     logger.info("Exporting PieChart...")
     if settings.write.pie_fmt & ExportFormat.PDF:
-        pie_fig.write_image(settings.out_dir / "pie.pdf")
-        pie2_fig.write_image(settings.out_dir / "pie2.pdf")
+        pie_fig.write_image(settings.out_dir / "pie.pdf", engine="kaleido")
+        pie2_fig.write_image(settings.out_dir / "pie2.pdf", engine="kaleido")
     if settings.write.pie_fmt & ExportFormat.PNG:
         pie_fig.write_image(settings.out_dir / "pie.png")
         pie2_fig.write_image(settings.out_dir / "pie2.png")
