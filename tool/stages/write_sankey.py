@@ -41,6 +41,7 @@ def write_sankey(settings, subs_df, index_artifacts):
                 [],
             ),
             "temp3": ([ExportFilter.FILTERED_OPERANDS], [Variation.REUSE_IO]),  # TODO: make variation enum
+            # TODO: auto_imm?
             "temp4": ([ExportFilter.FILTERED_ENC], []),
             "temp5": ([ExportFilter.FILTERED_WEIGHTS], []),
             "temp6": ([ExportFilter.ERROR], []),
