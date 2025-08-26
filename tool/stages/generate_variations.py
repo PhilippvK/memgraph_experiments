@@ -226,3 +226,5 @@ def generate_variations(settings, subs, GF, io_subs, subs_df):
                         # new.append(None)
                         # input("||")
             # print("new", new)
+    if settings.enable_variation_auto_imm:
+        pass

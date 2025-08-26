@@ -298,6 +298,7 @@ class Settings(YAMLSettings):
     # Rest
     # enable_variations = False
     enable_variation_reuse_io: Optional[bool] = None
+    enable_variation_auto_imm: Optional[bool] = None
     read_hdf5: Optional[bool] = None
     read_hdf5_flt: Optional[ExportFilter] = None
 
@@ -389,6 +390,7 @@ class Settings(YAMLSettings):
             ),
             # enable_variations=defaults.ENABLE_VARIATIONS,
             enable_variation_reuse_io=defaults.ENABLE_VARIATION_REUSE_IO,
+            enable_variation_auto_imm=defaults.ENABLE_VARIATION_AUTO_IMM,
             read_hdf5=defaults.READ_HDF5,
             read_hdf5_flt=defaults.READ_HDF5_FLT,
         )

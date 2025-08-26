@@ -30,6 +30,7 @@ def schedule_subs(settings, io_subs, subs_df, io_isos):
 
         def estimate_schedule_length(io_sub, ins, ends):
             # TODO: allow resource constraints (regfile ports, alus, ...)
+            # TODO: use HLS constraints and latencies?
             # print("io_sub", io_sub)
             # print("ins", ins)
             # print("ends", ends)

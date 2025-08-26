@@ -52,6 +52,7 @@ def filter_subs(settings, subs, subs_df, io_isos):
             reg_classes = subs_df.loc[i, "Registers"]
             if num_nodes > settings.filters.max_nodes:
                 filtered_complex.add(i)
+                # TODO: check resource constraints (max num of mul/div/...)
             elif num_nodes < settings.filters.min_nodes:
                 filtered_simple.add(i)
             elif not check_predicates(pred, settings.filters.instr_predicates):

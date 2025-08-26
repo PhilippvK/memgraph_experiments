@@ -35,9 +35,10 @@ def pie_name_helper(x):
     return "Unknown"
 
 
-def pie_name_helper2(x):
+def pie_name_helper2(x):  # TODO what about multiple?
     if x & Variation.REUSE_IO:
         return "Variation (ReuseIO)"
+    # TODO: auto_imm
     if x & Variation.REG2IMM:
         return "Variation (Reg2Imm)"
     if x & Variation.CONST2IMM:

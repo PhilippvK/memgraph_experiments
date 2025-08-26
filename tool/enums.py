@@ -119,6 +119,7 @@ class Variation(IntFlag):
     REG2IMM = auto()  # 2
     CONST2IMM = auto()  # 4
     CONST2REG = auto()  # 8
+    AUTO_IMM = auto()  # 16
 
 
 class Status(IntFlag):
