@@ -128,3 +128,11 @@ class Status(IntFlag):
     ERROR = auto()  # 2
     QUERY_TIMEOUT = auto()  # 4
     STAGE_TIMEOUT = auto()  # 8
+
+
+class ImmStrategy(IntFlag):
+    MIN_REQUIRED_BITS = auto()
+    NEXT_SUPPORTED_BITS = auto()
+    DEFAULT_BITS = auto()
+    MAX_SUPPORTED_BITS = auto()
+    MAX_AVAILABLE_BITS = auto()

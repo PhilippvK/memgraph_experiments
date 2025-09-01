@@ -29,6 +29,12 @@ def generate_operands(sub_data: dict, xlen: int, with_attrs: bool = True):
         operand_reg_class = operand_reg_classes[i]
         is_output = operand_dir in ["OUT", "INOUT"]
         enc_bits = operand_enc_bits[i]
+
+        def convert_val(x):
+            if isinstance(x, str):
+                return f'"{x}"'
+            return x
+
         if operand_type == "REG":
             if operand_reg_class == "GPR":
                 operand_code = f"unsigned<{enc_bits}> {operand_name}"
@@ -40,11 +46,6 @@ def generate_operands(sub_data: dict, xlen: int, with_attrs: bool = True):
                         operand_dir.lower(): None,
                     }
 
-                    def convert_val(x):
-                        if isinstance(x, str):
-                            return f'"{x}"'
-                        return x
-
                     attr_strs = [
                         f"[[{key}={convert_val(value)}]]" if value is not None else f"[[{key}]]"
                         for key, value in attrs.items()
@@ -53,6 +54,24 @@ def generate_operands(sub_data: dict, xlen: int, with_attrs: bool = True):
                     operand_code += " " + attrs_str
             else:
                 raise NotImplementedError
+        elif operand_type == "IMM":
+            # TODO: store sign info
+            signed = operand_name[0] == "s"
+            dtype = "signed" if signed else "unsigned"
+            operand_code = f"{dtype}<{enc_bits}> {operand_name}"
+            if with_attrs:
+                attrs = {
+                    "is_imm": None,
+                    operand_dir.lower(): None,
+                }
+
+                attr_strs = [
+                    f"[[{key}={convert_val(value)}]]" if value is not None else f"[[{key}]]"
+                    for key, value in attrs.items()
+                ]
+                attrs_str = " ".join(attr_strs)
+                operand_code += " " + attrs_str
+            operand_reg_class = "IMM"
         else:
             raise NotImplementedError
 
@@ -73,7 +92,9 @@ def generate_complete_cdsl(codes: List[str], operands, xlen: int, name="result",
     for operand_name, operand in operands.items():
         operand_code, reg_class, is_output = operand
         asm_str = operand_name
-        if reg_class == "gpr":
+        if reg_class == "imm":
+            pass
+        elif reg_class == "gpr":
             asm_str = f"name({operand_name})"
         elif reg_class == "gpr":
             asm_str = f"fname({operand_name})"

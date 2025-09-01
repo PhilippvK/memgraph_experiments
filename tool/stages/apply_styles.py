@@ -95,6 +95,7 @@ def apply_styles_new(settings, index):
         outputs = sub_data["OutputNodes"]
         output_names = sub_data["OutputNames"]
         constants = sub_data["ConstantNodes"]
+        nodes = sub_data["Nodes"]
         SHOW_NODE_IDS = True
         j = 0
         for edge in io_sub.edges(data=True, keys=True):
@@ -136,6 +137,16 @@ def apply_styles_new(settings, index):
                 io_sub.nodes[node]["fillcolor"] = "lightgray"
                 io_sub.nodes[node]["style"] = "filled"
                 io_sub.nodes[node]["shape"] = "box"
+                if SHOW_NODE_IDS:
+                    assert "font" not in label
+                    label = f'<{label}<br/><font point-size="10">{node}</font>>'
+                io_sub.nodes[node]["label"] = label
+            elif node not in nodes:  # imm
+                io_sub.nodes[node]["xlabel"] = "IN"
+                io_sub.nodes[node]["fillcolor"] = "gray"
+                io_sub.nodes[node]["style"] = "filled"
+                io_sub.nodes[node]["shape"] = "box"
+                label = io_sub.nodes[node]["label"]
                 if SHOW_NODE_IDS:
                     assert "font" not in label
                     label = f'<{label}<br/><font point-size="10">{node}</font>>'

@@ -18,12 +18,15 @@ def filter_subs_operands(settings, subs, subs_df):
         sub_data = subs_df.iloc[i]
         # valids = []
         operand_dirs = sub_data["OperandDirs"]
+        operand_types = sub_data["OperandTypes"]
+        # ignore imm operands
+        reg_operand_dirs = [x for i, x in enumerate(operand_dirs) if operand_types[i] == "REG"]
         # print("operand_dirs")
-        num_in_operands = operand_dirs.count("IN")
+        num_in_operands = reg_operand_dirs.count("IN")
         # print("num_in_operands", num_in_operands)
-        num_out_operands = operand_dirs.count("OUT")
+        num_out_operands = reg_operand_dirs.count("OUT")
         # print("num_out_operands", num_out_operands)
-        num_inout_operands = operand_dirs.count("INOUT")
+        num_inout_operands = reg_operand_dirs.count("INOUT")
         # print("num_inout_operands", num_inout_operands)
         valid = True
         if num_in_operands > settings.filters.max_in_operands:
@@ -32,7 +35,8 @@ def filter_subs_operands(settings, subs, subs_df):
             valid = False
         if num_inout_operands > settings.filters.max_inout_operands:
             valid = False
-        # print("valid", valid)
+        if "IMM" in operand_types:
+            pass
         if not valid:
             filtered_operands.add(i)
         # input(">>>")

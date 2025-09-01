@@ -143,6 +143,14 @@ class TreeGenContext:
                 out_reg_size = self.graph.nodes[node]["properties"].get("out_reg_size", None)
                 cdsl_type = llvm_type_to_cdsl_type(llvm_type, signed, reg_size=out_reg_size, allow_unknown=True)
                 ret = Constant(value=val, in_types=[], out_types=cdsl_type)
+            elif op_type == "imm":
+                name = self.graph.nodes[node]["properties"]["name"]
+                signed = name[0] == "s"  # TODO: generalize
+                width = int(name.split("imm")[-1])  # TODO: generalize
+                out_reg_type = None
+                out_reg_size = width
+                cdsl_type = llvm_type_to_cdsl_type(None, signed, reg_size=out_reg_size, allow_unknown=True)
+                ret = Ref(name, out_types=cdsl_type)
             else:
                 # print("!if constant")
                 # assert node in self.defs, f"node {node} not in defs {self.defs}"
@@ -238,6 +246,17 @@ class TreeGenContext:
             cdsl_type = llvm_type_to_cdsl_type(llvm_type, signed, reg_size=out_reg_size, allow_unknown=True)
             assert len(children) == 0
             ret = Constant(value=val, in_types=[], out_types=[cdsl_type])
+        elif op_type == "imm":
+            signed = name[0] == "s"  # TODO: generalize
+            width = int(name.split("imm")[-1])  # TODO: generalize
+            out_reg_type = None
+            out_reg_size = width
+            cdsl_type = llvm_type_to_cdsl_type(out_reg_type, signed, reg_size=out_reg_size)
+            # print("cdsl_type", cdsl_type)
+            # print("children", children)
+            # TODO: fix this for output lists
+            in_types = sum([[x.out_types] if not isinstance(x.out_types, list) else x.out_types for x in children], [])
+            ret = Ref(node_id=node, name=name, out_types=[cdsl_type])
         else:
             # print("op_type", op_type)
             if op_type == "label" and out_reg_size == "unknown":
@@ -333,13 +352,21 @@ class TreeGenContext:
         if op_type == "constant":
             return None
 
-        assert operand_type == "REG"
-        # reg_class = node_properties.get("out_reg_class", None)
-        reg_class = operand_reg_classes[op_idx].lower()
-        reg_size = node_properties.get("out_reg_size", None)
-        reg_name = node_properties.get("out_reg_name", None)
-        # enc_bits = int(operand_enc_bits[op_idx])
-        is_phys_reg = reg_name.startswith("$x")
+        assert operand_type in ["REG", "IMM"]
+        if operand_type == "REG":
+            # reg_class = node_properties.get("out_reg_class", None)
+            reg_class = operand_reg_classes[op_idx].lower()
+            reg_size = node_properties.get("out_reg_size", None)
+            reg_name = node_properties.get("out_reg_name", None)
+            # enc_bits = int(operand_enc_bits[op_idx])
+            is_phys_reg = reg_name.startswith("$x")
+        elif operand_type == "IMM":
+            return None
+        else:
+            reg_class = None
+            reg_size = None
+            reg_name = None
+            is_phys_reg = None
 
         if op_type != "input":
             assert reg_class in ["gpr"], f"Unexpected reg_class: {reg_class}"
