@@ -347,7 +347,7 @@ def detect_sub_specializations(candidates, candidate_io_subs, progress: bool = F
                         new.remove_node(to_remove)
                         for _, dst, data in outs:
                             new.add_edge(lhs_node, dst, **data)
-                    elif dropped_instr in ["SLTIU", "SLT", "MULH"]:
+                    elif dropped_instr in ["SLTIU", "SLT", "SLTU", "MULH"]:
                         # Currently unsupported. Maybe possible?
                         print("G")
                         return None, {}
