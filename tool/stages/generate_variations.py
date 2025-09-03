@@ -9,8 +9,8 @@ from ..encoding import calc_encoding_footprint
 
 logger = logging.getLogger("generate_variations")
 
-
 def generate_variations(settings, subs, GF, io_subs, subs_df):
+    # TODO: REG2IMM, CONST2IMM, CONST2REG
     logger.info("Generating variations...")
     # 1. look for singleUse edges to reuse as output reg
     if settings.enable_variation_reuse_io:
