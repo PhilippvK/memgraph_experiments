@@ -45,7 +45,7 @@ def categorical_edge_match_multidigraph(attr, default):
 
 # def calc_sub_io_isos(io_sub, io_subs):
 def calc_sub_io_isos(io_sub, io_subs, i, subs_df=None, ignore_hash: bool = False, hash_attr: str = "hash_attr"):
-    print("calc_sub_io_isos", io_sub, io_subs, i, subs_df is not None, ignore_hash, hash_attr)
+    # print("calc_sub_io_isos", io_sub, io_subs, i, subs_df is not None, ignore_hash, hash_attr)
     # TODO: label -> name
     # def node_match(x, y):
     #     # print("node_match")
