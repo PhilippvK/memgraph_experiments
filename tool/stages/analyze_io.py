@@ -106,6 +106,7 @@ def analyze_io(settings, GF, subs, subs_df):
             io_sub.add_node(out_, **node_data)
             GF.add_node(out_, **node_data)
             io_sub.add_edge(out, out_, **edge_data)
+            # TODO: check if node missing in GF is a problem?
             outputs_.append(out_)
         subs_df.at[i, "OutputNodes"] = outputs_
 
@@ -206,12 +207,15 @@ def analyze_io(settings, GF, subs, subs_df):
             io_sub.nodes[inp]["node_type"] = "IN"
             io_sub.nodes[inp]["label"] = input_label
         for const in set(constants):
+            # print("const", const, io_sub.nodes[const])
+            # print("io_sub", io_sub)
+            # print("io_sub.nodes", io_sub.nodes)
             assert io_sub.nodes[const]["label"] == "Const"
-            io_sub.nodes[inp]["node_type"] = "CONST"
+            io_sub.nodes[const]["node_type"] = "CONST"
             label = io_sub.nodes[const]["properties"]["inst"][:-1]
             io_sub.nodes[const]["label"] = label
             value = int(label)  # TODO: handle floating point!
-            io_sub.nodes[inp]["value"] = value
+            io_sub.nodes[const]["value"] = value
         for outp in outputs:
             outp_, output_label = output_node_mapping[outp]
             io_sub.nodes[outp_]["node_type"] = "OUT"
