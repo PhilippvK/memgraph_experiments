@@ -204,6 +204,7 @@ def generate_variations(settings, subs, GF, io_subs, subs_df):
                             enc_bits_left, enc_weight, enc_footprint = calc_encoding_footprint(
                                 new_operand_enc_bits_sum, enc_size
                             )
+                            assert enc_bits_left >= 0
                             new_sub_data[f"EncodingBitsLeft ({enc_size} bits)"] = enc_bits_left
                             new_sub_data[f"EncodingWeight ({enc_size} bits)"] = enc_weight
                             new_sub_data[f"EncodingFootprint ({enc_size} bits)"] = enc_footprint
@@ -249,7 +250,7 @@ def generate_variations(settings, subs, GF, io_subs, subs_df):
             # TODO: elen
             enc_bits_left = int(sub_data["EncodingBitsLeft (32 bits)"])
             # print("enc_bits_left", enc_bits_left)
-            if enc_bits_left == 0:
+            if enc_bits_left <= 0:
                 continue
             outputs = sub_data["OutputNodes"]
             # print("outputs", outputs)
