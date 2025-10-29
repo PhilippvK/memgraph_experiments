@@ -78,7 +78,7 @@ WHERE true
 MATCH p0=(a0)-[:DFG*{min_path_length}..{max_path_length}]->(b)
 MATCH p1=(a1)-[:DFG*{min_path_length}..{max_path_length}]->(b)
 WHERE true
-AND all(node in collections.union(nodes(p0), nodes(p1)) WHERE NOT node.name IN ['G_PHI', 'PHI', 'COPY', 'PseudoCALLIndirect', 'PseudoLGA', 'Select_GPR_Using_CC_GPR', 'LUI', 'PseudoMovAddr'] AND NOT node.op_type IN ['input', 'constant', 'label'])
+AND all(node in collections.union(nodes(p0), nodes(p1)) WHERE NOT node.name IN ['G_PHI', 'PHI', 'COPY', 'PseudoCALLIndirect', 'PseudoLGA', 'Select_GPR_Using_CC_GPR', 'LUI', 'PseudoMovAddr', 'IMPLICIT_DEF'] AND NOT node.op_type IN ['input', 'constant', 'label'])
 AND size(collections.union(nodes(p0), nodes(p1))) >= {min_nodes}
 AND size(collections.union(nodes(p0), nodes(p1))) <= {max_nodes}
 
