@@ -74,19 +74,61 @@ def calc_inputs(G, sub):
     sub_nodes = sub.nodes
     # print("sub_nodes", sub_nodes)
     for node in sub_nodes:
-        # print("node", node, G.nodes[node].get("label"))
-        ins = G.in_edges(node)
+        label = G.nodes[node].get("label")
+        # print("node", node, label)
+        # ins = G.in_edges(node)
+        ins = [
+            (src, edge_data["properties"].get("op_idx", None))
+            for src, _, edge_data in G.in_edges(node, data=True)
+        ]
+        ins = sorted(ins, key=lambda x: x[1])
         # print("ins", ins)
-        for in_ in ins:
+        # TODO: move workaround elsewhere
+        if label.startswith("Pseudo"):
+            use_inputs_mapping = {
+                "PseudoVMV_X_S": [0],
+                # "PseudoVAND_VV_M1": [1, 2],
+                # "PseudoVXOR_VV_M1": [1, 2],
+                # "PseudoVLSE64_V_M1": [1, 2],
+                # "PseudoVLE64_V_M1": [1, 2],
+                # "PseudoVLE64_V_M1_MASK": [1, 2],
+                # "PseudoVSLIDEDOWN_VI_M1": [1, 2],
+                # "PseudoVSLIDE1DOWN_VX_M1": [1, 2],
+                # "PseudoVSLIDEUP_VI_M1": [1, 2],
+                # "PseudoVSRL_VX_M1": [1, 2],
+                "PseudoVAND_VV_M1": [0, 1],
+                "PseudoVXOR_VV_M1": [0, 1],
+                "PseudoVLSE64_V_M1": [0, 1],
+                "PseudoVLE64_V_M1": [0, 1],
+                "PseudoVLE64_V_M1_MASK": [0, 1],
+                "PseudoVSLIDEDOWN_VI_M1": [0, 1],
+                "PseudoVSLIDE1DOWN_VX_M1": [0, 1],
+                "PseudoVSLIDEUP_VI_M1": [0, 1],
+                "PseudoVSRL_VX_M1": [0, 1],
+                "PseudoVSE64_V_M1_MASK": [0, 1],
+                "PseudoVSE64_V_M1": [0, 1],
+                "PseudoVMUL_VV_M1": [0, 1],
+                "PseudoVREDXOR_VS_M1_E64": [0, 1]
+            }
+            DEFAULT = [0, 1]
+            # TODO: drop default
+            use_inputs = use_inputs_mapping.get(label, DEFAULT)
+            assert use_inputs is not None, f"Lookup of inputs failed for: {label}"
+            ins = [(src, op_idx) for src, op_idx in ins if op_idx in use_inputs]
+            # print("new ins", ins)
+            assert len(ins) in [1, 2]
+            # TODO: store sew & lmul & tail/mask?
+            # input("!")
+        for src, _ in ins:
             # print("in_", in_, G.nodes[in_[0]].get("label"))
-            src = in_[0]
+            # src = in_[0]
             # print("src", src, G.nodes[src].get("label"))
             # print("src in sub_nodes", src in sub_nodes)
             # print("src not in inputs", src not in inputs)
             op_type = G.nodes[src]["properties"]["op_type"]
             if not (src in sub_nodes) and (src not in inputs):
                 # print("IN")
-                if G.nodes[src]["properties"]["op_type"] == "constant":
+                if op_type == "constant":
                     constants.append(src)
                 else:
                     inputs.append(src)
