@@ -264,8 +264,8 @@ class TreeGenContext:
             # print("op_type", op_type)
             if op_type == "label" and out_reg_size == "unknown":
                 # TODO: handle labels properly!
-                print("if")
-                print("self.xlen", self.xlen)
+                # print("if")
+                # print("self.xlen", self.xlen)
                 # if self.xlen is not None:
                 #     out_reg_size = self.xlen
                 if self.xlen is not None:
