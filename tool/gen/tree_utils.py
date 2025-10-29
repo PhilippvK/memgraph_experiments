@@ -240,6 +240,9 @@ class TreeGenContext:
                 out_reg_size = self.xlen
             else:
                 out_reg_size = "XLEN"
+        if out_reg_name.startswith("$noreg"):  # TODO: fix
+            out_reg_size = "NOREG"
+        # print("out_reg_size", out_reg_size)
         if op_type == "constant":
             val_str = self.graph.nodes[node]["properties"]["inst"]
             val, llvm_type, signed = parse_llvm_const_str(val_str)
@@ -391,6 +394,8 @@ class TreeGenContext:
                 reg_size = self.xlen
             else:
                 reg_size = "XLEN"
+        if reg_name is not None and reg_name.startswith("$noreg"):  # TODO: fix
+            reg_size = "NOREG"
 
         # print("visit", inp)
         res = self.visit(inp)
