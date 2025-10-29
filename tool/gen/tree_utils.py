@@ -277,7 +277,22 @@ class TreeGenContext:
             # print("op_type", op_type)
             signed = False  # ?
             # print("node", node)
+            # print("node_data", self.io_sub.nodes[node])
+            node_properties = self.io_sub.nodes[node][
+                "properties"
+            ]  # TODO: avoid by having correct operand_reg_classes?
+            reg_class = node_properties.get("out_reg_class", None)
+            # operand_reg_classes = self.sub_data["OperandRegClasses"]
+            # reg_class_ = operand_reg_classes[op_idx].lower()
+            # print("reg_class", reg_class)
+            # vlen = 1024
+            if reg_class == "vr":
+                out_reg_size = "VLEN"
+            # TODO: get vlen from config or use symbolic VLEN constant?
+            # input(">")
+            # print("reg_class_", reg_class_)
             # TODO: flag $x0 as register, not input!
+            # print("out_reg_size", out_reg_size)
             cdsl_type = llvm_type_to_cdsl_type(out_reg_type, signed, reg_size=out_reg_size)
             # print("cdsl_type", cdsl_type)
             # print("children", children)
