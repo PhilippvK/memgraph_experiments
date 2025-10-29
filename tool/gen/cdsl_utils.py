@@ -385,6 +385,42 @@ class CDSLEmitter:
             self.write(")")
         self.write(")")
 
+    def visit_pseudo_rvv_instr(self, node):
+        assert isinstance(node, Operation)
+        instr = node.name
+        print("instr", instr)
+        lookup = {
+            "PseudoVXOR_VV_M1": ("vxor_vv", 2),
+            "PseudoVAND_VV_M1": ("vand_vv", 2),
+            "PseudoVSLIDEUP_VI_M1": ("vslideup_vi", 2),
+            "PseudoVSLIDE1DOWN_VX_M1": ("vslideup_vx", 2),
+            "PseudoVSRL_VX_M1": ("vslr_vx", 2),
+            "PseudoVMV_X_S": ("PseudoVMV_X_S", 1),
+        }
+        res = lookup.get(node.name)
+        assert res is not None
+        (func, num_inputs) = res
+        print("func", func)
+        print("node.children", node.children, len(node.children))
+        children = node.children
+        print("children", children, len(children))
+        assert len(children) == num_inputs
+        self.write(func)
+        self.write("(")
+        for i, child in enumerate(children):
+            if i > 0:
+                self.write(", ")
+            self.visit(child)
+        # input(">>>")
+        # TODO: how how to access destination register?
+        # TODO: use vreg idx instead of real data?
+        # TODO: handle status
+        # TODO: support vi and vx
+        # TODO: extract vtype?
+        # self.visit_rvv_reg(lhs)
+        # self.visit_rvv_reg(rhs)
+        self.write(")")
+
     def visit_binop_riscv_divu_remu(self, node):
         lhs, rhs = node.children
         self.write("(")
@@ -495,6 +531,15 @@ class CDSLEmitter:
             self.visit_binop_generic(node)
         elif name in ["G_LOAD", "G_SEXTLOAD", "G_ZEXTLOAD"]:
             self.visit_load_generic(node)
+        elif name in [
+            "PseudoVXOR_VV_M1",
+            "PseudoVAND_VV_M1",
+            "PseudoVSLIDEUP_VI_M1",
+            "PseudoVSLIDE1DOWN_VX_M1",
+            "PseudoVSRL_VX_M1",
+            "PseudoVMV_X_S",
+        ]:
+            self.visit_pseudo_rvv_instr(node)
         else:
             raise NotImplementedError(f"Unhandled: {name}")
 
