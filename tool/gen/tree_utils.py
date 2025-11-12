@@ -99,6 +99,7 @@ class TreeGenContext:
         self,
         graph,
         sub,
+        io_sub,  # TEMP
         sub_data,
         node_aliases=None,
         inputs=None,
@@ -109,6 +110,7 @@ class TreeGenContext:
     ) -> None:
         self.graph = graph
         self.sub = sub
+        self.io_sub = io_sub  # TEMP
         self.sub_data = sub_data
         self.node_aliases = node_aliases
         self.inputs = inputs if inputs is not None else []

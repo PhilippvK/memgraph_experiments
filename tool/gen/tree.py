@@ -72,6 +72,7 @@ def generate_tree(sub, sub_data, io_sub, xlen=None):
         # GF, sub, sub_data, node_aliases=node_aliases, inputs=all_inputs, outputs=outputs, constants=constants
         io_sub,
         sub,
+        io_sub,
         sub_data,
         node_aliases=node_aliases,
         inputs=all_inputs,
