@@ -11,6 +11,7 @@ from .flat_utils import FlatCodeEmitter
 from .tree_utils import tree_from_pkl
 from .desc import generate_desc
 from .cdsl import generate_operands, generate_complete_cdsl
+from .gen_utils import gen_helper
 
 logger = logging.getLogger("fuse_cdsl")
 
@@ -30,6 +31,26 @@ def get_global_df(global_properties: List[dict]):
     return pd.DataFrame(global_properties)
 
 
+def process_candidate_fuse_cdsl(idx, candidate_data):
+    candidate_properties = candidate_data["properties"]
+    candidate_artifacts = candidate_data["artifacts"]
+    name = candidate_properties.get("InstrName")
+    if name is None:
+        name = f"name{i}"
+    sub_data = candidate_properties
+    desc = generate_desc(i, sub_data, name=name)
+    tree_pkl = candidate_artifacts.get("tree", None)
+    assert tree_pkl is not None
+    stmts = tree_from_pkl(tree_pkl)
+    # TODO: make sure that result/sub col in combined index is unique
+    cdsl_code = generate_fuse_cdsl(stmts, sub_data, xlen=xlen, name=name, desc=desc)
+    out_file = out_dir / f"{name}.fuse_core_desc"
+    with open(out_file, "w") as f:
+        f.write(cdsl_code)
+    # TODO: Status = GENERATED?
+    return out_file
+
+
 def process(
     index_path,
     out_dir: Union[str, Path],
@@ -37,58 +58,19 @@ def process(
     split: bool = True,
     split_files: bool = True,
     progress: bool = False,
+    n_parallel: int = 1,
 ):
-    if not split:
-        raise NotImplementedError("--no-split")
-    if not split_files:
-        raise NotImplementedError("--no-split-files")
-    if isinstance(out_dir, str):
-        out_dir = Path(out_dir)
-    assert isinstance(out_dir, Path)
-    assert out_dir.is_dir()
-    logger.info("Loading input %s", index_path)
-    with open(index_path, "r") as f:
-        yaml_data = yaml.safe_load(f)
-    global_data = yaml_data["global"]
-    global_properties = global_data["properties"]
-    # print("global_properties", global_properties)
-    global_df = get_global_df(global_properties)
-    global_artifacts = global_data["artifacts"]
-    # print("global_artifacts", global_artifacts)
-    xlens = global_df["xlen"].unique()
-    assert len(xlens) == 1
-    xlen = int(xlens[0])
-    candidates_data = yaml_data["candidates"]
-    for i, candidate_data in tqdm(enumerate(candidates_data), disable=not progress):
-        candidate_properties = candidate_data["properties"]
-        # print("candidate_properties", candidate_properties)
-        candidate_artifacts = candidate_data["artifacts"]
-        # print("candidate_artifacts", candidate_artifacts)
-        name = candidate_properties.get("InstrName")
-        if name is None:
-            name = f"name{i}"
-        sub_data = candidate_properties
-        desc = generate_desc(i, sub_data, name=name)
-        tree_pkl = candidate_artifacts.get("tree", None)
-        assert tree_pkl is not None
-        # print("tree_pkl", tree_pkl)
-        stmts = tree_from_pkl(tree_pkl)
-        # print("stmts", stmts)
-        # TODO: make sure that result/sub col in combined index is unique
-        cdsl_code = generate_fuse_cdsl(stmts, sub_data, xlen=xlen, name=name, desc=desc)
-        print("cdsl_code")
-        print(cdsl_code)
-        with open(out_dir / f"{name}.fuse_core_desc", "w") as f:
-            f.write(cdsl_code)
-        candidate_artifacts["cdsl"] = str(out_dir / f"{name}.core_desc")
-        yaml_data["candidates"][i]["artifacts"] = candidate_artifacts
-        # TODO: Status = GENERATED?
-    if inplace:
-        out_index_path = index_path
-    else:
-        out_index_path = out_dir / "index.yml"
-    with open(out_index_path, "w") as f:  # TODO: reuse code from index.py
-        yaml.dump(yaml_data, f, default_flow_style=False)
+    gen_helper(
+        "fuse_cdsl",
+        process_candidate_fuse_cdsl,
+        index_path,
+        out_dir=out_dir,
+        inplace=inplace,
+        split=split,
+        split_files=split_files,
+        progress=progress,
+        n_parallel=n_parallel,
+    )
 
 
 def handle_cmdline():
@@ -101,6 +83,7 @@ def handle_cmdline():
     parser.add_argument("--split", action="store_true", help="TODO")  # one instr per set
     parser.add_argument("--split-files", action="store_true", help="TODO")  # one file per set
     parser.add_argument("--progress", action="store_true", help="TODO")
+    parser.add_argument("--parallel", type=int, default=1, help="TODO")
     args = parser.parse_args()
     logging.basicConfig(level=getattr(logging, args.log.upper()))
     return args
@@ -115,6 +98,7 @@ def main():
         split=args.split,
         split_files=args.split_files,
         progress=args.progress,
+        n_parallel=args.parallel,
     )
 
 
