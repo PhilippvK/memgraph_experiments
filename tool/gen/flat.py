@@ -27,14 +27,14 @@ def generate_flat_code(stmts, desc=None):
     return code.strip()
 
 
-def process_candidate_flat(idx, candidate_data):
+def process_candidate_flat(idx, candidate_data, xlen=None, out_dir=None):
     candidate_properties = candidate_data["properties"]
     candidate_artifacts = candidate_data["artifacts"]
     name = candidate_properties.get("InstrName")
     if name is None:
         name = f"name{i}"
     sub_data = candidate_properties
-    desc = generate_desc(i, sub_data, name=name)
+    desc = generate_desc(idx, sub_data, name=name)
     tree_pkl = candidate_artifacts.get("tree", None)
     assert tree_pkl is not None
     stmts = tree_from_pkl(tree_pkl)

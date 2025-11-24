@@ -1,3 +1,16 @@
+import logging
+from typing import Union, Optional, List
+from pathlib import Path
+from concurrent.futures import ProcessPoolExecutor
+import yaml
+import pandas as pd
+from tqdm import tqdm
+
+logger = logging.getLogger("cdsl")
+
+
+def get_global_df(global_properties: List[dict]):
+    return pd.DataFrame(global_properties)
 
 
 def gen_helper(
@@ -23,10 +36,17 @@ def gen_helper(
     with open(index_path, "r") as f:
         yaml_data = yaml.safe_load(f)
     candidates_data = yaml_data["candidates"]
+    global_data = yaml_data["global"]
+    global_properties = global_data["properties"]
+    global_df = get_global_df(global_properties)
+    global_artifacts = global_data["artifacts"]
+    xlens = global_df["xlen"].unique()
+    assert len(xlens) == 1
+    xlen = int(xlens[0])
     with ProcessPoolExecutor(n_parallel) as pool:
         futures = []
         for i, candidate_data in enumerate(candidates_data):
-            future = pool.submit(process_func, i, candidate_data)
+            future = pool.submit(process_func, i, candidate_data, xlen=xlen, out_dir=out_dir)
             futures.append(future)
         for future in tqdm(futures, disable=not progress):
             # TODO: except failing?
