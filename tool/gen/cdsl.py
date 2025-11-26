@@ -130,8 +130,8 @@ def generate_complete_cdsl(codes: List[str], operands, xlen: int, name="result",
 
 
 def generate_cdsl(stmts_root, sub_data, xlen: int, name="result", desc=None):
-    print("stmts_root", stmts_root)
-    print(RenderTree(stmts_root))
+    # print("stmts_root", stmts_root)
+    # print(RenderTree(stmts_root))
     # input(">>>")
     emitter = CDSLEmitter(xlen)
     emitter.visit(stmts_root)

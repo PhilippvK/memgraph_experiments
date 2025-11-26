@@ -6,7 +6,7 @@ import yaml
 import pandas as pd
 from tqdm import tqdm
 
-logger = logging.getLogger("cdsl")
+logger = logging.getLogger("gen_utils")
 
 
 def get_global_df(global_properties: List[dict]):
@@ -48,7 +48,7 @@ def gen_helper(
         for i, candidate_data in enumerate(candidates_data):
             future = pool.submit(process_func, i, candidate_data, xlen=xlen, out_dir=out_dir)
             futures.append(future)
-        for future in tqdm(futures, disable=not progress):
+        for i, future in tqdm(enumerate(futures), disable=not progress):
             # TODO: except failing?
             out_file = future.result()
             yaml_data["candidates"][i]["artifacts"][kind]= str(out_file)
