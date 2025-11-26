@@ -56,6 +56,13 @@ def gen_helper(
         out_index_path = index_path
     else:
         out_index_path = out_dir / "index.yml"
+    # print("i", i)
+    # print("[0]", yaml_data["candidates"][0]["artifacts"])
+    # print(f"[i]", yaml_data["candidates"][i]["artifacts"])
+    # print("kind", kind)
+    # print("out_index_path", out_index_path)
+    # print("yaml_data", yaml_data)
+    # input(">")
     with open(out_index_path, "w") as f:  # TODO: reuse code from index.py
         yaml.dump(yaml_data, f, default_flow_style=False)
 

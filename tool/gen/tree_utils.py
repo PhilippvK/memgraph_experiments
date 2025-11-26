@@ -311,8 +311,8 @@ class TreeGenContext:
                 out_types=[type_str],
             )
         self.node_map[node] = ret
-        print("ret", ret)
-        print("ret.parent", ret.children)
+        # print("ret", ret)
+        # print("ret.parent", ret.children)
         return ret
 
     def resolve_op_idx(self, node):
@@ -423,10 +423,10 @@ class TreeGenContext:
         # print("name", name)
         self.defs[inp] = name
         # print("res.name", dir(res), res.name if "name" in dir(res) else None)
-        print("reg_class", reg_class)
+        # print("reg_class", reg_class)
         # ret[name] = res
         if hasattr(res, "name") and (res.name[:2] == "$x" or res.name[:2] == "$f"):
-            print("if")
+            # print("if")
             idx = int(res.name[2:])
             # print("idx", idx)
             # TODO: make more generic to also work for assignments

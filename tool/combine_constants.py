@@ -163,39 +163,39 @@ def get_const_value_subs(candidates, candidate_io_subs, ignore_covered: bool = T
 
 def get_const_values_df(sub_const_value_subs, candidates):
     df_data = []
-    print("sub_const_value_subs", sub_const_value_subs)
+    # print("sub_const_value_subs", sub_const_value_subs)
     for i, const_value_subs in sub_const_value_subs.items():
-        print("i", i)
-        print("const_value_subs", const_value_subs)
+        # print("i", i)
+        # print("const_value_subs", const_value_subs)
         idx = candidates[i]["id"]
         num_constants = len(const_value_subs)
-        print("num_constants", num_constants)
+        # print("num_constants", num_constants)
         # values = [list(x.keys()) for x in const_value_subs.values()]
         diff_values = [list(x.keys()) for x in const_value_subs.values() if len(x) > 1]
-        print("diff_values", diff_values)
+        # print("diff_values", diff_values)
         num_diff_constants = len(diff_values)
-        print("num_diff_constants", num_diff_constants)
+        # print("num_diff_constants", num_diff_constants)
         if num_diff_constants == 0:
             continue
         signed = list(map(lambda x: any([y < 0 for y in x]), diff_values))
-        print("signed", signed)
+        # print("signed", signed)
         diff_abs_values = [[abs(y) for y in x] for x in diff_values]
-        print("diff_abs_values", diff_abs_values)
+        # print("diff_abs_values", diff_abs_values)
         diff_max_abs_values = list(map(max, diff_abs_values))
-        print("diff_max_abs_values", diff_max_abs_values)
+        # print("diff_max_abs_values", diff_max_abs_values)
         from math import ceil, log2
 
         # diff_min_bits = list(map(lambda x: ceil(log2(x + 1)), diff_max_values))
         diff_min_bits_ = list(map(lambda x: ceil(log2(x + 1)), diff_max_abs_values))
-        print("diff_min_bits_", diff_min_bits_)
+        # print("diff_min_bits_", diff_min_bits_)
         diff_sign_bits = [1 if s else 0 for s in signed]
-        print("diff_sign_bits", diff_sign_bits)
+        # print("diff_sign_bits", diff_sign_bits)
         diff_min_bits = [sum(x) for x in zip(diff_min_bits_, diff_sign_bits)]
-        print("diff_min_bits", diff_min_bits)
+        # print("diff_min_bits", diff_min_bits)
         extra_imm_bits = sum(diff_min_bits)
-        print("extra_imm_bits", extra_imm_bits)
+        # print("extra_imm_bits", extra_imm_bits)
         any_signed = any(signed)
-        print("any_signed", any_signed)
+        # print("any_signed", any_signed)
         # if any_signed:
         #     input("!!!")
         covered = set()

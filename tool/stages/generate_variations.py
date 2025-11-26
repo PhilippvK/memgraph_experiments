@@ -403,7 +403,7 @@ def generate_variations(settings, subs, GF, io_subs, subs_df):
 
                     new_sub_data = pd.Series(copy.deepcopy(sub_data.to_dict()))
                     new_io_sub_nodes = [x for x in io_sub.nodes if x != node]
-                    print("new_io_sub_nodes", new_io_sub_nodes)
+                    # print("new_io_sub_nodes", new_io_sub_nodes)
                     constant_node_data = GF.nodes[node]
                     # new_constant_node_data = constant_node_data.copy()
                     new_constant_node_data = copy.deepcopy(constant_node_data)
@@ -416,14 +416,14 @@ def generate_variations(settings, subs, GF, io_subs, subs_df):
                     new_io_sub_nodes.append(new_constant_node_id)
                     for src, dst, dat in io_sub.out_edges(node, data=True):
                         assert dst in io_sub.nodes
-                        print("src", src)
-                        print("dst", dst)
-                        print("dat", dat)
+                        # print("src", src)
+                        # print("dst", dst)
+                        # print("dat", dat)
                         GF.add_edge(new_constant_node_id, dst, **dat)
                     new_io_sub = GF.subgraph(new_io_sub_nodes).copy()
                     outputs = sub_data["OutputNodes"]
                     # fix missing out edges
-                    print("outputs", outputs)
+                    # print("outputs", outputs)
                     for outp in outputs:
                         for src, dst, dat in io_sub.in_edges(outp, data=True):
                             assert src in io_sub.nodes

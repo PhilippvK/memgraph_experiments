@@ -7,7 +7,7 @@ from ..llvm_utils import llvm_type_to_cdsl_type
 # def generate_tree(sub, sub_data, GF, xlen=None):
 def generate_tree(sub, sub_data, io_sub, xlen=None):
     # print("generate_tree", sub, sub_data, GF, xlen)
-    print("generate_tree", sub, sub_data, io_sub, xlen)
+    # print("generate_tree", sub, sub_data, io_sub, xlen)
 
     constants = sub_data["ConstantNodes"]
     # input_nodes = sub_data["InputNodes"]
