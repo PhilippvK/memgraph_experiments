@@ -275,6 +275,7 @@ class Settings(YAMLSettings):
     # General settings
     out: Optional[str] = None
     progress: bool = False
+    n_parallel: Optional[int] = None
     times: bool = False
     append_times: bool = False
     halt_on_error: bool = False
