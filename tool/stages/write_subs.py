@@ -34,7 +34,7 @@ def write_subs(settings, subs, subs_df, index_artifacts):
     subs_iter = [(i, sub) for i, sub in enumerate(subs) if i in filtered_subs_df.index]
     with ProcessPoolExecutor(settings.n_parallel) as pool:
         futures = []
-        for i, sub in io_subs_iter:
+        for i, sub in subs_iter:
             future = pool.submit(worker, i, sub, settings)
             futures.append(future)
         for future in tqdm(futures, disable=not settings.progress):
