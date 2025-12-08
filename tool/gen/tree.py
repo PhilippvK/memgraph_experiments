@@ -34,8 +34,10 @@ def generate_tree(sub, sub_data, io_sub, xlen=None):
     topo = list(nx.topological_sort(io_sub))
     inputs = sorted(inputs, key=lambda x: topo.index(x))
     # print("inputs", inputs)
+    print("outputs", outputs)
+    # outputs = reversed(sorted(outputs, key=lambda x: topo.index(x)))
     outputs = sorted(outputs, key=lambda x: topo.index(x))
-    # print("outputs", outputs)
+    print("sorted_outputs", outputs)
 
     def find_aliases(graph, sub_data):
         ret = {}
