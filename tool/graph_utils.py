@@ -276,7 +276,7 @@ def calc_weights_iso(graph, nodes):
     total_weight = sum(weights)
 
     if len(maxmiso_factors) > 0:
-        print("maxmiso_factors", maxmiso_factors)
+        # print("maxmiso_factors", maxmiso_factors)
         # assert len(maxmiso_factors) == 1
         maxmiso_factor = max(maxmiso_factors)  # TODO: is this fine?
         total_weight *= maxmiso_factor
