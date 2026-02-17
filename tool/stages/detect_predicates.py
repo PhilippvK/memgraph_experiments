@@ -20,7 +20,7 @@ def detect_predicates(settings, subs, subs_df, io_isos):
             detect_predicates_(sub)
         )
         num_mems = num_loads + num_stores
-        subs_df.loc[i, "Predicates"] = pred
+        subs_df.loc[i, "Predicates"] = pred.value
         subs_df.loc[i, "#Loads"] = num_loads
         subs_df.loc[i, "#Stores"] = num_stores
         subs_df.loc[i, "#Mems"] = num_mems
