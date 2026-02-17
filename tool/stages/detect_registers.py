@@ -23,7 +23,6 @@ def collect_register_classes(sub):
         node_data = sub.nodes[node]
         properties = node_data["properties"]
         out_reg_class_name = properties.get("out_reg_class")
-        print(out_reg_class_name)
         out_reg_class = MAPPING.get(out_reg_class_name, RegisterClass.UNKNOWN)
         ret.append(out_reg_class)
     return ret
