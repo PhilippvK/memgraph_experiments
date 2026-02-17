@@ -34,4 +34,4 @@ def filter_subs_encoding(settings, subs, subs_df):
         if not valid:
             filtered_enc.add(i)
     # print("filtered_enc", filtered_enc)
-    subs_df.loc[list(filtered_enc), "Status"] = ExportFilter.FILTERED_ENC
+    subs_df.loc[list(filtered_enc), "Status"] = ExportFilter.FILTERED_ENC.value

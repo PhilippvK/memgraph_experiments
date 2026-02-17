@@ -5,7 +5,6 @@ from tqdm import tqdm
 from ..enums import ExportFilter
 from ..pred import check_predicates
 
-
 logger = logging.getLogger("filter_subs")
 
 
@@ -78,11 +77,11 @@ def filter_subs(settings, subs, subs_df, io_isos):
             filtered_io.add(i)
             # print("sub_data", sub_data)
             # input("FILTERED_IO")
-    subs_df.loc[list(filtered_io), "Status"] = ExportFilter.FILTERED_IO
-    subs_df.loc[list(filtered_complex), "Status"] = ExportFilter.FILTERED_COMPLEX
-    subs_df.loc[list(filtered_simple), "Status"] = ExportFilter.FILTERED_SIMPLE
-    subs_df.loc[list(filtered_predicates), "Status"] = ExportFilter.FILTERED_PRED
-    subs_df.loc[list(filtered_regs), "Status"] = ExportFilter.FILTERED_REGS
-    subs_df.loc[list(filtered_mem), "Status"] = ExportFilter.FILTERED_MEM
-    subs_df.loc[list(filtered_branch), "Status"] = ExportFilter.FILTERED_BRANCH
-    subs_df.loc[list(invalid), "Status"] = ExportFilter.INVALID
+    subs_df.loc[list(filtered_io), "Status"] = ExportFilter.FILTERED_IO.value
+    subs_df.loc[list(filtered_complex), "Status"] = ExportFilter.FILTERED_COMPLEX.value
+    subs_df.loc[list(filtered_simple), "Status"] = ExportFilter.FILTERED_SIMPLE.value
+    subs_df.loc[list(filtered_predicates), "Status"] = ExportFilter.FILTERED_PRED.value
+    subs_df.loc[list(filtered_regs), "Status"] = ExportFilter.FILTERED_REGS.value
+    subs_df.loc[list(filtered_mem), "Status"] = ExportFilter.FILTERED_MEM.value
+    subs_df.loc[list(filtered_branch), "Status"] = ExportFilter.FILTERED_BRANCH.value
+    subs_df.loc[list(invalid), "Status"] = ExportFilter.INVALID.value

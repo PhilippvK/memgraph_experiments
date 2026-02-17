@@ -42,4 +42,4 @@ def filter_subs_operands(settings, subs, subs_df):
         # input(">>>")
     # print("filtered_operands", filtered_operands)
     # input(">>>2")
-    subs_df.loc[list(filtered_operands), "Status"] = ExportFilter.FILTERED_OPERANDS
+    subs_df.loc[filtered_operands, "Status"] = ExportFilter.FILTERED_OPERANDS.value

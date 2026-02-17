@@ -294,7 +294,7 @@ if settings.write.tree_fmt:
     filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.gen_flt) > 0].copy()
     with MeasureTime("Tree Generation", verbose=settings.times):
         stages.generate_tree(settings, subs, io_subs, subs_df, filtered_subs_df, index_artifacts, sub_stmts, errs)
-    subs_df.loc[list(errs), "Status"] = ExportFilter.ERROR
+    subs_df.loc[list(errs), "Status"] = ExportFilter.ERROR.value
 
 
 if settings.write.gen:
@@ -309,7 +309,7 @@ if settings.write.gen:
     if settings.write.gen_fmt & ExportFormat.FLAT:
         with MeasureTime("FLAT Generation", verbose=settings.times):
             stages.generate_flat(settings, subs, subs_df, filtered_subs_df, index_artifacts, sub_stmts, errs)
-    subs_df.loc[list(errs), "Status"] = ExportFilter.ERROR
+    subs_df.loc[list(errs), "Status"] = ExportFilter.ERROR.value
 
 
 # def extract_inputs_and_constants(graph):

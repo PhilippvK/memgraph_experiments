@@ -19,4 +19,4 @@ def filter_subs_weights(settings, subs, subs_df):
         if iso_weight < settings.filters.min_iso_weight:
             filtered_weights.add(i)
     # print("filtered_weights", filtered_weights)
-    subs_df.loc[list(filtered_weights), "Status"] = ExportFilter.FILTERED_WEIGHTS
+    subs_df.loc[list(filtered_weights), "Status"] = ExportFilter.FILTERED_WEIGHTS.value
