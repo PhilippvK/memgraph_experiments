@@ -132,7 +132,7 @@ def init_subs_df(settings):
     subs_df = pd.DataFrame({"result": list(range(len(subs)))})
     subs_df["DateTime"] = ts
     subs_df["Parent"] = np.nan  # used to find the original sub for a variation
-    subs_df["Variations"] = Variation.NONE  # used to specify applied variations for Children
+    subs_df["Variations"] = [Variation.NONE] * len(subs_df)  # used to specify applied variations for Children
     subs_df["SubHash"] = None
     subs_df["IOSubHash"] = None
     subs_df["FullHash"] = None
@@ -184,7 +184,7 @@ def init_subs_df(settings):
     subs_df["Freq"] = np.nan
     subs_df["IsoNodes"] = [np.array([])] * len(subs_df)
     subs_df["IsoWeight"] = np.nan
-    subs_df["Status"] = ExportFilter.SELECTED  # TODO: init with UNKNOWN
+    subs_df["Status"] = [ExportFilter.SELECTED] * len(subs_df)  # TODO: init with UNKNOWN
     # print("subs_df")
     # print(subs_df)
     return subs_df
