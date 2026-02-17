@@ -231,12 +231,12 @@ def collect_name_isos(candidates, candidate_io_subs, progress: bool = False):
             sub_name_isos[i] = name_isos
         all_name_isos |= name_isos
 
-    print("all_name_isos", all_name_isos, len(all_name_isos))
-    print("sub_name_isos", sub_name_isos, len(sub_name_isos))
-    print("missmatched_constraints", missmatched_constraints)
-    print("p2v", parent2variations)
+    # print("all_name_isos", all_name_isos, len(all_name_isos))
+    # print("sub_name_isos", sub_name_isos, len(sub_name_isos))
+    # print("missmatched_constraints", missmatched_constraints)
+    # print("p2v", parent2variations)
     ids_with_parent = sum([list(x) for x in parent2variations.values()], [])
-    print("ids_with_parent", ids_with_parent, len(ids_with_parent))
+    # print("ids_with_parent", ids_with_parent, len(ids_with_parent))
     # return all_name_isos, sub_name_isos, missmatched_constraints
     return ids_with_parent
 
