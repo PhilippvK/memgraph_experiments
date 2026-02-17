@@ -11,7 +11,7 @@ logger = logging.getLogger("const_hist")
 
 def const_hist(settings, io_subs, subs_df):
     logger.info("Creating Constants Histograms...")
-    filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.gen_flt) > 0].copy()
+    filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.gen_flt.value) > 0].copy()
     io_subs_iter = [(i, io_sub) for i, io_sub in enumerate(io_subs) if i in filtered_subs_df.index]
     # for i, sub in enumerate(tqdm(subs, disable=not settings.progress)):
     covered = set()

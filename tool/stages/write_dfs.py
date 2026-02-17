@@ -10,7 +10,7 @@ logger = logging.getLogger("write_dfs")
 
 
 def write_dfs(settings, subs_df, global_df, index_artifacts):
-    filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.df_flt) > 0].copy()
+    filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.df_flt.value) > 0].copy()
     logger.info("Exporting Global DataFrame...")
     if settings.write.df_fmt & ExportFormat.CSV:
         global_df.to_csv(settings.out_dir / "global.csv")

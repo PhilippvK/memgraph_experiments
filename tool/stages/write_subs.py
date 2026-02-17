@@ -30,7 +30,7 @@ def worker(i, sub, settings):
 
 def write_subs(settings, subs, subs_df, index_artifacts):
     logger.info("Exporting subgraphs...")
-    filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.sub.flt) > 0].copy()
+    filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.sub.flt.value) > 0].copy()
     subs_iter = [(i, sub) for i, sub in enumerate(subs) if i in filtered_subs_df.index]
     with ProcessPoolExecutor(settings.n_parallel) as pool:
         futures = []

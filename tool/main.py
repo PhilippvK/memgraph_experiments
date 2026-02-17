@@ -291,7 +291,7 @@ with MeasureTime("Filtering subgraphs (Weights)", verbose=settings.times):
 sub_stmts: Dict[int, AnyNode] = {}
 if settings.write.tree_fmt:
     errs = set()
-    filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.gen_flt) > 0].copy()
+    filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.gen_flt.value) > 0].copy()
     with MeasureTime("Tree Generation", verbose=settings.times):
         stages.generate_tree(settings, subs, io_subs, subs_df, filtered_subs_df, index_artifacts, sub_stmts, errs)
     subs_df.loc[list(errs), "Status"] = ExportFilter.ERROR.value
@@ -299,7 +299,7 @@ if settings.write.tree_fmt:
 
 if settings.write.gen:
     errs = set()
-    filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.gen_flt) > 0].copy()
+    filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.gen_flt.value) > 0].copy()
     if settings.write.gen_fmt & ExportFormat.MIR:
         with MeasureTime("MIR Generation", verbose=settings.times):
             stages.generate_mir(settings, subs, GF, subs_df, filtered_subs_df, index_artifacts, sub_stmts, errs, topo)
@@ -393,7 +393,7 @@ if settings.write.gen:
 #     # ? = stages.generate_spec(?)
 #     ### TODO ###
 #     logger.info("Generating specialization graph...")
-#     filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.sub.flt) > 0].copy()
+#     filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.sub.flt.value) > 0].copy()
 #     io_subs_iter = [(i, io_sub) for i, io_sub in enumerate(io_subs) if i in filtered_subs_df.index]
 #     spec_graph = nx.DiGraph()
 #     for i, io_sub in io_subs_iter:

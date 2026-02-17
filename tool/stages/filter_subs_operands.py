@@ -10,7 +10,7 @@ logger = logging.getLogger("filter_subs_operands")
 def filter_subs_operands(settings, subs, subs_df):
     filtered_operands = set()
     logger.info("Filtering subgraphs (Operands)...")
-    filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.gen_flt) > 0].copy()
+    filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.gen_flt.value) > 0].copy()
     subs_iter = [(i, sub) for i, sub in enumerate(subs) if i in filtered_subs_df.index]
     # for i, sub in enumerate(tqdm(subs, disable=not settings.progress)):
     # print("len(subs_iter)", len(subs_iter))
@@ -42,4 +42,4 @@ def filter_subs_operands(settings, subs, subs_df):
         # input(">>>")
     # print("filtered_operands", filtered_operands)
     # input(">>>2")
-    subs_df.loc[filtered_operands, "Status"] = ExportFilter.FILTERED_OPERANDS.value
+    subs_df.loc[list(filtered_operands), "Status"] = ExportFilter.FILTERED_OPERANDS.value

@@ -8,7 +8,7 @@ logger = logging.getLogger("apply_styles")
 
 def apply_styles(settings, subs, io_subs, subs_df):
     logger.info("Applying styles...")
-    filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.sub.flt) > 0].copy()
+    filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.sub.flt.value) > 0].copy()
     io_subs_iter = [(i, io_sub) for i, io_sub in enumerate(io_subs) if i in filtered_subs_df.index]
     for i, io_sub in tqdm(io_subs_iter, disable=not settings.progress):
         sub_data = subs_df.iloc[i]
@@ -83,7 +83,7 @@ def filter_candidates(candidates, flt: ExportFilter):
 def apply_styles_new(settings, index):
     logger.info("Applying styles...")
     candidates = index.candidates
-    filtered_candidates = filter_candidates(candidates, settings.write.sub.flt)
+    filtered_candidates = filter_candidates(candidates, settings.write.sub.flt.value)
     for candidate in tqdm(filtered_candidates, disable=not settings.progress):
         # sub = candidate.sub
         io_sub = candidate.io_sub

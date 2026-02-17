@@ -27,7 +27,7 @@ def worker(i, io_sub, settings):
 
 def write_io_subs(settings, io_subs, subs_df, index_artifacts):
     logger.info("Exporting I/O subgraphs...")
-    filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.io_sub_flt) > 0].copy()
+    filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.io_sub_flt.value) > 0].copy()
     io_subs_iter = [(i, io_sub) for i, io_sub in enumerate(io_subs) if i in filtered_subs_df.index]
     # for i, io_sub in enumerate(tqdm(io_subs, disable=not settings.progress)):
     with ProcessPoolExecutor(settings.n_parallel) as pool:

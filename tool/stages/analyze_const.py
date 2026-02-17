@@ -10,7 +10,7 @@ logger = logging.getLogger("analyze_const")
 
 def analyze_const(settings, subs, io_subs, subs_df):
     logger.info("Analyzing constants...")
-    filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.gen_flt) > 0].copy()
+    filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.gen_flt.value) > 0].copy()
     io_subs_iter = [(i, io_sub) for i, io_sub in enumerate(io_subs) if i in filtered_subs_df.index]
     # for i, sub in enumerate(tqdm(subs, disable=not settings.progress)):
     for i, io_sub in tqdm(io_subs_iter, disable=not settings.progress):
