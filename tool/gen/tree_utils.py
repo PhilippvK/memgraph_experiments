@@ -367,7 +367,7 @@ class TreeGenContext:
         node_properties = node_data["properties"]
         # print("node_properties", node_properties)
         op_type = node_properties["op_type"]
-        print("op_type", op_type)
+        # print("op_type", op_type)
 
         if op_type == "constant":
             return None
@@ -664,7 +664,7 @@ class TreeGenContext:
             in_types=[None] * len(all_stmts),
             out_types=[None],
         )
-        print("root", root)
-        print(RenderTree(root))
+        # print("root", root)
+        # print(RenderTree(root))
         # input(">>>")
         return root

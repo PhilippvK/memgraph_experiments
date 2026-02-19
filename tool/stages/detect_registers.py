@@ -23,7 +23,6 @@ def collect_register_classes(sub):
         node_data = sub.nodes[node]
         properties = node_data["properties"]
         out_reg_class_name = properties.get("out_reg_class")
-        print(out_reg_class_name)
         out_reg_class = MAPPING.get(out_reg_class_name, RegisterClass.UNKNOWN)
         ret.append(out_reg_class)
     return ret
@@ -31,7 +30,7 @@ def collect_register_classes(sub):
 
 def detect_registers(settings, subs, subs_df, io_isos):
     logger.info("Detecting Registers...")
-    subs_df["Registers"] = RegisterClass.NONE
+    subs_df["Registers"] = RegisterClass.NONE.value
     subs_iter = [(i, sub) for i, sub in enumerate(subs) if i not in io_isos]
     # for i, sub in enumerate(tqdm(subs, disable=not settings.progress)):
     for i, sub in tqdm(subs_iter, disable=not settings.progress):
@@ -41,5 +40,5 @@ def detect_registers(settings, subs, subs_df, io_isos):
         for reg_class in reg_classes:
             regs_flag |= reg_class
         # print("regs_flag", regs_flag)
-        subs_df.loc[i, "Registers"] = regs_flag
+        subs_df.loc[i, "Registers"] = regs_flag.value
         # input("!")

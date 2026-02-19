@@ -27,5 +27,5 @@ def check_iso(settings, io_subs, subs_df):
     # print("subs_df")
     # print(subs_df)
     # print("io_isos", io_isos, len(io_isos))
-    subs_df.loc[list(io_isos), "Status"] = ExportFilter.ISO
+    subs_df.loc[list(io_isos), "Status"] = ExportFilter.ISO.value
     return io_isos, sub_io_isos

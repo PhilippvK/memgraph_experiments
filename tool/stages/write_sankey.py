@@ -14,7 +14,7 @@ def write_sankey(settings, subs_df, index_artifacts):
     logger.info("Exporting Sankey chart...")
     if settings.write.sankey_fmt & ExportFormat.MARKDOWN:  # MERMAID?
         # TODO: handle variations
-        filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.sankey_flt) > 0].copy()
+        filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.sankey_flt.value) > 0].copy()
         counts_df = filtered_subs_df.value_counts("Status").rename_axis("Status").reset_index(name="Count")
         # counts_df2 = filtered_subs_df["Parent"].apply(lambda x: "Original" if pd.isna(x) else "Variation").value_counts().rename_axis("Parent").reset_index(name="Count")
         counts_df2 = filtered_subs_df["Variations"].value_counts().rename_axis("Parent").reset_index(name="Count")

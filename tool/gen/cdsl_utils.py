@@ -42,11 +42,11 @@ class CDSLEmitter:
     def visit_constant_generic(self, node):
         assert isinstance(node, Constant)
         assert len(node.children) == 1
-        print("node", node)
-        print("node.name", node.name)
-        print("node.in_types", node.in_types)
-        print("node.out_types", node.out_types)
-        input("!!")
+        # print("node", node)
+        # print("node.name", node.name)
+        # print("node.in_types", node.in_types)
+        # print("node.out_types", node.out_types)
+        # input("!!")
         self.visit(node.children[0])
 
     def visit_trunc_generic(self, node):
@@ -66,9 +66,9 @@ class CDSLEmitter:
 
     def visit_ext_generic(self, node):
         assert isinstance(node, Operation)
-        print("visit_ext_generic")
-        print("node", node)
-        print("node.children", node.children)
+        # print("visit_ext_generic")
+        # print("node", node)
+        # print("node.children", node.children)
         lookup = {
             "G_ANYEXT": (ExtendMode.UNDEFINED,),
             "G_SEXT": (ExtendMode.SIGN_EXTEND,),
@@ -300,7 +300,7 @@ class CDSLEmitter:
         assert len(node.in_types) == 2
         assert len(node.out_types) == 1
         assert node.in_types[0] == node.in_types[1]
-        print("node", node)
+        # print("node", node)
         assert node.in_types[0] == node.out_types[0]
         sz = 0
         if signed:
@@ -391,7 +391,7 @@ class CDSLEmitter:
     def visit_pseudo_rvv_instr(self, node):
         assert isinstance(node, Operation)
         instr = node.name
-        print("instr", instr)
+        # print("instr", instr)
         lookup = {
             "PseudoVXOR_VV_M1": ("vxor_vv", 2),
             "PseudoVAND_VV_M1": ("vand_vv", 2),
@@ -403,10 +403,10 @@ class CDSLEmitter:
         res = lookup.get(node.name)
         assert res is not None
         (func, num_inputs) = res
-        print("func", func)
-        print("node.children", node.children, len(node.children))
+        # print("func", func)
+        # print("node.children", node.children, len(node.children))
         children = node.children
-        print("children", children, len(children))
+        # print("children", children, len(children))
         assert len(children) == num_inputs
         self.write(func)
         self.write("(")

@@ -14,7 +14,7 @@ def generate_variations(settings, subs, GF, io_subs, subs_df):
     logger.info("Generating variations...")
     # 1. look for singleUse edges to reuse as output reg
     if settings.enable_variation_reuse_io:
-        filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.gen_flt) > 0].copy()
+        filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.gen_flt.value) > 0].copy()
         io_subs_iter = [(i, io_sub) for i, io_sub in enumerate(io_subs) if i in filtered_subs_df.index]
         # for i, sub in enumerate(tqdm(subs, disable=not settings.progress)):
         for i, io_sub in tqdm(io_subs_iter, disable=not settings.progress):
@@ -229,7 +229,7 @@ def generate_variations(settings, subs, GF, io_subs, subs_df):
                         # input("||")
             # print("new", new)
     if settings.enable_variation_auto_imm:
-        filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.gen_flt) > 0].copy()
+        filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.gen_flt.value) > 0].copy()
         io_subs_iter = [(i, io_sub) for i, io_sub in enumerate(io_subs) if i in filtered_subs_df.index]
         # for i, sub in enumerate(tqdm(subs, disable=not settings.progress)):
         for i, io_sub in tqdm(io_subs_iter, disable=not settings.progress):

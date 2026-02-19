@@ -132,7 +132,7 @@ def init_subs_df(settings):
     subs_df = pd.DataFrame({"result": list(range(len(subs)))})
     subs_df["DateTime"] = ts
     subs_df["Parent"] = np.nan  # used to find the original sub for a variation
-    subs_df["Variations"] = Variation.NONE  # used to specify applied variations for Children
+    subs_df["Variations"] = [Variation.NONE] * len(subs_df)  # used to specify applied variations for Children
     subs_df["SubHash"] = None
     subs_df["IOSubHash"] = None
     subs_df["FullHash"] = None
@@ -184,7 +184,7 @@ def init_subs_df(settings):
     subs_df["Freq"] = np.nan
     subs_df["IsoNodes"] = [np.array([])] * len(subs_df)
     subs_df["IsoWeight"] = np.nan
-    subs_df["Status"] = ExportFilter.SELECTED  # TODO: init with UNKNOWN
+    subs_df["Status"] = [ExportFilter.SELECTED] * len(subs_df)  # TODO: init with UNKNOWN
     # print("subs_df")
     # print(subs_df)
     return subs_df
@@ -291,15 +291,15 @@ with MeasureTime("Filtering subgraphs (Weights)", verbose=settings.times):
 sub_stmts: Dict[int, AnyNode] = {}
 if settings.write.tree_fmt:
     errs = set()
-    filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.gen_flt) > 0].copy()
+    filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.gen_flt.value) > 0].copy()
     with MeasureTime("Tree Generation", verbose=settings.times):
         stages.generate_tree(settings, subs, io_subs, subs_df, filtered_subs_df, index_artifacts, sub_stmts, errs)
-    subs_df.loc[list(errs), "Status"] = ExportFilter.ERROR
+    subs_df.loc[list(errs), "Status"] = ExportFilter.ERROR.value
 
 
 if settings.write.gen:
     errs = set()
-    filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.gen_flt) > 0].copy()
+    filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.gen_flt.value) > 0].copy()
     if settings.write.gen_fmt & ExportFormat.MIR:
         with MeasureTime("MIR Generation", verbose=settings.times):
             stages.generate_mir(settings, subs, GF, subs_df, filtered_subs_df, index_artifacts, sub_stmts, errs, topo)
@@ -309,7 +309,7 @@ if settings.write.gen:
     if settings.write.gen_fmt & ExportFormat.FLAT:
         with MeasureTime("FLAT Generation", verbose=settings.times):
             stages.generate_flat(settings, subs, subs_df, filtered_subs_df, index_artifacts, sub_stmts, errs)
-    subs_df.loc[list(errs), "Status"] = ExportFilter.ERROR
+    subs_df.loc[list(errs), "Status"] = ExportFilter.ERROR.value
 
 
 # def extract_inputs_and_constants(graph):
@@ -393,7 +393,7 @@ if settings.write.gen:
 #     # ? = stages.generate_spec(?)
 #     ### TODO ###
 #     logger.info("Generating specialization graph...")
-#     filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.sub.flt) > 0].copy()
+#     filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.sub.flt.value) > 0].copy()
 #     io_subs_iter = [(i, io_sub) for i, io_sub in enumerate(io_subs) if i in filtered_subs_df.index]
 #     spec_graph = nx.DiGraph()
 #     for i, io_sub in io_subs_iter:

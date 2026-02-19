@@ -11,7 +11,7 @@ logger = logging.getLogger("read_hdf5")
 def read_hdf5(settings, subs, subs_df, file):
     logger.info("Reading HDF5...")
     with h5py.File(file, "r") as f:
-        filtered_subs_df = subs_df[(subs_df["Status"] & settings.read_hdf5_flt) > 0].copy()
+        filtered_subs_df = subs_df[(subs_df["Status"] & settings.read_hdf5_flt.value) > 0].copy()
         subs_iter = [(i, sub) for i, sub in enumerate(subs) if i in filtered_subs_df.index]
         for i, sub in tqdm(subs_iter, disable=not settings.progress):
             sub_data = subs_df.iloc[i]
