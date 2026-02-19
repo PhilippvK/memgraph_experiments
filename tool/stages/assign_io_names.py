@@ -82,6 +82,7 @@ def assign_io_names(settings, subs, io_subs, subs_df):
         # TODO: move to new stage
         for enc_size in settings.filters.allowed_enc_sizes:
             enc_bits_left, enc_weight, enc_footprint = calc_encoding_footprint(enc_bits_sum, enc_size)
+            # assert enc_bits_left >= 0
             subs_df.loc[i, f"EncodingBitsLeft ({enc_size} bits)"] = enc_bits_left
             subs_df.loc[i, f"EncodingWeight ({enc_size} bits)"] = enc_weight
             subs_df.loc[i, f"EncodingFootprint ({enc_size} bits)"] = enc_footprint
