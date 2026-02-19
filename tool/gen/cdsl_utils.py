@@ -354,6 +354,9 @@ class CDSLEmitter:
         self.write("(")
         assert len(node.children) == 2
         lhs, rhs = node.children
+        if imm:
+            pass
+            # assert isinstance(rhs, (Constant, Ref))  # handle imm
         # TODO: add size only of != xlen?
         if shift > 0:
             assert shift == 32
