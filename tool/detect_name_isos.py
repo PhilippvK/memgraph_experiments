@@ -181,7 +181,9 @@ def name_iso_helper(io_sub, io_sub_, sub_data, sub_data_, i, j):
         # print("out_names_", out_names_)
         if in_names == in_names_ and out_names == out_names_:
             # print("cont3")
-            logger.warning("Subs %d & %d are fully-isomorph!", i, j)
+            if i is None:
+                assert j is None
+                logger.warning("Subs %d & %d are fully-isomorph!", i, j)
             return False
         if out_names != out_names:
             raise NotImplementedError("Out name isos")
