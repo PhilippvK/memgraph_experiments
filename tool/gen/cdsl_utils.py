@@ -125,10 +125,19 @@ class CDSLEmitter:
         # print("visit_assignment", node, node.children)
         assert len(node.children) == 2
         lhs, rhs = node.children
+        # RISC-V x0 is read-only. Output values have already been computed by
+        # preceding declarations; guard only the architectural writeback.
+        guard_zero = isinstance(lhs, Register) and lhs.reg_class == "gpr"
+        if guard_zero:
+            self.write("if (")
+            self.visit(lhs.children[0])
+            self.write(" != 0) { ")
         self.visit(lhs)
         self.write("=")
         self.visit(rhs)
         self.write(";")
+        if guard_zero:
+            self.write(" }")
 
     def visit_declaration(self, node):
         assert isinstance(node, Declaration)

@@ -6,8 +6,9 @@ from .tree_utils import Ref, Cast, Constant, Register, Operation, Statements, De
 
 class FlatCodeEmitter:
 
-    def __init__(self):
+    def __init__(self, guard_gpr_writes=False):
         self.output = ""
+        self.guard_gpr_writes = guard_gpr_writes
 
     def write(self, text):
         if not isinstance(text, str):
@@ -46,10 +47,17 @@ class FlatCodeEmitter:
         assert isinstance(node, (Assignment, Declaration))
         assert len(node.children) == 2
         lhs, rhs = node.children
+        guard_zero = self.guard_gpr_writes and isinstance(lhs, Register) and lhs.reg_class == "gpr"
+        if guard_zero:
+            self.write("if (")
+            self.visit(lhs.children[0])
+            self.write(" != 0) { ")
         self.visit(lhs)
         self.write("=")
         self.visit(rhs)
         self.write(";")
+        if guard_zero:
+            self.write(" }")
 
     def visit_declaration(self, node):
         assert isinstance(node, Declaration)

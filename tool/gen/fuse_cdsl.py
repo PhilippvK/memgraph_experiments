@@ -18,7 +18,7 @@ logger = logging.getLogger("fuse_cdsl")
 
 def generate_fuse_cdsl(stmts_root, sub_data, xlen: int, name="result", desc=None):
     codes = []
-    emitter = FlatCodeEmitter()
+    emitter = FlatCodeEmitter(guard_gpr_writes=True)
     emitter.visit(stmts_root)
     output = emitter.output
     codes += output.split("\n")
