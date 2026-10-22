@@ -187,6 +187,7 @@ class QuerySettings(YAMLSettings):
 
 @dataclass
 class FilterSettings(YAMLSettings):
+    cfu: Optional[bool] = None
     min_inputs: Optional[int] = None
     max_inputs: Optional[int] = None
     min_outputs: Optional[int] = None

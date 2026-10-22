@@ -37,6 +37,15 @@ def filter_subs_operands(settings, subs, subs_df):
             valid = False
         if "IMM" in operand_types:
             pass
+        if settings.filters.cfu:
+            valid = valid and (
+                operand_types == ["REG"] * len(operand_types)
+                and sub_data["OperandRegClasses"] == ["GPR"] * len(operand_types)
+                and sub_data["OperandEncBits"] == [5] * len(operand_types)
+                and num_in_operands <= 2 and num_out_operands == 1 and num_inout_operands == 0
+                and all(sub_data[field] == 0 for field in
+                        ("#Loads", "#Stores", "#Mems", "#Branches", "#Terminators"))
+            )
         if not valid:
             filtered_operands.add(i)
         # input(">>>")
