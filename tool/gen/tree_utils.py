@@ -642,9 +642,38 @@ class TreeGenContext:
             output_stmts = self.visit_output(outp)
             assert isinstance(output_stmts, Statements)
             stmts.extend(output_stmts.children)
+        # Visiting later outputs can replace expressions in earlier statements
+        # with temporary references. Schedule declarations only after all outputs
+        # have been visited, before their first use and after their dependencies.
+        temporaries = {
+            stmt.children[0].name: stmt
+            for stmt in stmts
+            if isinstance(stmt, Declaration) and stmt.children[0].name in self.temps
+        }
+        ordered = []
+        emitted = set()
+        visiting = set()
+
+        def emit(stmt):
+            if stmt.id in emitted:
+                return
+            if stmt.id in visiting:
+                raise ValueError("Cyclic temporary dependencies in output statements")
+            visiting.add(stmt.id)
+            expressions = stmt.children[1:] if isinstance(stmt, Declaration) else (stmt,)
+            for expression in expressions:
+                for node in (expression, *expression.descendants):
+                    if isinstance(node, Ref) and node.name in temporaries:
+                        emit(temporaries[node.name])
+            visiting.remove(stmt.id)
+            emitted.add(stmt.id)
+            ordered.append(stmt)
+
+        for stmt in stmts:
+            emit(stmt)
         return Statements(
             name="outputs_statements",
-            children=stmts,
+            children=ordered,
             op_type="statements",
             in_types=[None] * len(stmts),
             out_types=[None],
