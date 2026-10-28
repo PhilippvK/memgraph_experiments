@@ -114,7 +114,7 @@ def generate_complete_cdsl(codes: List[str], operands, xlen: int, name="result",
     codes = wrap_cdsl(name, "\n".join(codes)).split("\n")
     codes = ["    " * 2 + code for code in codes]
     code = "\n".join(codes) + "\n"
-    prefix = f'import "RV{xlen}I.core_desc"\n\n'
+    prefix = 'import "RVI.core_desc"\n\n'
     code = (
         prefix
         + f"""InstructionSet MySet extends RV{xlen}I {{
