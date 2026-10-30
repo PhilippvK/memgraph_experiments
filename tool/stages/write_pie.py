@@ -1,4 +1,6 @@
 import logging
+import os
+import plotly.io as pio
 
 # import h5py
 # import numpy as np
@@ -11,6 +13,8 @@ logger = logging.getLogger("write_pie")
 
 
 def write_pie(settings, subs_df, index_artifacts):
+    if mathjax := os.environ.get("PLOTLY_MATHJAX"):
+        pio.defaults.mathjax = mathjax
     logger.info("Generating PieChart...")
     filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.pie_flt.value) > 0].copy()
     pie_df, pie_fig = generate_pie_chart(filtered_subs_df)
