@@ -177,6 +177,7 @@ class QuerySettings(YAMLSettings):
     maxmisos: Optional[List] = None
     stage: Optional[int] = None
     limit_results: Optional[int] = None
+    timeout_seconds: Optional[float] = None
     min_path_len: Optional[int] = None
     max_path_len: Optional[int] = None
     max_path_width: Optional[int] = None
@@ -347,6 +348,7 @@ class Settings(YAMLSettings):
                 bb=defaults.BASIC_BLOCK,
                 stage=CDFGStage(defaults.STAGE),
                 limit_results=defaults.LIMIT_RESULTS,
+                timeout_seconds=defaults.QUERY_TIMEOUT_SECONDS,
                 min_path_len=defaults.MIN_PATH_LENGTH,
                 max_path_len=defaults.MAX_PATH_LENGTH,
                 max_path_width=defaults.MAX_PATH_WIDTH,
@@ -456,13 +458,14 @@ class Settings(YAMLSettings):
                 bb=args.basic_block,
                 stage=CDFGStage(args.stage),
                 limit_results=args.limit_results,
+                timeout_seconds=args.query_timeout,
                 min_path_len=args.min_path_length,
                 max_path_len=args.max_path_length,
                 max_path_width=args.max_path_width,
                 ignore_names=args.ignore_names.split(",") if args.ignore_names is not None else None,
                 ignore_op_types=args.ignore_op_types.split(",") if args.ignore_op_types is not None else None,
                 ignore_const_inputs=args.ignore_const_inputs,
-                maxmisos=args.maxmisos.split(",") if args.maxmisos is not None else None,
+                maxmisos=[int(value) for value in args.maxmisos.split(",")] if args.maxmisos is not None else None,
             ),
             write=WriteSettings(
                 func=args.write_func,

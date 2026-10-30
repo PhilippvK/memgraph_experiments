@@ -28,9 +28,10 @@ def query_candidates(settings: Settings, driver):
             stage=settings.query.stage,
             limit=settings.query.limit_results,
             maxmiso_idx=maxmiso_idx,
+            allowed_reg_classes=settings.filters.allowed_reg_classes,
         )
         queries.append(query)
-        results = run_query(driver, query)
+        results = run_query(driver, query, timeout=settings.query.timeout_seconds)
         all_results.append(results)
     if settings.write.queries:
         logger.info("Exporting queries...")

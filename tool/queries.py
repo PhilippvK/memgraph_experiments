@@ -1,6 +1,19 @@
+"""Bounded Memgraph candidate traversal queries."""
 from typing import List, Optional
 
 from .enums import CDFGStage
+from .types import RegisterClass
+
+
+def _literal(value):
+    # Keep exported queries self-contained while escaping Cypher string literals.
+    return "'" + str(value).replace('\\', '\\\\').replace("'", "\\'").replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t') + "'"
+
+
+def _integer(name, value, minimum=0):
+    if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
+        raise ValueError(f"{name} must be an integer >= {minimum}")
+    return int(value)
 
 
 def generate_func_query(
@@ -8,19 +21,13 @@ def generate_func_query(
 ):
     rel_suffix = "" if cross_bb else ":DFG"
     ret = f"""MATCH p0=(n00:INSTR)-[r01{rel_suffix}]->(n01:INSTR)
-WHERE n00.func_name = '{func}'
-AND n00.session = "{session}"
-AND n00.stage = {stage}
+WHERE n00.func_name = {_literal(func)}
+AND n00.session = {_literal(session)}
+AND n00.stage = {_integer('stage', stage)}
 """
-    # fix_cycles = False
     if fix_cycles:
-        # PHI nodes sometimes create cycles which are not allowed,
-        # hence we drop all ingoing edges to PHIs as their src MI
-        # is automatically marked as OUTPUT anyways.
-        ret += """AND n01.name != "PHI" AND n01.name != "G_PHI"
-"""
-    ret += "RETURN p0;"
-    return ret
+        ret += "AND NOT n01.name IN ['PHI', 'G_PHI']\n"
+    return ret + "RETURN p0;"
 
 
 def generate_candidates_query(
@@ -38,141 +45,109 @@ def generate_candidates_query(
     shared_output: bool = True,
     stage: CDFGStage = CDFGStage.STAGE_3,
     limit: Optional[int] = None,
-    # use_bb_id: bool = False,
     use_bb_id: bool = True,
     simple_mode: bool = False,
     maxmiso_idx: Optional[int] = None,
+    allowed_reg_classes: Optional[RegisterClass] = None,
 ):
-    # TODO: allow to drop unsupported reg classes (FPR,...) already in query!
-    limit = 100000
-    # limit = 50000
-    # max_nodes = 10
-    # simple_mode = True
-    simple_mode = False
+    """Return width path slots (repetition permits narrower candidates).
+
+    Lengths count edges. Paths are simple, scoped to the requested graph and
+    connected through a shared endpoint. With both sharing flags false, widths
+    above one are rejected to avoid disconnected Cartesian products. Simple mode
+    selects one path. A finite limit streams a traversal-order sample before
+    sorting that sample by node count; it is not a global largest-first search.
+    None means exhaustive enumeration: use a server/transaction timeout as well.
+    """
+    low = _integer('min_path_length', min_path_length)
+    high = _integer('max_path_length', max_path_length)
+    width = _integer('max_path_width', max_path_width, 1)
+    stage = _integer('stage', stage)
+    if low > high:
+        raise ValueError('min_path_length must not exceed max_path_length')
+    for name, value in [('min_nodes', min_nodes), ('max_nodes', max_nodes), ('limit', limit), ('maxmiso_idx', maxmiso_idx)]:
+        if value is not None:
+            _integer(name, value)
+    if min_nodes is not None and max_nodes is not None and min_nodes > max_nodes:
+        raise ValueError('min_nodes must not exceed max_nodes')
     if simple_mode:
-        pass
-        # max_path_length = 3
-        # limit = 20000
-    bb_id = int(bb.split(".", 1)[1])
-    extra = ""
-    if maxmiso_idx is not None:
-        extra = f""" AND a0.maxmiso_idx = {maxmiso_idx}
-  AND a1.maxmiso_idx = {maxmiso_idx}
-  AND b.maxmiso_idx = {maxmiso_idx}
-"""
-    return f"""
-MATCH (a0:INSTR), (a1:INSTR), (b:INSTR)
-WHERE true
-  AND id(a0) <= id(a1)  // Ensure canonical order and avoid duplicates, but also eliminates sharing...
-  AND a0.session = '{session}'
-  AND a1.session = '{session}'
-  AND b.session = '{session}'
-  AND a0.func_name = '{func}'
-  AND a1.func_name = '{func}'
-  AND b.func_name = '{func}'
-  AND a0.bb_id = {bb_id} AND a1.bb_id = {bb_id} AND b.bb_id = {bb_id}
-  AND a0.stage = {stage} AND a1.stage = {stage} AND b.stage = {stage}
-  // AND b.name IN ["ADD", "XOR", "SLLI", "SRLI", "AND", "OR"]
-  {extra}
-
-MATCH p0=(a0)-[:DFG*{min_path_length}..{max_path_length}]->(b)
-MATCH p1=(a1)-[:DFG*{min_path_length}..{max_path_length}]->(b)
-WHERE true
-AND all(node in collections.union(nodes(p0), nodes(p1)) WHERE NOT node.name IN ['G_PHI', 'PHI', 'COPY', 'PseudoCALLIndirect', 'PseudoLGA', 'Select_GPR_Using_CC_GPR', 'LUI', 'PseudoMovAddr', 'IMPLICIT_DEF'] AND NOT node.op_type IN ['input', 'constant', 'label'])
-AND size(collections.union(nodes(p0), nodes(p1))) >= {min_nodes}
-AND size(collections.union(nodes(p0), nodes(p1))) <= {max_nodes}
-
-WITH p0, p1
-ORDER BY rand()
-LIMIT {limit}
-WITH p0, p1
-RETURN p0, p1
-ORDER BY size(collections.union(nodes(p0), nodes(p1))) desc
-"""
+        width = 1
+    if width > 1 and not (shared_input or shared_output):
+        raise ValueError('Multiple paths require a shared input or output')
     if max_nodes is not None:
-        max_possible_nodes = 1 + max_path_width * max_path_length
-        if max_possible_nodes > max_nodes:
-            pass  # TODO: warn (but consider nodes can be shared and one path can be shorter)
-    if shared_input:
-        starts = ["a"] * max_path_width
-    else:
-        starts = [f"a{i}" for i in range(max_path_width)]
-    if shared_output:
-        ends = ["b"] * max_path_width
-    else:
-        ends = [f"b{i}" for i in range(max_path_width)]
-    paths = [f"p{i}" for i in range(max_path_width)]
-    match_rows = [
-        f"MATCH {paths[i]}=({starts[i]}:INSTR)-[:DFG*{min_path_length}..{max_path_length}]->({ends[i]}:INSTR)"
-        for i in range(max_path_width)
-    ]
-    match_str = "\n".join(match_rows)
-    session_conds = [f"{x}.session = '{session}'" for x in set(starts) | set(ends)]
-    func_conds = [f"{x}.func_name = '{func}'" for x in set(starts) | set(ends)]
-    if bb:
-        if use_bb_id:
-            bb_id = int(bb.split(".", 1)[1])
-            bb_conds = [f"{x}.bb_id = {bb_id}" for x in set(starts) | set(ends)]
-        else:
-            bb_conds = [f"{x}.basic_block = '{bb}'" for x in set(starts) | set(ends)]
-    else:
-        bb_conds = []
-    stage_conds = [f"{x}.stage = {stage}" for x in set(starts) | set(ends)]
-    conds = session_conds + func_conds + bb_conds + stage_conds
-    conds_str = " AND ".join(conds)
+        high = min(high, max(0, max_nodes - 1))
+    paths = [f'p{i}' for i in range(width)]
+    returns = ', '.join(paths)
+    if low > high or max_nodes == 0 or limit == 0:
+        return 'RETURN ' + ', '.join(f'null AS {p}' for p in paths) + ' LIMIT 0;'
 
-    def gen_filter(path):
-        name_filts = [f"node.name != '{name}'" for name in ignore_names]
-        op_type_filts = [f"node.op_type != '{op_type}'" for op_type in ignore_op_types]
-        filts = name_filts + op_type_filts
-        filts_str = " AND ".join(filts)
-        return f"all(node in nodes({path}) WHERE {filts_str})"
+    bb_id = None
+    if bb is not None and use_bb_id:
+        try:
+            bb_id = int(bb.split('.', 1)[1])
+        except (ValueError, IndexError, AttributeError) as exc:
+            raise ValueError('bb must have the form %bb.<integer> when use_bb_id=True') from exc
 
-    filters = [gen_filter(path) for path in paths]
-    filters_str = " AND ".join(filters)
-    return_str = ", ".join(paths)
-    if max_path_width > 1:
-        # order_by_str = "size(collections.union(" + ", ".join([f"nodes({path})" for path in paths]) + "))"
-        #  + ", ".join([f"nodes({path})" for path in paths]) + "))"
-        order_by_str = "size("
-        for k, path in enumerate(paths):
-            if k < (len(paths) - 1):
-                order_by_str += f"collections.union(nodes({path}), "
+    def predicate(node):
+        terms = [f'{node}:INSTR', f'{node}.session = {_literal(session)}', f'{node}.stage = {stage}']
+        if func is not None:
+            terms.append(f'{node}.func_name = {_literal(func)}')
+        if bb is not None:
+            terms.append(f'{node}.bb_id = {bb_id}' if use_bb_id else f'{node}.basic_block = {_literal(bb)}')
+        if maxmiso_idx is not None:
+            terms.append(f'{node}.maxmiso_idx = {maxmiso_idx}')
+        for prop, values in [('name', ignore_names), ('op_type', ignore_op_types)]:
+            if values:
+                terms.append(f'NOT {node}.{prop} IN [{", ".join(_literal(v) for v in values)}]')
+        if allowed_reg_classes is not None:
+            known = {'gpr': RegisterClass.GPR, 'fpr': RegisterClass.FPR, 'fpr32': RegisterClass.FPR,
+                     'fpr64': RegisterClass.FPR, 'csr': RegisterClass.CSR}
+            names = ', '.join(_literal(n) for n, flag in known.items() if flag & allowed_reg_classes)
+            reg = f'{node}.out_reg_class'
+            allowed = f'{reg} IN [{names}]'
+            if allowed_reg_classes & RegisterClass.UNKNOWN:
+                allowed += f' OR {reg} IS NULL OR NOT {reg} IN [{", ".join(_literal(n) for n in known)}]'
+            terms.append(f'({allowed})')
+        return ' AND '.join(terms)
+
+    # Anchor the shared sink and expand backwards in the common MISO case.
+    reverse = shared_output and not shared_input
+    anchor = 'b' if reverse else 'a'
+    rows = [f'MATCH ({anchor}:INSTR)', 'WHERE ' + predicate(anchor)]
+    union = None
+    for i, path in enumerate(paths):
+        start = 'a' if shared_input else f'a{i}'
+        end = 'b' if shared_output else f'b{i}'
+        if width == 1 or i == 0:
+            if reverse:
+                end = anchor
             else:
-                order_by_str += f"nodes({path})"
-        order_by_str += ")" * len(paths)
-    else:
-        order_by_str = "size(nodes(p0))"
-    ret = f"""{match_str}
-WHERE {conds_str}
-AND {filters_str}
-"""
+                start = anchor
+        # DFS filters execute at every expansion, before path combinations form.
+        # Memgraph includes the candidate node in partial; reject repeat visits.
+        filt = predicate('node') + ' AND single(visited IN nodes(partial) WHERE visited = node)'
+        if max_nodes is not None:
+            partial_nodes = 'nodes(partial)' if union is None else f'collections.union({union}, nodes(partial))'
+            filt += f' AND size({partial_nodes}) <= {max_nodes}'
+        expansion = f'[:DFG*{low}..{high} (edge, node, partial | {filt})]'
+        if reverse:
+            rows.append(f'MATCH {path}=({end})<-{expansion}-({start}:INSTR)')
+        else:
+            rows.append(f'MATCH {path}=({start})-{expansion}->({end}:INSTR)')
+        union = f'nodes({path})' if union is None else f'collections.union({union}, nodes({path}))'
+        checks = []
+        if max_nodes is not None:
+            checks.append(f'size({union}) <= {max_nodes}')
+        if i > 0 and shared_input != shared_output:
+            endpoint = f'a{i}' if reverse else f'b{i}'
+            previous = ('a' if reverse else 'b') + str(i - 1)
+            checks.append(f'id({previous}) <= id({endpoint})')
+        if checks:
+            rows.append('WHERE ' + ' AND '.join(checks))
+    rows.append(f'WITH {returns}, {union} AS all_nodes')
     if min_nodes is not None:
-        ret += f"AND size(collections.union(nodes(p0), nodes(p1))) >= {min_nodes}\n"
-    if max_nodes is not None:
-        ret += f"AND size(collections.union(nodes(p0), nodes(p1))) <= {max_nodes}\n"
-    ret += f"""
-RETURN {return_str}
-ORDER BY {order_by_str} desc
-"""
+        rows.append(f'WHERE size(all_nodes) >= {min_nodes}')
     if limit is not None:
-        ret += f"""LIMIT {limit}
-"""
-    return ret + ";"
-
-
-#     return """
-# MATCH p0=(a0:INSTR)-[:DFG*1..5]->(b:INSTR)
-# MATCH p1=(a1:INSTR)-[:DFG*1..5]->(b:INSTR)
-# WHERE b.session = 'isaac-demo-20241105T115303' AND a0.session = 'isaac-demo-20241105T115303' AND a1.session = 'isaac-demo-20241105T115303' AND b.func_name = 'crcu16' AND a0.func_name = 'crcu16' AND a1.func_name = 'crcu16' AND b.basic_block = '%bb.0' AND a0.basic_block = '%bb.0' AND a1.basic_block = '%bb.0' AND b.stage = 32 AND a0.stage = 32 AND a1.stage = 32
-# // AND all(node in nodes(p0) WHERE node.name != 'G_PHI' AND node.name != 'PHI' AND node.name != 'COPY' AND node.name != 'PseudoCALLIndirect' AND node.name != 'PseudoLGA' AND node.name != 'Select_GPR_Using_CC_GPR' AND node.op_type != 'input' AND node.op_type != 'constant')
-# // AND all(node in nodes(p1) WHERE node.name != 'G_PHI' AND node.name != 'PHI' AND node.name != 'COPY' AND node.name != 'PseudoCALLIndirect' AND node.name != 'PseudoLGA' AND node.name != 'Select_GPR_Using_CC_GPR' AND node.op_type != 'input' AND node.op_type != 'constant')
-# WITH collections.union(nodes(p0), nodes(p1)) as all_nodes, p0, p1
-# WHERE true
-# AND all(node in all_nodes WHERE node.name != 'G_PHI' AND node.name != 'PHI' AND node.name != 'COPY' AND node.name != 'PseudoCALLIndirect' AND node.name != 'PseudoLGA' AND node.name != 'Select_GPR_Using_CC_GPR' AND node.op_type != 'input' AND node.op_type != 'constant')
-# AND size(all_nodes) >= 1
-# AND size(all_nodes) <= 1000
-#
-# RETURN p0, p1 // , size(all_nodes) as num_nodes
-# // ORDER BY size(all_nodes) asc
-# """
+        rows.append(f'WITH {returns}, all_nodes LIMIT {limit}')
+    rows.extend([f'RETURN {returns}', 'ORDER BY size(all_nodes) DESC;'])
+    return '\n'.join(rows)
