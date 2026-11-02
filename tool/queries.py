@@ -1,7 +1,7 @@
 """Bounded Memgraph candidate traversal queries."""
 from typing import List, Optional
 
-from .enums import CDFGStage
+from .enums import CDFGStage, InstrPredicate
 from .types import RegisterClass
 
 
@@ -49,6 +49,12 @@ def generate_candidates_query(
     simple_mode: bool = False,
     maxmiso_idx: Optional[int] = None,
     allowed_reg_classes: Optional[RegisterClass] = None,
+    query_level_filtering: bool = True,
+    instr_predicates: Optional[InstrPredicate] = None,
+    max_loads: Optional[int] = None,
+    max_stores: Optional[int] = None,
+    max_mems: Optional[int] = None,
+    max_branches: Optional[int] = None,
 ):
     """Return width path slots (repetition permits narrower candidates).
 
@@ -58,6 +64,8 @@ def generate_candidates_query(
     selects one path. A finite limit streams a traversal-order sample before
     sorting that sample by node count; it is not a global largest-first search.
     None means exhaustive enumeration: use a server/transaction timeout as well.
+    query_level_filtering applies the predicate mask and memory/branch caps
+    before LIMIT; disable it to retain the original candidate enumeration.
     """
     low = _integer('min_path_length', min_path_length)
     high = _integer('max_path_length', max_path_length)
@@ -88,6 +96,31 @@ def generate_candidates_query(
         except (ValueError, IndexError, AttributeError) as exc:
             raise ValueError('bb must have the form %bb.<integer> when use_bb_id=True') from exc
 
+    # Match detect_predicates: absent properties mean false. Only internal
+    # candidate nodes are checked; external operand producers remain eligible.
+    properties = {
+        'mayLoad': InstrPredicate.MAY_LOAD,
+        'mayStore': InstrPredicate.MAY_STORE,
+        'isPseudo': InstrPredicate.IS_PSEUDO,
+        'isReturn': InstrPredicate.IS_RETURN,
+        'isCall': InstrPredicate.IS_CALL,
+        'isTerminator': InstrPredicate.IS_TERMINATOR,
+        'isBranch': InstrPredicate.IS_BRANCH,
+        'hasUnmodeledSideEffects': InstrPredicate.HAS_UNMODELED_SIDE_EFFECTS,
+        'isCommutable': InstrPredicate.IS_COMMUTABLE,
+    }
+    rejected = set()
+    caps = [('mayLoad', max_loads), ('mayStore', max_stores),
+            ('memory', max_mems), ('isBranch', max_branches)]
+    if query_level_filtering:
+        if instr_predicates is not None:
+            rejected.update(prop for prop, flag in properties.items() if not (flag & instr_predicates))
+        for prop, cap in caps:
+            if cap is not None:
+                _integer('max_' + prop, cap)
+            if cap == 0:
+                rejected.update(('mayLoad', 'mayStore') if prop == 'memory' else (prop,))
+
     def predicate(node):
         terms = [f'{node}:INSTR', f'{node}.session = {_literal(session)}', f'{node}.stage = {stage}']
         if func is not None:
@@ -108,6 +141,7 @@ def generate_candidates_query(
             if allowed_reg_classes & RegisterClass.UNKNOWN:
                 allowed += f' OR {reg} IS NULL OR NOT {reg} IN [{", ".join(_literal(n) for n in known)}]'
             terms.append(f'({allowed})')
+        terms.extend(f'NOT coalesce({node}.{prop}, false)' for prop in sorted(rejected))
         return ' AND '.join(terms)
 
     # Anchor the shared sink and expand backwards in the common MISO case.
@@ -145,8 +179,20 @@ def generate_candidates_query(
         if checks:
             rows.append('WHERE ' + ' AND '.join(checks))
     rows.append(f'WITH {returns}, {union} AS all_nodes')
+    checks = []
     if min_nodes is not None:
-        rows.append(f'WHERE size(all_nodes) >= {min_nodes}')
+        checks.append(f'size(all_nodes) >= {min_nodes}')
+    if query_level_filtering:
+        for prop, cap in caps:
+            if cap is None or cap == 0:
+                continue
+            def count(flag):
+                return f'size([node IN all_nodes WHERE coalesce(node.{flag}, false)])'
+            # #Mems is loads + stores: a node with both flags counts twice.
+            total = f'({count("mayLoad")} + {count("mayStore")})' if prop == 'memory' else count(prop)
+            checks.append(f'{total} <= {cap}')
+    if checks:
+        rows.append('WHERE ' + ' AND '.join(checks))
     if limit is not None:
         rows.append(f'WITH {returns}, all_nodes LIMIT {limit}')
     rows.extend([f'RETURN {returns}', 'ORDER BY size(all_nodes) DESC;'])

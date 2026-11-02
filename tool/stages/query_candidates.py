@@ -29,6 +29,12 @@ def query_candidates(settings: Settings, driver):
             limit=settings.query.limit_results,
             maxmiso_idx=maxmiso_idx,
             allowed_reg_classes=settings.filters.allowed_reg_classes,
+            query_level_filtering=settings.query.query_level_filtering,
+            instr_predicates=settings.filters.instr_predicates,
+            max_loads=settings.filters.max_loads,
+            max_stores=settings.filters.max_stores,
+            max_mems=settings.filters.max_mems,
+            max_branches=settings.filters.max_branches,
         )
         queries.append(query)
         results = run_query(driver, query, timeout=settings.query.timeout_seconds)

@@ -177,6 +177,7 @@ class QuerySettings(YAMLSettings):
     maxmisos: Optional[List] = None
     stage: Optional[int] = None
     limit_results: Optional[int] = None
+    query_level_filtering: Optional[bool] = None
     timeout_seconds: Optional[float] = None
     min_path_len: Optional[int] = None
     max_path_len: Optional[int] = None
@@ -348,6 +349,7 @@ class Settings(YAMLSettings):
                 bb=defaults.BASIC_BLOCK,
                 stage=CDFGStage(defaults.STAGE),
                 limit_results=defaults.LIMIT_RESULTS,
+                query_level_filtering=True,
                 timeout_seconds=defaults.QUERY_TIMEOUT_SECONDS,
                 min_path_len=defaults.MIN_PATH_LENGTH,
                 max_path_len=defaults.MAX_PATH_LENGTH,
@@ -458,6 +460,7 @@ class Settings(YAMLSettings):
                 bb=args.basic_block,
                 stage=CDFGStage(args.stage),
                 limit_results=args.limit_results,
+                query_level_filtering=getattr(args, "query_level_filtering", None),
                 timeout_seconds=args.query_timeout,
                 min_path_len=args.min_path_length,
                 max_path_len=args.max_path_length,

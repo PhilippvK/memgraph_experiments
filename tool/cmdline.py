@@ -16,6 +16,8 @@ def handle_cmdline():
     parser.add_argument("--port", type=int, default=None, help="TODO")
     parser.add_argument("--session", default=None, help="TODO")
     parser.add_argument("--query-timeout", type=float, default=None, help="Candidate query timeout in seconds (positive)")
+    parser.add_argument("--query-level-filtering", action=argparse.BooleanOptionalAction, default=None,
+                        help="Apply predicate and memory/branch checks before returning query candidates")
     parser.add_argument("--limit-results", type=int, default=None, help="TODO")
     parser.add_argument("--min-inputs", type=int, default=None, help="TODO")
     parser.add_argument("--max-inputs", type=int, default=None, help="TODO")
