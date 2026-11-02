@@ -76,6 +76,8 @@ class ExportFilter(IntFlag):
         | INVALID
         | ERROR
         | FILTERED_OPERANDS
+        | SYNTAX_ERROR
+        | FILTERED_REGS
     )
 
 
