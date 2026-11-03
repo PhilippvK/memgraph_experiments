@@ -20,12 +20,15 @@ def write_pie(settings, subs_df, index_artifacts):
     pie_df, pie_fig = generate_pie_chart(filtered_subs_df)
     pie2_df, pie2_fig = generate_pie2_chart(filtered_subs_df)
     logger.info("Exporting PieChart...")
-    if settings.write.pie_fmt & ExportFormat.PDF:
-        pie_fig.write_image(settings.out_dir / "pie.pdf")
-        pie2_fig.write_image(settings.out_dir / "pie2.pdf")
-    if settings.write.pie_fmt & ExportFormat.PNG:
-        pie_fig.write_image(settings.out_dir / "pie.png")
-        pie2_fig.write_image(settings.out_dir / "pie2.png")
+    figures, destinations = [], []
+    for flag, extension in ((ExportFormat.PDF, "pdf"), (ExportFormat.PNG, "png")):
+        if settings.write.pie_fmt & flag:
+            figures.extend((pie_fig, pie2_fig))
+            destinations.extend(
+                (settings.out_dir / f"pie.{extension}", settings.out_dir / f"pie2.{extension}")
+            )
+    if figures:
+        pio.write_images(fig=figures, file=destinations)
     if settings.write.pie_fmt & ExportFormat.HTML:
         pie_fig.write_html(settings.out_dir / "pie.html")
         pie2_fig.write_html(settings.out_dir / "pie2.html")

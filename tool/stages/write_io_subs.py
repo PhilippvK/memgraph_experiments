@@ -1,10 +1,8 @@
 import logging
 import pickle
-from concurrent.futures import ProcessPoolExecutor
-
-from tqdm import tqdm
 
 from ..enums import ExportFormat
+from ..export_utils import export_graphs
 from ..graph_utils import graph_to_file
 
 logger = logging.getLogger("write_io_subs")
@@ -29,13 +27,4 @@ def write_io_subs(settings, io_subs, subs_df, index_artifacts):
     logger.info("Exporting I/O subgraphs...")
     filtered_subs_df = subs_df[(subs_df["Status"] & settings.write.io_sub_flt.value) > 0].copy()
     io_subs_iter = [(i, io_sub) for i, io_sub in enumerate(io_subs) if i in filtered_subs_df.index]
-    # for i, io_sub in enumerate(tqdm(io_subs, disable=not settings.progress)):
-    with ProcessPoolExecutor(settings.n_parallel) as pool:
-        futures = []
-        for i, io_sub in io_subs_iter:
-            future = pool.submit(worker, i, io_sub, settings)
-            futures.append(future)
-        for future in tqdm(futures, disable=not settings.progress):
-            # TODO: except failing?
-            i, update = future.result()
-            index_artifacts[i].update(update)
+    export_graphs(worker, io_subs_iter, settings, settings.write.io_sub_fmt, index_artifacts)

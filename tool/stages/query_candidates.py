@@ -35,6 +35,8 @@ def query_candidates(settings: Settings, driver):
             max_stores=settings.filters.max_stores,
             max_mems=settings.filters.max_mems,
             max_branches=settings.filters.max_branches,
+            module_name=settings.query.module_name,
+            compilation_id=settings.query.compilation_id,
         )
         queries.append(query)
         results = run_query(driver, query, timeout=settings.query.timeout_seconds)

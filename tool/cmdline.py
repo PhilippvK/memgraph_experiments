@@ -12,8 +12,12 @@ def handle_cmdline():
     parser.add_argument("--times", action="store_true", default=None, help="TODO")
     parser.add_argument("--append-times", action="store_true", default=None, help="TODO")
     parser.add_argument("--progress", action="store_true", default=None, help="TODO")
+    parser.add_argument("--n-parallel", type=int, default=None,
+                        help="Maximum graph export workers (positive; 1 forces serial export)")
     parser.add_argument("--host", default=None, help="TODO")
     parser.add_argument("--port", type=int, default=None, help="TODO")
+    parser.add_argument("--module-name", default=None, help="Exact CDFG translation unit")
+    parser.add_argument("--compilation-id", default=None, help="Exact verified CDFG import")
     parser.add_argument("--session", default=None, help="TODO")
     parser.add_argument("--query-timeout", type=float, default=None, help="Candidate query timeout in seconds (positive)")
     parser.add_argument("--query-level-filtering", action=argparse.BooleanOptionalAction, default=None,

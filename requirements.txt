@@ -4,8 +4,8 @@ pygraphviz
 neo4j>=5.8.0
 matplotlib
 anytree
-plotly
-kaleido
+plotly>=6.1.1
+kaleido>=1.0.0
 black
 pandas
 numpy

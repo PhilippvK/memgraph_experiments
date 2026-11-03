@@ -42,6 +42,13 @@ class CandidateQueriesTest(unittest.TestCase):
         for args in ({'limit': 0}, {'max_nodes': 0}, {'min_path_length': 2, 'max_nodes': 2}):
             self.assertIn('LIMIT 0', self.query(**args))
 
+    def test_positive_predicate_caps_use_memgraph_compatible_reduce(self):
+        q = self.query(max_loads=1, max_stores=2, max_mems=3, max_branches=1)
+        self.assertIn('reduce(total = 0, node IN all_nodes', q)
+        self.assertIn('CASE WHEN coalesce(node.mayLoad, false) THEN 1 ELSE 0 END', q)
+        self.assertNotIn('size([node IN', q)
+        self.assertNotIn('reduce(', self.query(max_loads=1, query_level_filtering=False))
+
     def test_invalid_bounds(self):
         for args in ({'max_path_width': 0}, {'max_path_width': True}, {'min_path_length': -1},
                      {'min_path_length': 4}, {'limit': -1}, {'min_nodes': 4, 'max_nodes': 2}):

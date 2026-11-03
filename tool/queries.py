@@ -1,5 +1,6 @@
 """Bounded Memgraph candidate traversal queries."""
 from typing import List, Optional
+import re
 
 from .enums import CDFGStage, InstrPredicate
 from .types import RegisterClass
@@ -17,17 +18,24 @@ def _integer(name, value, minimum=0):
 
 
 def generate_func_query(
-    session: str, func: str, fix_cycles: bool = True, stage: CDFGStage = CDFGStage.STAGE_3, cross_bb: bool = False
+    session: str, func: str, fix_cycles: bool = True, stage: CDFGStage = CDFGStage.STAGE_3,
+    cross_bb: bool = False, module_name: Optional[str] = None, compilation_id: Optional[str] = None,
 ):
     rel_suffix = "" if cross_bb else ":DFG"
-    ret = f"""MATCH p0=(n00:INSTR)-[r01{rel_suffix}]->(n01:INSTR)
-WHERE n00.func_name = {_literal(func)}
-AND n00.session = {_literal(session)}
-AND n00.stage = {_integer('stage', stage)}
-"""
+    def scope(node):
+        terms = [f'{node}:INSTR', f'{node}.func_name = {_literal(func)}',
+                 f'{node}.session = {_literal(session)}', f'{node}.stage = {_integer("stage", stage)}']
+        if module_name is not None:
+            terms.append(f'{node}.module_name = {_literal(module_name)}')
+        if compilation_id is not None:
+            terms.append(f'{node}.compilation_id = {_literal(compilation_id)}')
+        return ' AND '.join(terms)
+    ret = f"MATCH (n00:INSTR) WHERE {scope('n00')}\n"
+    ret += f"OPTIONAL MATCH (n00)-[r01{rel_suffix}]->(n01:INSTR)\nWHERE {scope('n01')}\n"
+    ret += "AND n01.module_name = n00.module_name AND n01.compilation_id = n00.compilation_id\n"
     if fix_cycles:
         ret += "AND NOT n01.name IN ['PHI', 'G_PHI']\n"
-    return ret + "RETURN p0;"
+    return ret + "RETURN n00, r01, n01;"
 
 
 def generate_candidates_query(
@@ -55,6 +63,8 @@ def generate_candidates_query(
     max_stores: Optional[int] = None,
     max_mems: Optional[int] = None,
     max_branches: Optional[int] = None,
+    module_name: Optional[str] = None,
+    compilation_id: Optional[str] = None,
 ):
     """Return width path slots (repetition permits narrower candidates).
 
@@ -91,10 +101,9 @@ def generate_candidates_query(
 
     bb_id = None
     if bb is not None and use_bb_id:
-        try:
-            bb_id = int(bb.split('.', 1)[1])
-        except (ValueError, IndexError, AttributeError) as exc:
-            raise ValueError('bb must have the form %bb.<integer> when use_bb_id=True') from exc
+        if not re.fullmatch(r'%bb\.(0|[1-9][0-9]*)', str(bb)):
+            raise ValueError('bb must be a nonnegative fixed ID spelled %bb.<integer>')
+        bb_id = int(bb[4:])
 
     # Match detect_predicates: absent properties mean false. Only internal
     # candidate nodes are checked; external operand producers remain eligible.
@@ -123,6 +132,10 @@ def generate_candidates_query(
 
     def predicate(node):
         terms = [f'{node}:INSTR', f'{node}.session = {_literal(session)}', f'{node}.stage = {stage}']
+        if module_name is not None:
+            terms.append(f'{node}.module_name = {_literal(module_name)}')
+        if compilation_id is not None:
+            terms.append(f'{node}.compilation_id = {_literal(compilation_id)}')
         if func is not None:
             terms.append(f'{node}.func_name = {_literal(func)}')
         if bb is not None:
@@ -159,7 +172,7 @@ def generate_candidates_query(
                 start = anchor
         # DFS filters execute at every expansion, before path combinations form.
         # Memgraph includes the candidate node in partial; reject repeat visits.
-        filt = predicate('node') + ' AND single(visited IN nodes(partial) WHERE visited = node)'
+        filt = predicate('node') + f' AND node.module_name = {anchor}.module_name AND node.compilation_id = {anchor}.compilation_id' + ' AND single(visited IN nodes(partial) WHERE visited = node)'
         if max_nodes is not None:
             partial_nodes = 'nodes(partial)' if union is None else f'collections.union({union}, nodes(partial))'
             filt += f' AND size({partial_nodes}) <= {max_nodes}'
@@ -187,7 +200,7 @@ def generate_candidates_query(
             if cap is None or cap == 0:
                 continue
             def count(flag):
-                return f'size([node IN all_nodes WHERE coalesce(node.{flag}, false)])'
+                return f'reduce(total = 0, node IN all_nodes | total + CASE WHEN coalesce(node.{flag}, false) THEN 1 ELSE 0 END)'
             # #Mems is loads + stores: a node with both flags counts twice.
             total = f'({count("mayLoad")} + {count("mayStore")})' if prop == 'memory' else count(prop)
             checks.append(f'{total} <= {cap}')

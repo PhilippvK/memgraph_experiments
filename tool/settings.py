@@ -171,6 +171,9 @@ class MemgraphSettings(YAMLSettings):
 
 @dataclass
 class QuerySettings(YAMLSettings):
+    module_name: Optional[str] = None
+    compilation_id: Optional[str] = None
+    mir_bb_name: Optional[str] = None
     session: Optional[str] = None
     func: Optional[str] = None
     bb: Optional[str] = None
@@ -422,6 +425,7 @@ class Settings(YAMLSettings):
         settings_ = Settings(
             out=str(Path(args.output_dir).resolve()),
             progress=args.progress,
+            n_parallel=getattr(args, "n_parallel", None),
             times=args.times,
             append_times=args.append_times,
             halt_on_error=args.halt_on_error,
@@ -455,6 +459,8 @@ class Settings(YAMLSettings):
                 port=args.port,
             ),
             query=QuerySettings(
+                module_name=getattr(args, "module_name", None),
+                compilation_id=getattr(args, "compilation_id", None),
                 session=args.session,
                 func=args.function,
                 bb=args.basic_block,
@@ -518,6 +524,10 @@ class Settings(YAMLSettings):
         return settings
 
     def validate(self):
+        if self.n_parallel is not None and (
+            isinstance(self.n_parallel, bool) or not isinstance(self.n_parallel, int) or self.n_parallel < 1
+        ):
+            raise ValueError("n_parallel must be a positive integer or null")
         assert self.out_dir is not None
         assert self.out_dir.is_dir(), f"out ({self.out}) is not a directory"
         assert self.query.func is not None
