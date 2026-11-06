@@ -4,6 +4,8 @@ from tqdm import tqdm
 
 from ..enums import ExportFilter
 from ..pred import check_predicates
+from ..branches import BRANCHES
+from ..memory import LOADS, STORES, unsupported_memory
 
 logger = logging.getLogger("filter_subs")
 
@@ -40,6 +42,20 @@ def filter_subs(settings, subs, subs_df, io_isos):
         num_inputs = int(sub_data["#InputNodes"])
         # outputs = sub_data["OutputNodes"]
         num_outputs = int(sub_data["#OutputNodes"])
+        memory_nodes = [n for n in sub.nodes if sub.nodes[n]["properties"].get("mayLoad")
+                        or sub.nodes[n]["properties"].get("mayStore")]
+        if memory_nodes and (len(memory_nodes) != 1 or sub_data["#Branches"] or any(
+            sub.nodes[n]["properties"].get("name") not in (set(LOADS) | set(STORES))
+            or unsupported_memory(sub.nodes[n]["properties"]) for n in memory_nodes
+        )):
+            filtered_mem.add(i)
+            continue
+        branch_nodes = sub_data["BranchNodes"]
+        if len(branch_nodes) and (len(branch_nodes) != 1 or any(
+            sub.nodes[n]["properties"].get("name") not in BRANCHES for n in branch_nodes
+        )):
+            filtered_branch.add(i)
+            continue
         if num_inputs == 0:  # or num_outputs == 0:
             # TODO heck if branches and stores have outputs?
             invalid.add(i)

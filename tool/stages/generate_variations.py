@@ -23,6 +23,8 @@ def generate_variations(settings, subs, GF, io_subs, subs_df):
             sub = subs[i]
             # print("sub", sub)
             sub_data = subs_df.iloc[i]
+            if sub_data["#Branches"] or sub_data["#Mems"]:
+                continue  # Effectful candidates need dedicated variations to preserve memory/control flow.
             # print("sub_data", sub_data)
             inputs = sub_data["InputNodes"]
             # input_names = sub_data["InputNames"]
@@ -238,6 +240,8 @@ def generate_variations(settings, subs, GF, io_subs, subs_df):
             sub = subs[i]
             # print("sub", sub)
             sub_data = subs_df.iloc[i]
+            if sub_data["#Branches"] or sub_data["#Mems"]:
+                continue  # Effectful candidates need dedicated variations to preserve memory/control flow.
             # print("sub_data", sub_data)
             inputs = sub_data["InputNodes"]
             # print("inputs", inputs)

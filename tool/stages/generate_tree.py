@@ -31,7 +31,7 @@ def generate_tree(settings, subs, io_subs, subs_df, filtered_subs_df, index_arti
             )
             # input(">>>")
             sub_stmts[i] = stmts
-        except AssertionError as e:
+        except (AssertionError, ValueError) as e:
             logger.exception(e)
             if settings.halt_on_error:
                 print("TREE ERR", str(e))

@@ -3,6 +3,9 @@ import logging
 from tqdm import tqdm
 
 from ..encoding import calc_encoding_footprint
+from ..branches import BRANCHES, BRANCH_OFFSET
+from ..memory import STORES
+from ..enums import ExportFilter
 
 logger = logging.getLogger("assign_io_names")
 
@@ -15,7 +18,18 @@ def assign_io_names(settings, subs, io_subs, subs_df):
     for i, io_sub in tqdm(io_subs_iter, disable=not settings.progress):
         # sub = subs[i]
         sub_data = subs_df.iloc[i]
-        inputs = sub_data["InputNodes"]
+        inputs = sorted(sub_data["InputNodes"],
+                        key=lambda n: io_sub.nodes[n]["properties"].get("op_type") == "label")
+        labels = [n for n in inputs if io_sub.nodes[n]["properties"].get("op_type") == "label"]
+        if any(not list(io_sub.successors(n)) or any(
+            io_sub.nodes[user]["properties"].get("name") not in BRANCHES
+            for user in io_sub.successors(n)
+        ) for n in labels):
+            # Symbol relocations used in address materialization are not branch
+            # displacements and need a dedicated encoding/relocation contract.
+            subs_df.at[i, "Status"] = ExportFilter.FILTERED_OPERANDS.value
+            continue
+        subs_df.at[i, "InputNodes"] = inputs  # Branch destination must be the last machine operand.
         # print("inputs", inputs)
         # io_sub_topo = list(reversed(list(nx.topological_sort(io_sub))))
         # print("io_sub_topo", io_sub_topo)
@@ -33,6 +47,9 @@ def assign_io_names(settings, subs, io_subs, subs_df):
         operand_enc_bits = []
         output_names = []
         for output_idx, j in enumerate(outputs):
+            producers = list(io_sub.predecessors(j))
+            if len(producers) == 1 and io_sub.nodes[producers[0]]["properties"].get("name") in (set(BRANCHES) | set(STORES)):
+                continue  # Branches and stores are effects, not destination registers.
             output_name = f"outp{output_idx}"
             # output_node = io_sub.nodes[j]
             # output_properties = output_node["properties"]
@@ -56,6 +73,20 @@ def assign_io_names(settings, subs, io_subs, subs_df):
             # input_node = io_sub.nodes[j]
             # input_properties = input_node["properties"]
             # op_type = input_properties["op_type"]
+            if io_sub.nodes[j]["properties"].get("op_type") == "label":
+                users = list(io_sub.successors(j))
+                if not users or any(io_sub.nodes[n]["properties"].get("name") not in BRANCHES for n in users):
+                    raise ValueError("Only conditional branch target labels can be encoded")
+                if BRANCH_OFFSET in operand_names:
+                    raise ValueError("A fused instruction must have exactly one branch target")
+                input_names.append(input_name)
+                operand_names.append(BRANCH_OFFSET)
+                operand_nodes.append(j)
+                operand_types.append("IMM")
+                operand_reg_classes.append("IMM")
+                operand_dirs.append("IN")
+                operand_enc_bits.append(12)  # signed 13-bit byte offset; bit zero is implicit
+                continue
             input_names.append(input_name)
             # TODO: do not hardcode
             op_type_ = "REG"

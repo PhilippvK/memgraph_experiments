@@ -3,6 +3,7 @@ import logging
 from tqdm import tqdm
 
 from ..enums import ExportFilter
+from ..branches import BRANCHES, BRANCH_OFFSET
 
 logger = logging.getLogger("filter_subs_operands")
 
@@ -37,6 +38,23 @@ def filter_subs_operands(settings, subs, subs_df):
             valid = False
         if "IMM" in operand_types:
             pass
+        if sub_data["#Branches"]:
+            branch_nodes = [n for n in sub.nodes if sub.nodes[n]["properties"].get("isBranch")]
+            valid = valid and (
+                len(branch_nodes) == 1
+                and sub.nodes[branch_nodes[0]]["properties"].get("name") in BRANCHES
+                and num_out_operands == num_inout_operands == 0
+                and num_in_operands <= 2
+                and list(sub_data["OperandNames"]).count(BRANCH_OFFSET) == 1
+                and sub_data["#Mems"] == 0
+            )
+        if sub_data["#Mems"]:
+            valid = valid and (
+                sub_data["#Mems"] == 1 and not sub_data["#Branches"]
+                and num_inout_operands == 0
+                and num_out_operands == (0 if sub_data["#Stores"] else 1)
+                and num_in_operands <= 3
+            )
         if settings.filters.cfu:
             valid = valid and (
                 operand_types == ["REG"] * len(operand_types)

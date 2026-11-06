@@ -7,6 +7,7 @@ import pandas as pd
 from anytree import AnyNode, RenderTree
 
 from .cdsl_utils import CDSLEmitter, wrap_cdsl
+from ..branches import BRANCHES, BRANCH_OFFSET
 from .tree_utils import tree_from_pkl
 from .desc import generate_desc
 from .gen_utils import gen_helper
@@ -55,7 +56,10 @@ def generate_operands(sub_data: dict, xlen: int, with_attrs: bool = True):
                 raise NotImplementedError
         elif operand_type == "IMM":
             # TODO: store sign info
-            signed = operand_name[0] == "s"
+            branch_offset = operand_name == BRANCH_OFFSET
+            signed = branch_offset or operand_name[0] == "s"
+            if branch_offset:
+                enc_bits = 13
             dtype = "signed" if signed else "unsigned"
             operand_code = f"{dtype}<{enc_bits}> {operand_name}"
             if with_attrs:
@@ -70,6 +74,8 @@ def generate_operands(sub_data: dict, xlen: int, with_attrs: bool = True):
                 ]
                 attrs_str = " ".join(attr_strs)
                 operand_code += " " + attrs_str
+            if branch_offset and with_attrs:
+                operand_code += " [[is_branch_offs]]"
             operand_reg_class = "IMM"
         else:
             raise NotImplementedError
@@ -79,7 +85,7 @@ def generate_operands(sub_data: dict, xlen: int, with_attrs: bool = True):
     return operands
 
 
-def generate_complete_cdsl(codes: List[str], operands, xlen: int, name="result", desc=None):
+def generate_complete_cdsl(codes: List[str], operands, xlen: int, name="result", desc=None, branch=False):
     # print("CDSL Code:")
     codes = ["    " + code for code in codes]
     asm_ins = []
@@ -111,7 +117,7 @@ def generate_complete_cdsl(codes: List[str], operands, xlen: int, name="result",
         + codes
         + ["}"]
     )
-    codes = wrap_cdsl(name, "\n".join(codes)).split("\n")
+    codes = wrap_cdsl(name, "\n".join(codes), branch=branch).split("\n")
     codes = ["    " * 2 + code for code in codes]
     code = "\n".join(codes) + "\n"
     prefix = 'import "RVI.core_desc"\n\n'
@@ -133,13 +139,14 @@ def generate_cdsl(stmts_root, sub_data, xlen: int, name="result", desc=None):
     # print("stmts_root", stmts_root)
     # print(RenderTree(stmts_root))
     # input(">>>")
-    emitter = CDSLEmitter(xlen)
+    branch = any(getattr(n, "name", None) in BRANCHES for n in (stmts_root, *stmts_root.descendants))
+    emitter = CDSLEmitter(xlen, inline_values=branch)
     emitter.visit(stmts_root)
     output = emitter.output
     codes = []
     codes += output.split("\n")
     operands = generate_operands(sub_data, xlen=xlen, with_attrs=True)
-    return generate_complete_cdsl(codes, operands=operands, xlen=xlen, name=name, desc=desc)
+    return generate_complete_cdsl(codes, operands=operands, xlen=xlen, name=name, desc=desc, branch=branch)
 
 
 def process_candidate_cdsl(idx, candidate_data, xlen=None, out_dir=None):
@@ -147,7 +154,7 @@ def process_candidate_cdsl(idx, candidate_data, xlen=None, out_dir=None):
     candidate_artifacts = candidate_data["artifacts"]
     name = candidate_properties.get("InstrName")
     if name is None:
-        name = f"name{i}"
+        name = f"name{idx}"
     sub_data = candidate_properties
     desc = generate_desc(idx, sub_data, name=name)
     tree_pkl = candidate_artifacts.get("tree", None)

@@ -2,10 +2,13 @@ from enum import IntEnum, auto
 
 from .tree_utils import Ref, Cast, Constant, Register, Operation, Statements, Declaration, Assignment
 from .utils import mem_lookup
+from ..branches import BRANCHES, BRANCH_OFFSET
+from ..memory import LOADS, STORES
 
 
-def wrap_cdsl(name, code):
-    ret = f"{name} {{\n"
+def wrap_cdsl(name, code, branch=False):
+    attrs = " [[no_cont]] [[cond]]" if branch else ""
+    ret = f"{name}{attrs} {{\n"
     ret += "\n".join(["    " + line for line in code.splitlines()]) + "\n"
     ret += "}\n"
     return ret
@@ -19,10 +22,13 @@ class ExtendMode(IntEnum):
 
 class CDSLEmitter:
 
-    def __init__(self, xlen):
+    def __init__(self, xlen, inline_values=False):
         assert xlen in [32, 64]
         self.xlen = xlen
         self.output = ""
+        self.inline_values = inline_values
+        self.values = {}
+        self.memory_addresses = {}
 
     def write(self, text):
         if not isinstance(text, str):
@@ -31,7 +37,13 @@ class CDSLEmitter:
 
     def visit_ref(self, node):
         assert isinstance(node, Ref)
-        self.write(node.name)
+        if self.inline_values and node.name in self.values:
+            dtype, value = self.values[node.name]
+            self.write(f"({dtype})(")
+            self.visit(value)
+            self.write(")")
+        else:
+            self.write(node.name)
 
     def visit_constant(self, node):
         assert isinstance(node, Constant)
@@ -117,6 +129,16 @@ class CDSLEmitter:
         assert isinstance(node, Statements)
         # print("visit_statements", node, node.children)
         for children in node.children:
+            if not isinstance(children, Statements):
+                for access in (children, *children.descendants):
+                    if isinstance(access, Operation) and access.name in (set(LOADS) | set(STORES)):
+                        if access.id not in self.memory_addresses:
+                            base, offset = access.children[-2:]
+                            name = f"_isaac_mem_addr_{len(self.memory_addresses)}"
+                            self.memory_addresses[access.id] = name
+                            self.write(f"unsigned<{self.xlen}> {name} = ")
+                            self._memory_address(base, offset)
+                            self.write(";\n")
             self.visit(children)
             self.write("\n")
 
@@ -144,6 +166,9 @@ class CDSLEmitter:
         # print("visit_declaration", node, node.children)
         assert len(node.children) == 2
         lhs, rhs = node.children
+        if self.inline_values:
+            self.values[lhs.name] = (node.decl_type, rhs)
+            return
         decl_type = node.decl_type
         self.write(f"{decl_type} ")
         self.visit_assignment(node)
@@ -162,125 +187,66 @@ class CDSLEmitter:
 
     def visit_branch_riscv(self, node):
         assert isinstance(node, Operation)
-        lookup = {
-            "BNE": ("!=", False),
-            "BEQ": ("==", False),
-        }
-        res = lookup.get(node.name)
-        assert res is not None
-        pred, imm = res
-        assert not imm, "Immediated branching not supported"
-        # print("node.children", node.children)
-        assert len(node.children) == 2  # TODO: fix missing offset label
-        lhs, rhs = node.children
-        # TODO: check alignment
-        self.write("if(")
-        self.visit(lhs)
-        self.write(pred)
-        self.visit(rhs)
-        self.write(")")
-        self.write("{")
-        self.write("PC")
-        self.write("=")
-        self.write("PC")
-        self.write("+")
-        self.write("(signed)")
-        # self.visit(offset)
-        self.write("TODO")
-        self.write("}")
+        predicate, signed = BRANCHES[node.name]
+        if len(node.children) != 3:
+            raise ValueError("Branch displacement is missing")
+        lhs, rhs, offset = node.children
+        if not isinstance(offset, Ref) or offset.name != BRANCH_OFFSET:
+            raise ValueError("Expected the final branch operand to be its PC-relative target")
+        self.write("if (")
+        for i, value in enumerate((lhs, rhs)):
+            if i:
+                self.write(predicate)
+            self.write(f"({'signed' if signed else 'unsigned'}<{self.xlen}>)(")
+            self.visit(value)
+            self.write(")")
+        self.write(f") {{ PC = (unsigned<{self.xlen}>)(PC + (signed<{self.xlen}>)(")
+        self.visit(offset)
+        self.write(")); }")
 
     def visit_load_generic(self, node):
-        assert isinstance(node, Operation)
+        raise ValueError("Generic memory nodes require access-width metadata; use selected scalar RISC-V loads")
 
-        lookup = {
-            "G_LOAD": (ExtendMode.UNDEFINED,),
-            "G_SEXTLOAD": (ExtendMode.SIGN_EXTEND,),
-            "G_ZEXTLOAD": (ExtendMode.ZERO_EXTEND,),
-        }
-        res = lookup.get(node.name)
-        assert res is not None
-        (mode,) = res
-        # TODO: dtypes?
-        # in_types = node.in_types
-        # assert len(in_types) == 1
-        # in_type = in_types[0]  # TODO: need to get the bit size here...
-        mem_type = "unsigned<?>"
-        out_types = node.out_types
-        assert len(out_types) == 1
-        out_type = out_types[0]
-        assert out_type is not None
-        # print("node.children", node.children)
-        assert len(node.children) == 1
-        (base,) = node.children
-        self.write(f"({out_type})")
-        self.write("(")
-        if mode == ExtendMode.SIGN_EXTEND:
-            if mem_type.startswith("unsigned"):
-                mem_type_ = mem_type.replace("unsigned", "signed")
-                self.write(f"({mem_type_})")
-        elif mode == "ExtendMode.ZERO_EXTEND":
-            if mem_type.startswith("signed"):
-                mem_type_ = mem_type.replace("signed", "unsigned")
-                self.write(f"({mem_type_})")
-        else:
-            pass  # TODO: ok?
-        self.write(f"({mem_type})")
-        self.write("MEM[")
+    def _memory_address(self, base, offset):
+        # RISC-V address arithmetic wraps at XLEN before accessing memory.
+        self.write(f"(unsigned<{self.xlen}>)(")
         self.visit(base)
-        self.write("+")
-        # self.visit(offset)
-        self.write("?")
+        self.write(f"+(signed<{self.xlen}>)(")
+        self.visit(offset)
+        self.write("))")
+
+    def _memory_access(self, node, width):
+        address = self.memory_addresses.get(node.id)
+        if address is None:
+            raise ValueError("Memory expressions require statement scheduling")
+        self.write("MEM[")
+        if width > 8:
+            self.write(f"{address}+{width // 8 - 1}:")
+        self.write(address)
         self.write("]")
-        self.write(")")
 
     def visit_load_riscv(self, node):
-        assert isinstance(node, Operation)
-        lookup = {
-            "LH": (True, 16, True),
-            "LW": (True, 32, True),
-        }
-        res = lookup.get(node.name)
-        assert res is not None
-        signed, sz, imm = res
-        assert imm, "reg-reg loads not supported"
-        assert len(node.children) == 2
+        width, signed = LOADS[node.name]
+        if width > self.xlen or (node.name == "LWU" and self.xlen != 64):
+            raise ValueError(f"{node.name} is unavailable on RV{self.xlen}")
+        if len(node.children) != 2:
+            raise ValueError(f"{node.name} requires base and offset")
         base, offset = node.children
-        self.write("(unsigned<XLEN>)")
-        self.write("(")
-        if signed:
-            self.write(f"(signed<{sz}>)")
-        else:
-            self.write(f"(unsigned<{sz}>)")
-        self.write("MEM[")
-        self.visit(base)
-        self.write("+")
-        self.visit(offset)
-        self.write("]")
+        self.write(f"(unsigned<{self.xlen}>)({'signed' if signed else 'unsigned'}<{width}>)(")
+        self._memory_access(node, width)
         self.write(")")
 
     def visit_store_riscv(self, node):
-        assert isinstance(node, Operation)
-        lookup = {
-            "SW": (32, True),
-            "SH": (16, True),
-        }
-        res = lookup.get(node.name)
-        assert res is not None
-        sz, imm = res
-        assert imm, "reg-reg stores not supported"
-        assert len(node.children) == 3
+        width = STORES[node.name]
+        if width > self.xlen:
+            raise ValueError(f"{node.name} is unavailable on RV{self.xlen}")
+        if len(node.children) != 3:
+            raise ValueError(f"{node.name} requires value, base and offset")
         value, base, offset = node.children
-        self.write("MEM[")
-        self.visit(base)
-        self.write("+")
-        self.visit(offset)
-        self.write("]")
-        self.write("=")
-        self.write("(")
-        self.write(f"(signed<{sz}>)")
+        self._memory_access(node, width)
+        self.write(f"=(unsigned<{width}>)(")
         self.visit(value)
-        self.write(")")
-        self.write(";")
+        self.write(");")
 
     def visit_lui_riscv(self, node):
         assert isinstance(node, Operation)
@@ -521,11 +487,11 @@ class CDSLEmitter:
             self.visit_binop_riscv_div_rem(node)
         elif name in ["SLT", "SLTU", "SLTIU", "SLTI"]:
             self.visit_cond_set_riscv(node)
-        elif name in ["BNE", "BEQ"]:
+        elif name in BRANCHES:
             self.visit_branch_riscv(node)
-        elif name in ["LH", "LW"]:
+        elif name in LOADS:
             self.visit_load_riscv(node)
-        elif name in ["SW", "SH"]:
+        elif name in STORES:
             self.visit_store_riscv(node)
         elif name in ["LUI"]:
             self.visit_lui_riscv(node)

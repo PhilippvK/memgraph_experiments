@@ -6,6 +6,8 @@ from anytree import AnyNode, RenderTree
 
 from ..llvm_utils import parse_llvm_const_str, llvm_type_to_cdsl_type
 from .utils import mem_lookup
+from ..branches import BRANCHES, BRANCH_OFFSET
+from ..memory import STORES
 
 
 logger = logging.getLogger("tree_utils")
@@ -134,6 +136,8 @@ class TreeGenContext:
 
     def visit(self, node):
         # print("visit", node)
+        if self.graph.nodes[node]["properties"].get("op_type") == "label":
+            return Ref(name=BRANCH_OFFSET, in_types=[], out_types=["signed<13>"])
         if node in self.visited:
             # print("visited")
             op_type = self.graph.nodes[node]["properties"]["op_type"]
@@ -229,7 +233,7 @@ class TreeGenContext:
         # print("out_reg_type", out_reg_type)
         out_reg_size = self.graph.nodes[node]["properties"].get("out_reg_size", None)
         # print("out_reg_size", out_reg_size)
-        out_reg_name = self.graph.nodes[node]["properties"].get("out_reg_name", None)
+        out_reg_name = self.graph.nodes[node]["properties"].get("out_reg_name") or ""
         # print("out_reg_name", out_reg_name)
         # print("!1", [self.graph[src, node]["properties"].get("op_reg_class", None) for src in srcs])
         # print("!2", [self.graph[src, node]["properties"].get("op_reg_type", None) for src in srcs])
@@ -245,6 +249,18 @@ class TreeGenContext:
         if out_reg_name.startswith("$noreg"):  # TODO: fix
             out_reg_size = "NOREG"
         # print("out_reg_size", out_reg_size)
+        if name in STORES:
+            if len(children) != 3:
+                raise ValueError(f"{name} requires a value, base and offset")
+            ret = Operation(node_id=node, name=name, children=children, in_types=[None] * 3, out_types=[None])
+            self.node_map[node] = ret
+            return ret
+        if name in BRANCHES:
+            if len(children) != 3:
+                raise ValueError(f"{name} requires two values and one branch target")
+            ret = Operation(node_id=node, name=name, children=children, in_types=[None] * 3, out_types=[None])
+            self.node_map[node] = ret
+            return ret
         if op_type == "constant":
             val_str = self.graph.nodes[node]["properties"]["inst"]
             val, llvm_type, signed = parse_llvm_const_str(val_str)
@@ -684,7 +700,18 @@ class TreeGenContext:
         # i = 0  # reg
         input_stmts = self.visit_inputs()
         output_stmts = self.visit_outputs()
-        all_stmts = input_stmts.children + output_stmts.children
+        effects = [n for n in self.sub.nodes
+                   if self.graph.nodes[n]["properties"].get("name") in (set(BRANCHES) | set(STORES))]
+        if effects:
+            if len(effects) != 1 or self.outputs:
+                raise ValueError("Fused stores/branches require one effect and no register outputs")
+            effect = self.visit(effects[0])
+            declarations = [Declaration(children=[Ref(name=name, out_types=[None]), value],
+                                        decl_type=value.out_types[0], in_types=[None, None], out_types=[None])
+                            for name, value in self.temps.items()]
+            all_stmts = list(input_stmts.children) + declarations + [effect]
+        else:
+            all_stmts = input_stmts.children + output_stmts.children
 
         root = Statements(
             name="statements",

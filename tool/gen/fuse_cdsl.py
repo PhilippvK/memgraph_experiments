@@ -10,13 +10,17 @@ from tqdm import tqdm
 from .flat_utils import FlatCodeEmitter
 from .tree_utils import tree_from_pkl
 from .desc import generate_desc
-from .cdsl import generate_operands, generate_complete_cdsl
+from .cdsl import generate_operands, generate_complete_cdsl, generate_cdsl
+from ..branches import BRANCHES
+from ..memory import LOADS, STORES
 from .gen_utils import gen_helper
 
 logger = logging.getLogger("fuse_cdsl")
 
 
 def generate_fuse_cdsl(stmts_root, sub_data, xlen: int, name="result", desc=None):
+    if any(getattr(n, "name", None) in (set(BRANCHES) | set(LOADS) | set(STORES)) for n in (stmts_root, *stmts_root.descendants)):
+        return generate_cdsl(stmts_root, sub_data, xlen, name, desc)
     codes = []
     emitter = FlatCodeEmitter(guard_gpr_writes=True)
     emitter.visit(stmts_root)
@@ -36,7 +40,7 @@ def process_candidate_fuse_cdsl(idx, candidate_data, xlen=None, out_dir=None):
     candidate_artifacts = candidate_data["artifacts"]
     name = candidate_properties.get("InstrName")
     if name is None:
-        name = f"name{i}"
+        name = f"name{idx}"
     sub_data = candidate_properties
     desc = generate_desc(idx, sub_data, name=name)
     tree_pkl = candidate_artifacts.get("tree", None)

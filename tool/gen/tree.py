@@ -80,6 +80,7 @@ def generate_tree(sub, sub_data, io_sub, xlen=None):
         inputs=all_inputs,
         outputs=outputs,
         constants=constants,
+        xlen=xlen,
     )
     tree = treegen.generate_tree()
     return tree

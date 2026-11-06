@@ -25,7 +25,7 @@ def generate_cdsl(settings, subs, subs_df, filtered_subs_df, index_artifacts, su
                 name=f"result{i}",
                 desc=desc,
             )
-        except AssertionError as e:
+        except (AssertionError, ValueError) as e:
             logger.exception(e)
             if settings.halt_on_error:
                 print("CDSL ERR", str(e))
